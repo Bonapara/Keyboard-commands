@@ -1,0 +1,23 @@
+{
+  "name": "Keyboard Commands",
+  "id": "1449452113684309699",
+  "api": "1.0.0",
+  "main": "code.js",
+  "enableProposedApi": false,
+  "documentAccess": "dynamic-page",
+  "permissions": ["teamlibrary"],
+  "editorType": [
+    "figma"
+  ],
+  "networkAccess": {
+    "allowedDomains": [
+      "none"
+    ]
+  },
+  "parameters": [
+    {
+      "name": "Command",
+      "key": "command"    
+    }
+  ]
+}
