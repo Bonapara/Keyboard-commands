@@ -20,6 +20,7 @@ type OptionalValueCommand = {
   suggestion: string;
 };
 
+type CommandName = keyof typeof COMMAND_DEFINITIONS;
 type Command = { name: CommandName } & (CommandWithValue | CommandWithoutValue | OptionalValueCommand);
 
 // Example commands using the simplified types
@@ -65,7 +66,6 @@ const COMMAND_DEFINITIONS = {
   }
 } satisfies Record<string, CommandWithValue | CommandWithoutValue | OptionalValueCommand>;
 
-type CommandName = keyof typeof COMMAND_DEFINITIONS;
 
 const COMMANDS: Array<Command & { name: CommandName }> = (Object.keys(COMMAND_DEFINITIONS) as CommandName[]).map((name) => {
   const def = COMMAND_DEFINITIONS[name];
@@ -78,13 +78,12 @@ const VALUE_FORMAT_REGEX = {
   hex: /#?[0-9a-fA-F]{3,6}\b/,
   text: /.+/
 };
-
 const ATTACHED_FORMAT_REGEX = /^([a-zA-Z]+)([-#]?\w+)$/;
 const COMMAND_SPLITTER_REGEX = /[\s,]+/;
 
 let originalInput = '';
 
-// Event handler for input changes in the command parameter
+
 // Manages command suggestions and autocompletion as the user types
 figma.parameters.on('input', ({ key, query, result }) => {
   // Only process 'command' parameter inputs
@@ -232,6 +231,32 @@ figma.parameters.on('input', ({ key, query, result }) => {
   result.setSuggestions(suggestions.length ? suggestions : [query]);
 });
 
+figma.on('run', async ({ parameters, command }) => {
+  try {
+    if (command === 'input' && parameters?.command?.data?.command) {
+      const selectedCommand = parameters.command.data.command as Command;
+      if (!('valueFormat' in selectedCommand)) {
+        await processCommand(selectedCommand.name);
+        figma.closePlugin();
+        return;
+      }
+    }
+
+    const commandString = originalInput.trim();
+    const commands = commandString.split(COMMAND_SPLITTER_REGEX).filter(Boolean);
+
+    // Wait for all commands to complete using Promise.all
+    await Promise.all(commands.map(cmd => executeCommand(cmd)));
+    
+    // Only close the plugin after all commands have completed
+    figma.closePlugin();
+  } catch (error) {
+    console.error('Error executing commands:', error);
+    figma.notify(error instanceof Error ? error.message : 'An unknown error occurred');
+    figma.closePlugin();
+  }
+});
+
 async function processCommand(commandName: CommandName, value?: string): Promise<void> {
   const definition = COMMAND_DEFINITIONS[commandName];
   if (!definition) return;
@@ -311,32 +336,6 @@ function findPartialCommand(cmd: string): Command | undefined {
     c.name.toLowerCase().startsWith(cmdPart.toLowerCase())
   );
 }
-
-figma.on('run', async ({ parameters, command }) => {
-  try {
-    if (command === 'input' && parameters?.command?.data?.command) {
-      const selectedCommand = parameters.command.data.command as Command;
-      if (!('valueFormat' in selectedCommand)) {
-        await processCommand(selectedCommand.name);
-        figma.closePlugin();
-        return;
-      }
-    }
-
-    const commandString = originalInput.trim();
-    const commands = commandString.split(COMMAND_SPLITTER_REGEX).filter(Boolean);
-
-    // Wait for all commands to complete using Promise.all
-    await Promise.all(commands.map(cmd => executeCommand(cmd)));
-    
-    // Only close the plugin after all commands have completed
-    figma.closePlugin();
-  } catch (error) {
-    console.error('Error executing commands:', error);
-    figma.notify(error instanceof Error ? error.message : 'An unknown error occurred');
-    figma.closePlugin();
-  }
-});
 
 // Update the input handler to use generic value detection
 function extractValue(text: string, format: ValueFormat): string | null {
