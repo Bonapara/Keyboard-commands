@@ -2,71 +2,64 @@
 type ValueFormat = 'number' | 'positiveNumber' | 'hex' | 'text';
 
 type CommandWithValue = {
+  type: "commandWithValue";
   alias: string;
   valueFormat: ValueFormat;
-  execute: (value: string) => void;
+  functionWithParam: (value: string) => void;
   suggestion: string;
 };
 
 type CommandWithoutValue = {
+  type: "commandWithoutValue";
   alias: string;
-  execute: () => void;
+  functionWithoutParam: () => void;
   suggestion: string;
 };
 
 type OptionalValueCommand = {
+  type: "optionalValueCommand";
   alias: string;
   valueFormat?: ValueFormat;
-  execute: (value?: string) => void;
   suggestion: string;
+  functionWithoutParam: () => void;
+  functionWithParam: (value: string) => void;
 };
 
 type CommandName = keyof typeof COMMAND_DEFINITIONS;
-type Command = { name: CommandName } & (CommandWithValue | CommandWithoutValue | OptionalValueCommand);
+type Command = { name: CommandName, type: "commandWithValue" | "commandWithoutValue" | "optionalValueCommand"} & (CommandWithValue | CommandWithoutValue | OptionalValueCommand);
 
 // Example commands using the simplified types
 const COMMAND_DEFINITIONS = {
   Width: {
+    type: "commandWithValue",
     alias: 'w',
     valueFormat: 'positiveNumber' as const,
     suggestion: ' - Enter width in pixels',
-    execute: (value: string) => {
-      if (!value) throw new Error('No value provided');
-      resize(value, 'width');
-    }
-  } satisfies CommandWithValue,
-
+    functionWithParam: (value: string) => resize(value, 'width'),
+  },
   AutoLayout: {
+    type: "commandWithoutValue",
     alias: 'a',
     suggestion: ' - Create horizontal auto-layout',
-    execute: () => createAutoLayout('HORIZONTAL')
-  } satisfies CommandWithoutValue,
-
+    functionWithoutParam: () => createAutoLayout('HORIZONTAL'),
+  },
   Fill: {
+    type: "optionalValueCommand",
     alias: 'f',
     valueFormat: 'hex' as const,
     suggestion: ' - Enter #HEX color',
-    execute: (value?: string) => {
-      if (value === undefined ) {
-        console.log('FILL value is undefined');
-        toggleFill();
-        return;
-      }
-      setFill(value);
-    }
-  } satisfies OptionalValueCommand,
-
+    functionWithoutParam: () => toggleFill(),
+    functionWithParam: (value: string) => setFill(value),
+  },
   Rotate: {
+    type: "commandWithValue",
     alias: 'ro',
     valueFormat: 'number' as const,
     suggestion: ' - Enter rotation angle in degrees',
-    execute: (value: string) => {
-      if (!value) throw new Error('No value provided');
-      const numValue = parseInt(value);
-      rotate(numValue);
+    functionWithParam: (value: string) => {rotate(parseInt(value));
     }
-  } satisfies CommandWithValue,
-} 
+  }
+} satisfies Record<string, CommandWithValue | CommandWithoutValue | OptionalValueCommand>;
 
 
 const COMMANDS: Array<Command & { name: CommandName }> = (Object.keys(COMMAND_DEFINITIONS) as CommandName[]).map((name) => {
@@ -275,11 +268,18 @@ async function processCommand(commandName: CommandName, value?: string): Promise
   const definition = COMMAND_DEFINITIONS[commandName];
   if (!definition) return;
 
-  if ('valueFormat' in definition) {
-    if (!value) throw new Error('No value provided');
-    await definition.execute(value);
-  } else {
-    await definition.execute();
+  console.log("definition:", definition);
+
+  if (definition.type === 'commandWithValue') {
+    await definition.functionWithParam(value || '');
+  } else if (definition.type === 'commandWithoutValue') {
+    await definition.functionWithoutParam();
+  } else if (definition.type === 'optionalValueCommand') {
+    if (value !== undefined) {
+      await definition.functionWithParam(value);
+    } else {
+      await definition.functionWithoutParam();
+    }
   }
 }
 
@@ -287,23 +287,23 @@ async function executeCommand(cmd: string): Promise<void> {
   if (!cmd) return;
   console.log('Executing command:', cmd);
 
-  const command = findExactCommand(cmd) || findPartialCommand(cmd);
+  const command = findCommand(cmd);
   if (!command) {
     console.log('No matching command found');
     return;
   }
   console.log('X23 Found command:', command.name);
-  console.log('command:', command); 
+  console.log('command:', command, 'type:', command.type); 
 
   // Handle commands that don't require values
-  if (!('valueFormat' in command)) {
+  if (command.type === 'commandWithoutValue' || command.type === 'optionalValueCommand') {
     console.log('Processing command without value');
     await processCommand(command.name);
     return;
   }
 
   // For commands requiring values
-  if ('valueFormat' in command) {
+  if (command.type === 'commandWithValue') {
     console.log('Command requires value of format:', command.valueFormat);
     
     // Try to extract value using the command's format
@@ -332,23 +332,13 @@ async function executeCommand(cmd: string): Promise<void> {
 }
 
 // Helper functions
-function findExactCommand(cmd: string): Command | undefined {
+function findCommand(cmd: string): Command | undefined {
   // Extract command part before any numbers or special characters
   const cmdPart = cmd.match(/^[a-zA-Z]+/)?.[0] || '';
   
   return COMMANDS.find(c =>
     cmdPart.toLowerCase() === c.alias.toLowerCase() ||
     cmdPart.toLowerCase() === c.name.toLowerCase()
-  );
-}
-
-function findPartialCommand(cmd: string): Command | undefined {
-  // Extract command part before any numbers or special characters
-  const cmdPart = cmd.match(/^[a-zA-Z]+/)?.[0] || '';
-  
-  return COMMANDS.find(c =>
-    c.alias.toLowerCase().startsWith(cmdPart.toLowerCase()) ||
-    c.name.toLowerCase().startsWith(cmdPart.toLowerCase())
   );
 }
 
