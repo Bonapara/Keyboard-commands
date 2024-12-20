@@ -16,6 +16,7 @@ type CommandWithoutValue = {
 
 type OptionalValueCommand = {
   alias: string;
+  valueFormat?: ValueFormat;
   execute: (value?: string) => void;
   suggestion: string;
 };
@@ -33,26 +34,27 @@ const COMMAND_DEFINITIONS = {
       if (!value) throw new Error('No value provided');
       resize(value, 'width');
     }
-  },
+  } satisfies CommandWithValue,
 
   AutoLayout: {
     alias: 'a',
     suggestion: ' - Create horizontal auto-layout',
     execute: () => createAutoLayout('HORIZONTAL')
-  },
+  } satisfies CommandWithoutValue,
 
   Fill: {
     alias: 'f',
     valueFormat: 'hex' as const,
     suggestion: ' - Enter #HEX color',
     execute: (value?: string) => {
-      if (value === undefined) {
+      if (value === undefined ) {
+        console.log('FILL value is undefined');
         toggleFill();
         return;
       }
       setFill(value);
     }
-  },
+  } satisfies OptionalValueCommand,
 
   Rotate: {
     alias: 'ro',
@@ -63,8 +65,8 @@ const COMMAND_DEFINITIONS = {
       const numValue = parseInt(value);
       rotate(numValue);
     }
-  }
-} satisfies Record<string, CommandWithValue | CommandWithoutValue | OptionalValueCommand>;
+  } satisfies CommandWithValue,
+} 
 
 
 const COMMANDS: Array<Command & { name: CommandName }> = (Object.keys(COMMAND_DEFINITIONS) as CommandName[]).map((name) => {
@@ -102,14 +104,18 @@ figma.parameters.on('input', ({ key, query, result }) => {
 
   // Handle single word input
   if (parts.length === 1) {
+    console.log('Processing single word input:', currentPart);
     const matchedCommand = COMMANDS.find(
       (cmd) =>
         currentPart.toLowerCase().startsWith(cmd.alias.toLowerCase()) ||
         currentPart.toLowerCase().startsWith(cmd.name.toLowerCase())
     );
     
+    console.log('Matched command:', matchedCommand?.name);
+    
     if (matchedCommand && 'valueFormat' in matchedCommand) {
-      const value = extractValue(currentPart, matchedCommand.valueFormat);
+      const value = extractValue(currentPart, matchedCommand.valueFormat as ValueFormat);
+      console.log('Extracted value:', value, 'for format:', matchedCommand.valueFormat);
       if (value) {
         result.setSuggestions([`${matchedCommand.name}:${value}`]);
         return;
@@ -119,8 +125,11 @@ figma.parameters.on('input', ({ key, query, result }) => {
 
   // Handle multi-word input
   if (parts.length > 1) {
+    console.log('Processing multi-word input. Parts:', parts);
+    
     // Process all parts except the last one
     const completeCommands = parts.slice(0, -1).map((part) => {
+      console.log('Processing part:', part);
       // Try to match exact command first
       let matchedCommand = COMMANDS.find(
         (cmd) =>
@@ -136,9 +145,11 @@ figma.parameters.on('input', ({ key, query, result }) => {
         );
       }
       if (matchedCommand) {
+        console.log('Matched command for part:', matchedCommand.name);
         // Format command with value if required
         if ('valueFormat' in matchedCommand) {
           const hasNumber = VALUE_FORMAT_REGEX.number.exec(part);
+          console.log('Number found in part:', hasNumber?.[0]);
           if (hasNumber) return `${matchedCommand.name}:${hasNumber[0]}`;
         } else {
           return matchedCommand.name;
@@ -147,6 +158,8 @@ figma.parameters.on('input', ({ key, query, result }) => {
       return part;
     });
 
+    console.log('Processed complete commands:', completeCommands);
+
     // Process the current (last) part
     const matchedCommand = COMMANDS.find(
       (cmd) =>
@@ -154,6 +167,7 @@ figma.parameters.on('input', ({ key, query, result }) => {
         currentPart.toLowerCase().startsWith(cmd.name.toLowerCase())
     );
     const hasNumber = VALUE_FORMAT_REGEX.number.exec(currentPart);
+    console.log('Last part matched command:', matchedCommand?.name, 'with number:', hasNumber?.[0]);
 
     // Inside multi-word handling - uses completeCommands array
     if (parts.length > 1) {
@@ -214,7 +228,6 @@ figma.parameters.on('input', ({ key, query, result }) => {
       if (currentPart.toLowerCase() === cmd.alias.toLowerCase()) {
         return {
           name: `${cmd.alias} (${cmd.name})${cmd.suggestion}`,
-          data: { command: cmd },
         };
       }
       if (currentPart.toLowerCase() === cmd.name.toLowerCase()) {
@@ -232,11 +245,12 @@ figma.parameters.on('input', ({ key, query, result }) => {
 });
 
 figma.on('run', async ({ parameters, command }) => {
-  try {
-    if (command === 'input' && parameters?.command?.data?.command) {
-      const selectedCommand = parameters.command.data.command as Command;
-      if (!('valueFormat' in selectedCommand)) {
-        await processCommand(selectedCommand.name);
+console.log('run event triggered. parameters:', parameters);
+    try {
+      if (command === 'input' && parameters?.command?.data?.command) {
+        const selectedCommand = parameters.command.data.command as Command;
+        if (!('valueFormat' in selectedCommand)) {
+          await processCommand(selectedCommand.name);
         figma.closePlugin();
         return;
       }
@@ -278,7 +292,8 @@ async function executeCommand(cmd: string): Promise<void> {
     console.log('No matching command found');
     return;
   }
-  console.log('Found command:', command.name);
+  console.log('X23 Found command:', command.name);
+  console.log('command:', command); 
 
   // Handle commands that don't require values
   if (!('valueFormat' in command)) {
@@ -292,7 +307,7 @@ async function executeCommand(cmd: string): Promise<void> {
     console.log('Command requires value of format:', command.valueFormat);
     
     // Try to extract value using the command's format
-    const value = extractValue(cmd, command.valueFormat);
+    const value = extractValue(cmd, command.valueFormat as ValueFormat);
     if (value) {
       console.log('Found value using format:', value);
       await processCommand(command.name, value);
@@ -379,8 +394,8 @@ async function setFill(value: string) {
   if (selection.length === 0) {
     throw new Error('No items selected');
   }
-
   // Convert input to a standardized hex string
+
   let hexColor = value.toString();
   
   // Remove # if present
@@ -419,6 +434,8 @@ async function toggleFill() {
   if (selection.length === 0) {
     throw new Error('No items selected');
   }
+
+  console.log('hello');
 
   for (const node of selection) {
     // Check if the node has fills property
