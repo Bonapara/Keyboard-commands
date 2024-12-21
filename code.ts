@@ -32,14 +32,14 @@ type Command = { name: CommandName, type: "commandWithValue" | "commandWithoutVa
 const COMMAND_DEFINITIONS = {
   Width: {
     type: "commandWithValue",
-    alias: 'w',
+    alias: 'wi',
     valueFormat: 'positiveNumber' as const,
     suggestion: ' - Enter width in pixels',
     functionWithParam: (value: string) => resize(value, 'width'),
   },
-  AutoLayout: {
+  widthout: {
     type: "commandWithoutValue",
-    alias: 'a',
+    alias: 'wid',
     suggestion: ' - Create horizontal auto-layout',
     functionWithoutParam: () => createAutoLayout('HORIZONTAL'),
   },
@@ -62,10 +62,21 @@ const COMMAND_DEFINITIONS = {
 } satisfies Record<string, CommandWithValue | CommandWithoutValue | OptionalValueCommand>;
 
 
-const COMMANDS: Array<Command & { name: CommandName }> = (Object.keys(COMMAND_DEFINITIONS) as CommandName[]).map((name) => {
+const COMMANDS: Array<Command & { name: CommandName }> = (Object.keys(COMMAND_DEFINITIONS) as CommandName[])
+.map((name) => {
   const def = COMMAND_DEFINITIONS[name];
   return { name, ...def };
+})
+.sort((a, b) => {
+  // First sort by alias length
+  if (a.alias.length !== b.alias.length) {
+    return a.alias.length - b.alias.length;
+  }
+  
+  // If lengths are equal, sort alphabetically
+  return a.alias.toLowerCase().localeCompare(b.alias.toLowerCase());
 });
+
 
 const VALUE_FORMAT_REGEX = {
   number: /-?\d+/,
@@ -73,8 +84,8 @@ const VALUE_FORMAT_REGEX = {
   hex: /#?[0-9a-fA-F]{3,6}\b/,
   text: /.+/
 };
-const ATTACHED_FORMAT_REGEX = /^([a-zA-Z]+)([-#]?\w+)$/;
 const COMMAND_SPLITTER_REGEX = /[\s,]+/;
+const COMMAND_PART_REGEX = /^[a-zA-Z]+/;
 
 let originalInput = '';
 
@@ -84,149 +95,93 @@ figma.parameters.on('input', ({ key, query, result }) => {
   // Only process 'command' parameter inputs
   if (key !== 'command') return;
   originalInput = query;
-
+  
   // Split input into parts by spaces
   const parts = query.split(' ');
   const currentPart = parts[parts.length - 1];
-
+  
   // If query is empty or ends with space, show all available commands
   if (!query || query.endsWith(' ')) {
     result.setSuggestions(COMMANDS.map((cmd) => `${cmd.name} (${cmd.alias})`));
     return;
   }
 
-  // Handle single word input
-  if (parts.length === 1) {
+  // Display a summary of already defined commands
+  const completeCommands = parts.slice(0, -1).map((part) => {
+    const commandPart = part.match(COMMAND_PART_REGEX)?.[0];
     const matchedCommand = COMMANDS.find(
       (cmd) =>
-        currentPart.toLowerCase().startsWith(cmd.alias.toLowerCase()) ||
-        currentPart.toLowerCase().startsWith(cmd.name.toLowerCase())
+        commandPart?.toLowerCase() === (cmd.alias.toLowerCase()) ||
+      commandPart?.toLowerCase() ===(cmd.name.toLowerCase())
     );
-    
-    if (matchedCommand && 'valueFormat' in matchedCommand) {
-      const value = extractValue(currentPart, matchedCommand.valueFormat as ValueFormat);
-      if (value) {
-        result.setSuggestions([`${matchedCommand.name}:${value}`]);
-        return;
+    if (matchedCommand) {
+      if ('valueFormat' in matchedCommand) {
+        const hasHex = VALUE_FORMAT_REGEX.hex.exec(part);
+        if (hasHex) return `${matchedCommand.name}:${hasHex[0]}`;
+
+        const hasNumber = VALUE_FORMAT_REGEX.number.exec(part);
+        if (hasNumber) return `${matchedCommand.name}:${hasNumber[0]}`;
       }
+      else {
+        return matchedCommand.name;
+      }
+    } else {
+      return "Not Found";
     }
-  }
-
-  // Handle multi-word input
-  if (parts.length > 1) {
-    // Process all parts except the last one
-    const completeCommands = parts.slice(0, -1).map((part) => {
-      // Try to match exact command first
-      let matchedCommand = COMMANDS.find(
-        (cmd) =>
-          part.toLowerCase() === cmd.alias.toLowerCase() ||
-          part.toLowerCase() === cmd.name.toLowerCase()
-      );
-      // If no exact match, try partial match
-      if (!matchedCommand) {
-        matchedCommand = COMMANDS.find(
-          (cmd) =>
-            part.toLowerCase().startsWith(cmd.alias.toLowerCase()) ||
-            part.toLowerCase().startsWith(cmd.name.toLowerCase())
-        );
-      }
-      if (matchedCommand) {
-        // Format command with value if required
-        if ('valueFormat' in matchedCommand) {
-          const hasNumber = VALUE_FORMAT_REGEX.number.exec(part);
-          if (hasNumber) return `${matchedCommand.name}:${hasNumber[0]}`;
-        } else {
-          return matchedCommand.name;
-        }
-      }
-      return part;
-    });
-
-    // Process the current (last) part
-    const matchedCommand = COMMANDS.find(
-      (cmd) =>
-        currentPart.toLowerCase().startsWith(cmd.alias.toLowerCase()) ||
-        currentPart.toLowerCase().startsWith(cmd.name.toLowerCase())
-    );
-    const hasNumber = VALUE_FORMAT_REGEX.number.exec(currentPart);
-
-    // Inside multi-word handling - uses completeCommands array
-    if (parts.length > 1) {
-      if (matchedCommand && 'valueFormat' in matchedCommand && hasNumber) {
-        completeCommands.push(`${matchedCommand.name}:${hasNumber[0]}`);
-        result.setSuggestions([completeCommands.join(' | ')]);
-        return;
-      } else if (matchedCommand && !('valueFormat' in matchedCommand)) {
-        completeCommands.push(matchedCommand.name);
-        result.setSuggestions([completeCommands.join(' | ')]);
-        return;
-      }
-    }     // Single word or fallback handling - uses simple string concatenation
-    else if (matchedCommand && 'valueFormat' in matchedCommand && hasNumber) {
-      const value = hasNumber[0];
-      const previousCommands = parts.slice(0, -1).join(' ');
-      const suggestion = previousCommands
-        ? `${previousCommands} | ${matchedCommand.name}:${value}`
-        : `${matchedCommand.name}:${value}`;
-      result.setSuggestions([suggestion]);
-      return;
-    }
-  }
-
-  // Handle number input for commands that require values
-  const matchedCmd = COMMANDS.find(
+  });
+  
+  // Process the current (last) command
+  const matchedCommand = COMMANDS.find(
     (cmd) =>
-      currentPart.toLowerCase().startsWith(cmd.alias.toLowerCase()) ||
-      currentPart.toLowerCase().startsWith(cmd.name.toLowerCase())
+      currentPart.toLowerCase().match(COMMAND_PART_REGEX)?.[0] === cmd.alias.toLowerCase() ||
+    currentPart.toLowerCase().match(COMMAND_PART_REGEX)?.[0] === cmd.name.toLowerCase()
   );
-  if (matchedCmd && 'valueFormat' in matchedCmd) {
-    const hasNumber = VALUE_FORMAT_REGEX.number.exec(currentPart);
-    if (hasNumber) {
-      const value = hasNumber[0];
-      const previousCommands = parts.slice(0, -1).join(' ');
-      const suggestion = previousCommands
-        ? `${previousCommands} | ${matchedCmd.name}:${value}`
-        : `${matchedCmd.name}:${value}`;
-      result.setSuggestions([suggestion]);
+
+  const hasNumber = VALUE_FORMAT_REGEX.number.exec(currentPart);
+  const hasHex = VALUE_FORMAT_REGEX.hex.exec(currentPart);
+  
+    if (matchedCommand) {
+      if (hasHex) {
+        completeCommands.push(`${matchedCommand.name}:${hasHex[0]}`);
+      }
+      else if (hasNumber) {
+        completeCommands.push(`${matchedCommand.name}:${hasNumber[0]}`);
+      }
+      else {
+        completeCommands.push(`${matchedCommand.name} ${matchedCommand.suggestion} "hello"`);
+      }
+      result.setSuggestions([completeCommands.join(' | ')]);
       return;
     }
-  }
 
   // Generate filtered and sorted command suggestions based on current input
-  const suggestions = COMMANDS.filter(
-    (cmd) =>
-      cmd.alias.toLowerCase().startsWith(currentPart.toLowerCase()) ||
-      cmd.name.toLowerCase().startsWith(currentPart.toLowerCase())
-  )
-    // Sort suggestions prioritizing exact matches and shorter aliases
-    .sort((a, b) => {
-      if (a.alias.toLowerCase() === currentPart.toLowerCase()) return -1;
-      if (b.alias.toLowerCase() === currentPart.toLowerCase()) return 1;
-      return a.alias.length - b.alias.length;
-    })
-    // Format suggestions with appropriate hints
-    .map((cmd) => {
-      if (currentPart.toLowerCase() === cmd.alias.toLowerCase()) {
-        return {
-          name: `${cmd.alias} (${cmd.name})${cmd.suggestion}`,
-        };
-      }
-      if (currentPart.toLowerCase() === cmd.name.toLowerCase()) {
-        return {
-          name: `${cmd.name}${cmd.suggestion}`
-        };
-      }
+  const suggestions = COMMANDS
+  .filter((cmd) =>
+    cmd.alias.toLowerCase().startsWith(currentPart.toLowerCase()) ||
+    cmd.name.toLowerCase().startsWith(currentPart.toLowerCase())
+  )  // Format suggestions with appropriate hints
+  .map((cmd) => {
+    if (currentPart.toLowerCase() === cmd.alias.toLowerCase()) {
       return {
-        name: `${cmd.name} (${cmd.alias})${cmd.suggestion}`,
+        name: `${cmd.alias} (${cmd.name})${cmd.suggestion}`,
       };
-    });
+    }
+    if (currentPart.toLowerCase() === cmd.name.toLowerCase()) {
+      return {
+        name: `${cmd.name}${cmd.suggestion}`
+      };
+    }
+    return {
+      name: `${cmd.name} (${cmd.alias})`,
+    };
+  });
 
   // Set final suggestions, fallback to original query if no matches found
   result.setSuggestions(suggestions.length ? suggestions : [query]);
 });
 
 figma.on('run', async ({ parameters}) => {
-    try {
+  try {
     //   if (parameters?.command?.data?.command) {
     //     const selectedCommand = parameters.command.data.command as Command;
     //     if (!('valueFormat' in selectedCommand)) {
@@ -236,11 +191,11 @@ figma.on('run', async ({ parameters}) => {
     //   }
     // }
     console.log('X22parameters:', parameters);
-
+    
     const commandString = originalInput.trim();
     const commands = commandString.split(COMMAND_SPLITTER_REGEX).filter(Boolean);
     console.log('X23commands:', commands);
-
+    
     // Wait for all commands to complete using Promise.all
     await Promise.all(commands.map(cmd => executeCommand(cmd)));
     
@@ -255,7 +210,7 @@ figma.on('run', async ({ parameters}) => {
 async function processCommand(commandName: CommandName, value?: string): Promise<void> {
   const command = COMMAND_DEFINITIONS[commandName];
   if (!command) return;
-
+  
   if (command.type === 'commandWithValue') {
     await command.functionWithParam(value || '');
   } else if (command.type === 'commandWithoutValue') {
@@ -271,19 +226,19 @@ async function processCommand(commandName: CommandName, value?: string): Promise
 
 async function executeCommand(cmd: string): Promise<void> {
   if (!cmd) return;
-
+  
   const command = findCommand(cmd);
   if (!command) {
     return;
   }
-
+  
   if (command.type === 'commandWithoutValue') {
     await processCommand(command.name);
     return;
   }
-
+  
   const value = extractValue(cmd, command.valueFormat as ValueFormat);
-
+  
   if (command.type === 'commandWithValue') {
     if (value) {
       await processCommand(command.name, value);
@@ -334,7 +289,7 @@ async function resize(value: string, resizeType: 'width' | 'height') {
   if (selection.length === 0) {
     throw new Error('No items selected');
   }
-
+  
   for (const node of selection) {
     if ('resize' in node) {
       const newSize = {
@@ -344,7 +299,7 @@ async function resize(value: string, resizeType: 'width' | 'height') {
       node.resize(newSize.width, newSize.height);
     }
   }
-
+  
   figma.notify(`${resizeType} set to ${value} for all selected items`);
 }
 
@@ -354,7 +309,7 @@ async function setFill(value: string) {
     throw new Error('No items selected');
   }
   // Convert input to a standardized hex string
-
+  
   let hexColor = value.toString();
   
   // Remove # if present
@@ -393,7 +348,7 @@ async function toggleFill() {
   if (selection.length === 0) {
     throw new Error('No items selected');
   }
-
+  
   for (const node of selection) {
     // Check if the node has fills property
     if ('fills' in node) {
@@ -413,17 +368,17 @@ async function toggleFill() {
 
 async function createAutoLayout(direction: 'HORIZONTAL' | 'VERTICAL' = 'HORIZONTAL') {
   const selection = figma.currentPage.selection;
-
+  
   if (selection.length === 0) {
     throw new Error('No items selected');
   }
-
+  
   // If the selection is a single group, convert it directly
   if (selection.length === 1 && selection[0].type === 'GROUP') {
     const group = selection[0];
     const parentFrame = group.parent;
     if (!parentFrame) return;
-
+    
     // Create a new frame with the same size and position as the group
     const frame = figma.createFrame();
     frame.x = group.x;
@@ -437,7 +392,7 @@ async function createAutoLayout(direction: 'HORIZONTAL' | 'VERTICAL' = 'HORIZONT
     frame.paddingRight = 0;
     frame.paddingTop = 0;
     frame.paddingBottom = 0;
-
+    
     // Sort the group's children by position
     const sortedChildren = [...group.children].sort((a, b) => {
       if (direction === 'HORIZONTAL') {
@@ -446,7 +401,7 @@ async function createAutoLayout(direction: 'HORIZONTAL' | 'VERTICAL' = 'HORIZONT
         return a.y - b.y;
       }
     });
-
+    
     // Calculate spacing based on the first two children if they exist
     let spacing = 0;
     if (sortedChildren.length > 1) {
@@ -457,28 +412,28 @@ async function createAutoLayout(direction: 'HORIZONTAL' | 'VERTICAL' = 'HORIZONT
       }
     }
     frame.itemSpacing = Math.max(0, spacing);
-
+    
     // Add the frame to the parent
     parentFrame.appendChild(frame);
-
+    
     // Move all children from group to the new frame
     sortedChildren.forEach(child => {
       frame.appendChild(child);
     });
-
+    
     // Select the new frame
     figma.currentPage.selection = [frame];
     figma.notify(`Group converted to ${direction.toLowerCase()} auto-layout frame`);
     return;
   }
-
+  
   // Original code for multiple selections or non-group selections
   const parentFrame = selection[0].parent;
   if (!parentFrame) return;
-
+  
   const firstNodeX = selection[0].x;
   const firstNodeY = selection[0].y;
-
+  
   let spacing = 0;
   if (selection.length > 1) {
     if (direction === 'HORIZONTAL') {
@@ -487,7 +442,7 @@ async function createAutoLayout(direction: 'HORIZONTAL' | 'VERTICAL' = 'HORIZONT
       spacing = selection[1].y - (selection[0].y + selection[0].height);
     }
   }
-
+  
   const frame = figma.createFrame();
   frame.layoutMode = direction;
   frame.primaryAxisSizingMode = 'AUTO';
@@ -498,11 +453,11 @@ async function createAutoLayout(direction: 'HORIZONTAL' | 'VERTICAL' = 'HORIZONT
   frame.paddingTop = 0;
   frame.paddingBottom = 0;
   frame.itemSpacing = Math.max(0, spacing);
-
+  
   parentFrame.appendChild(frame);
   frame.x = firstNodeX;
   frame.y = firstNodeY;
-
+  
   const sortedSelection = [...selection].sort((a, b) => {
     if (direction === 'HORIZONTAL') {
       return a.x - b.x;
@@ -510,11 +465,11 @@ async function createAutoLayout(direction: 'HORIZONTAL' | 'VERTICAL' = 'HORIZONT
       return a.y - b.y;
     }
   });
-
+  
   sortedSelection.forEach(node => {
     frame.appendChild(node);
   });
-
+  
   figma.currentPage.selection = [frame];
   figma.notify(`Auto-layout frame created in ${direction.toLowerCase()} direction`);
 }
@@ -526,13 +481,13 @@ async function rotate(value: number) {
   if (selection.length === 0) {
     throw new Error('No items selected');
   }
-
+  
   for (const node of selection) {
     if ('rotation' in node) {
       // Keep the existing rotation and add the new value
       node.rotation = (node.rotation + value) % 360;
     }
   }
-
+  
   figma.notify(`Rotated ${value}° for all selected items`);
 }
