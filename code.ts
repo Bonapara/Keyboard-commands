@@ -1,5 +1,5 @@
 // Type definitions
-type ValueFormat = 'number' | 'positiveNumber' | 'hex' | 'text';
+type ValueFormat = 'number' | 'hex' | 'text';
 
 type CommandWithValue = {
   type: "commandWithValue";
@@ -33,7 +33,7 @@ const COMMAND_DEFINITIONS = {
   Width: {
     type: "commandWithValue",
     alias: 'wi',
-    valueFormat: 'positiveNumber' as const,
+    valueFormat: 'number' as const,
     suggestion: ' - Enter width in pixels',
     functionWithParam: (value: string) => resize(value, 'width'),
   },
@@ -79,8 +79,7 @@ const COMMANDS: Array<Command & { name: CommandName }> = (Object.keys(COMMAND_DE
 
 
 const VALUE_FORMAT_REGEX = {
-  number: /-?\d+/,
-  positiveNumber: /\d+/,
+  number: /-?\d+(\.\d+)?/,
   hex: /#?[0-9a-fA-F]{3,6}\b/,
   text: /.+/
 };
@@ -126,13 +125,22 @@ figma.parameters.on('input', ({ key, query, result }) => {
   // Display a summary of already defined commands
   const completeCommands = parts.slice(0, -1).map((part) => {
     const matchedCommand = findCommand(part, true);
-    if (matchedCommand) {
-      if ('valueFormat' in matchedCommand) {
-        const hasHex = VALUE_FORMAT_REGEX.hex.exec(part);
-        if (hasHex) return `${matchedCommand.name}:${hasHex[0]}`;
+    const hasHex = VALUE_FORMAT_REGEX.hex.exec(part);
+    const hasNumber = VALUE_FORMAT_REGEX.number.exec(part);
 
-        const hasNumber = VALUE_FORMAT_REGEX.number.exec(part);
+    if (matchedCommand) {
+      if (matchedCommand.type === 'commandWithValue') {
+        if (hasHex) return `${matchedCommand.name}:${hasHex[0]}`;
         if (hasNumber) return `${matchedCommand.name}:${hasNumber[0]}`;
+      }
+      else if (matchedCommand.type === 'optionalValueCommand') {
+        if (hasHex) {
+          return `${matchedCommand.name}:${hasHex[0]}`;
+        } else if (hasNumber) {
+          return `${matchedCommand.name}:${hasNumber[0]}`;
+        } else {
+          return `${matchedCommand.name}`;
+        }
       }
       else {
         return matchedCommand.name;
@@ -148,17 +156,22 @@ figma.parameters.on('input', ({ key, query, result }) => {
       if (currentPart.toLowerCase() === cmd.alias.toLowerCase()) {
         return {
           name: `${cmd.alias} (${cmd.name})${cmd.suggestion}`,
+          priority: 1  // Give exact alias matches highest priority
         };
       }
       if (currentPart.toLowerCase() === cmd.name.toLowerCase()) {
         return {
-          name: `${cmd.name}${cmd.suggestion}`
+          name: `${cmd.name}${cmd.suggestion}`,
+          priority: 2  // Give exact name matches second priority
         };
       }
       return {
         name: `${cmd.name} (${cmd.alias})`,
+        priority: 3  // Give partial matches lowest priority
       };
-    });
+    })
+    .sort((a, b) => a.priority - b.priority)
+    .map(suggestion => ({ name: suggestion.name }));  // Remove priority before setting suggestions
 
     // Process the current (last) command
     const matchedCommand = findCommand(currentPart, true);
@@ -166,44 +179,49 @@ figma.parameters.on('input', ({ key, query, result }) => {
     const hasNumber = VALUE_FORMAT_REGEX.number.exec(currentPart);
     const hasHex = VALUE_FORMAT_REGEX.hex.exec(currentPart);
     
-      if (matchedCommand) {
+    if (matchedCommand) {
+      // Only show command summary if we have a valid value for the command type
+      const isValidValue = 
+        (matchedCommand.type === "commandWithValue" || matchedCommand.type === "optionalValueCommand") && 
+        'valueFormat' in matchedCommand && (
+          matchedCommand.valueFormat === 'hex' ? hasHex :
+          matchedCommand.valueFormat === 'number' ? hasNumber :
+          true
+        );
+  
+      if (isValidValue && (hasHex || hasNumber)) {
         if (hasHex) {
           completeCommands.push(`${matchedCommand.name}:${hasHex[0]}`);
         }
         else if (hasNumber) {
           completeCommands.push(`${matchedCommand.name}:${hasNumber[0]}`);
         }
-        else {
-          completeCommands.push(`${matchedCommand.name} ${matchedCommand.suggestion} "hello"`);
-        }
         result.setSuggestions([completeCommands.join(' | ')]);
         return;
+      } else if ('valueFormat' in matchedCommand && matchedCommand.valueFormat === 'hex' && !hasHex) {
+        // Show full suggestion for hex commands without valid hex value
+        result.setSuggestions([`${matchedCommand.name} (${matchedCommand.alias})${matchedCommand.suggestion}`]);
+        return;
+      } else if (completeCommands.length > 0 && matchedCommand && (matchedCommand.type === 'optionalValueCommand' || matchedCommand.type === 'commandWithoutValue')) {
+        // Show combined suggestion for optional value commands
+        result.setSuggestions([`${completeCommands.join(' | ')} | ${matchedCommand.name} (${matchedCommand.alias})${matchedCommand.suggestion}`]);
+        return;
       }
-
-  // Set final suggestions, fallback to original query if no matches found
-  result.setSuggestions(suggestions.length ? suggestions : [query]);
+    }
+ 
+  // Set final suggestions, showing "No command found" message if no matches
+  if (suggestions.length === 0) {
+    result.setSuggestions([`No command found for "${currentPart}"`]);
+  } else {
+    result.setSuggestions(suggestions);
+  }
 });
 
-figma.on('run', async ({ parameters}) => {
+figma.on('run', async () => {
   try {
-    //   if (parameters?.command?.data?.command) {
-    //     const selectedCommand = parameters.command.data.command as Command;
-    //     if (!('valueFormat' in selectedCommand)) {
-    //       await processCommand(selectedCommand.name);
-    //     figma.closePlugin();
-    //     return;
-    //   }
-    // }
-    console.log('X22parameters:', parameters);
-    
     const commandString = originalInput.trim();
     const commands = commandString.split(COMMAND_SPLITTER_REGEX).filter(Boolean);
-    console.log('X23commands:', commands);
-    
-    // Wait for all commands to complete using Promise.all
     await Promise.all(commands.map(cmd => executeCommand(cmd)));
-    
-    // Only close the plugin after all commands have completed
     figma.closePlugin();
   } catch (error) {
     figma.notify(error instanceof Error ? error.message : 'An unknown error occurred');
@@ -236,26 +254,27 @@ async function executeCommand(cmd: string): Promise<void> {
     return;
   }
   
-  if (command.type === 'commandWithoutValue') {
-    await processCommand(command.name);
-    return;
-  }
+  const loadingNotification = figma.notify(`Executing ${command.name}...`, { timeout: 0 });
   
-  const value = extractValue(cmd, command.valueFormat as ValueFormat);
-  
-  if (command.type === 'commandWithValue') {
-    if (value) {
-      await processCommand(command.name, value);
-      return;
-    }
-  }
-  
-  if (command.type === 'optionalValueCommand') {
-    if (value) {
-      await command.functionWithParam(value);
+  try {
+    if (command.type === 'commandWithoutValue') {
+      await processCommand(command.name);
     } else {
-      await command.functionWithoutParam();
+      const value = extractValue(cmd, command.valueFormat as ValueFormat);
+      if (command.type === 'commandWithValue') {
+        if (value) {
+          await processCommand(command.name, value);
+        }
+      } else if (command.type === 'optionalValueCommand') {
+        if (value) {
+          await command.functionWithParam(value);
+        } else {
+          await command.functionWithoutParam();
+        }
+      }
     }
+  } finally {
+    loadingNotification.cancel();
   }
 }
 
