@@ -97,18 +97,14 @@ figma.parameters.on('input', ({ key, query, result }) => {
 
   // Handle single word input
   if (parts.length === 1) {
-    console.log('Processing single word input:', currentPart);
     const matchedCommand = COMMANDS.find(
       (cmd) =>
         currentPart.toLowerCase().startsWith(cmd.alias.toLowerCase()) ||
         currentPart.toLowerCase().startsWith(cmd.name.toLowerCase())
     );
     
-    console.log('Matched command:', matchedCommand?.name);
-    
     if (matchedCommand && 'valueFormat' in matchedCommand) {
       const value = extractValue(currentPart, matchedCommand.valueFormat as ValueFormat);
-      console.log('Extracted value:', value, 'for format:', matchedCommand.valueFormat);
       if (value) {
         result.setSuggestions([`${matchedCommand.name}:${value}`]);
         return;
@@ -118,11 +114,8 @@ figma.parameters.on('input', ({ key, query, result }) => {
 
   // Handle multi-word input
   if (parts.length > 1) {
-    console.log('Processing multi-word input. Parts:', parts);
-    
     // Process all parts except the last one
     const completeCommands = parts.slice(0, -1).map((part) => {
-      console.log('Processing part:', part);
       // Try to match exact command first
       let matchedCommand = COMMANDS.find(
         (cmd) =>
@@ -138,11 +131,9 @@ figma.parameters.on('input', ({ key, query, result }) => {
         );
       }
       if (matchedCommand) {
-        console.log('Matched command for part:', matchedCommand.name);
         // Format command with value if required
         if ('valueFormat' in matchedCommand) {
           const hasNumber = VALUE_FORMAT_REGEX.number.exec(part);
-          console.log('Number found in part:', hasNumber?.[0]);
           if (hasNumber) return `${matchedCommand.name}:${hasNumber[0]}`;
         } else {
           return matchedCommand.name;
@@ -151,8 +142,6 @@ figma.parameters.on('input', ({ key, query, result }) => {
       return part;
     });
 
-    console.log('Processed complete commands:', completeCommands);
-
     // Process the current (last) part
     const matchedCommand = COMMANDS.find(
       (cmd) =>
@@ -160,7 +149,6 @@ figma.parameters.on('input', ({ key, query, result }) => {
         currentPart.toLowerCase().startsWith(cmd.name.toLowerCase())
     );
     const hasNumber = VALUE_FORMAT_REGEX.number.exec(currentPart);
-    console.log('Last part matched command:', matchedCommand?.name, 'with number:', hasNumber?.[0]);
 
     // Inside multi-word handling - uses completeCommands array
     if (parts.length > 1) {
@@ -237,20 +225,21 @@ figma.parameters.on('input', ({ key, query, result }) => {
   result.setSuggestions(suggestions.length ? suggestions : [query]);
 });
 
-figma.on('run', async ({ parameters, command }) => {
-console.log('run event triggered. parameters:', parameters);
+figma.on('run', async ({ parameters}) => {
     try {
-      if (command === 'input' && parameters?.command?.data?.command) {
-        const selectedCommand = parameters.command.data.command as Command;
-        if (!('valueFormat' in selectedCommand)) {
-          await processCommand(selectedCommand.name);
-        figma.closePlugin();
-        return;
-      }
-    }
+    //   if (parameters?.command?.data?.command) {
+    //     const selectedCommand = parameters.command.data.command as Command;
+    //     if (!('valueFormat' in selectedCommand)) {
+    //       await processCommand(selectedCommand.name);
+    //     figma.closePlugin();
+    //     return;
+    //   }
+    // }
+    console.log('X22parameters:', parameters);
 
     const commandString = originalInput.trim();
     const commands = commandString.split(COMMAND_SPLITTER_REGEX).filter(Boolean);
+    console.log('X23commands:', commands);
 
     // Wait for all commands to complete using Promise.all
     await Promise.all(commands.map(cmd => executeCommand(cmd)));
@@ -258,76 +247,56 @@ console.log('run event triggered. parameters:', parameters);
     // Only close the plugin after all commands have completed
     figma.closePlugin();
   } catch (error) {
-    console.error('Error executing commands:', error);
     figma.notify(error instanceof Error ? error.message : 'An unknown error occurred');
     figma.closePlugin();
   }
 });
 
 async function processCommand(commandName: CommandName, value?: string): Promise<void> {
-  const definition = COMMAND_DEFINITIONS[commandName];
-  if (!definition) return;
+  const command = COMMAND_DEFINITIONS[commandName];
+  if (!command) return;
 
-  console.log("definition:", definition);
-
-  if (definition.type === 'commandWithValue') {
-    await definition.functionWithParam(value || '');
-  } else if (definition.type === 'commandWithoutValue') {
-    await definition.functionWithoutParam();
-  } else if (definition.type === 'optionalValueCommand') {
-    if (value !== undefined) {
-      await definition.functionWithParam(value);
+  if (command.type === 'commandWithValue') {
+    await command.functionWithParam(value || '');
+  } else if (command.type === 'commandWithoutValue') {
+    await command.functionWithoutParam();
+  } else if (command.type === 'optionalValueCommand') {
+    if (value) {
+      await command.functionWithParam(value);
     } else {
-      await definition.functionWithoutParam();
+      await command.functionWithoutParam();
     }
   }
 }
 
 async function executeCommand(cmd: string): Promise<void> {
   if (!cmd) return;
-  console.log('Executing command:', cmd);
 
   const command = findCommand(cmd);
   if (!command) {
-    console.log('No matching command found');
     return;
   }
-  console.log('X23 Found command:', command.name);
-  console.log('command:', command, 'type:', command.type); 
 
-  // Handle commands that don't require values
-  if (command.type === 'commandWithoutValue' || command.type === 'optionalValueCommand') {
-    console.log('Processing command without value');
+  if (command.type === 'commandWithoutValue') {
     await processCommand(command.name);
     return;
   }
 
-  // For commands requiring values
+  const value = extractValue(cmd, command.valueFormat as ValueFormat);
+
   if (command.type === 'commandWithValue') {
-    console.log('Command requires value of format:', command.valueFormat);
-    
-    // Try to extract value using the command's format
-    const value = extractValue(cmd, command.valueFormat as ValueFormat);
     if (value) {
-      console.log('Found value using format:', value);
       await processCommand(command.name, value);
       return;
     }
-
-    // Try attached format as fallback
-    const attachedFormat = cmd.match(ATTACHED_FORMAT_REGEX);
-    if (attachedFormat) {
-      const [, cmdPart, value] = attachedFormat;
-      if (cmdPart.toLowerCase() === command.alias.toLowerCase() || 
-          cmdPart.toLowerCase() === command.name.toLowerCase()) {
-        const formattedValue = command.valueFormat === 'hex' ? `#${value}` : value;
-        console.log('Found attached format value:', formattedValue);
-        await processCommand(command.name, formattedValue);
-        return;
-      }
+  }
+  
+  if (command.type === 'optionalValueCommand') {
+    if (value) {
+      await command.functionWithParam(value);
+    } else {
+      await command.functionWithoutParam();
     }
-    
-    console.log('No valid value found for command');
   }
 }
 
@@ -424,8 +393,6 @@ async function toggleFill() {
   if (selection.length === 0) {
     throw new Error('No items selected');
   }
-
-  console.log('hello');
 
   for (const node of selection) {
     // Check if the node has fills property
