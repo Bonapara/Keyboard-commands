@@ -99,21 +99,21 @@ figma.parameters.on('input', ({ key, query, result }) => {
   // Split input into parts by spaces
   const parts = query.split(' ');
   const currentPart = parts[parts.length - 1];
-
-// Function to find command in the COMMANDS array
+  
+  // Function to find command in the COMMANDS array
   function findCommand<T extends boolean>(part: string, exact: T): T extends true ? Command | null : Command[] {
     const commandPart = part.match(COMMAND_PART_REGEX)?.[0];
     
     if (!commandPart) return (exact ? null : []) as T extends true ? Command | null : Command[];
     
     const matcher = exact
-      ? (cmd: Command) => 
-          cmd.alias.toLowerCase() === commandPart.toLowerCase() ||
-          cmd.name.toLowerCase() === commandPart.toLowerCase()
-      : (cmd: Command) =>
-          cmd.alias.toLowerCase().startsWith(commandPart.toLowerCase()) ||
-          cmd.name.toLowerCase().startsWith(commandPart.toLowerCase());
-  
+    ? (cmd: Command) => 
+      cmd.alias.toLowerCase() === commandPart.toLowerCase() ||
+    cmd.name.toLowerCase() === commandPart.toLowerCase()
+    : (cmd: Command) =>
+      cmd.alias.toLowerCase().startsWith(commandPart.toLowerCase()) ||
+    cmd.name.toLowerCase().startsWith(commandPart.toLowerCase());
+    
     return (exact ? COMMANDS.find(matcher) : COMMANDS.filter(matcher)) as T extends true ? Command | null : Command[];
   }  
   
@@ -122,7 +122,7 @@ figma.parameters.on('input', ({ key, query, result }) => {
     result.setSuggestions(COMMANDS.map((cmd) => `${cmd.name} (${cmd.alias})`));
     return;
   }
-
+  
   // Display a summary of already defined commands
   const completeCommands = parts.slice(0, -1).map((part) => {
     const matchedCommand = findCommand(part, true);
@@ -130,7 +130,7 @@ figma.parameters.on('input', ({ key, query, result }) => {
       if ('valueFormat' in matchedCommand) {
         const hasHex = VALUE_FORMAT_REGEX.hex.exec(part);
         if (hasHex) return `${matchedCommand.name}:${hasHex[0]}`;
-
+        
         const hasNumber = VALUE_FORMAT_REGEX.number.exec(part);
         if (hasNumber) return `${matchedCommand.name}:${hasNumber[0]}`;
       }
@@ -141,47 +141,125 @@ figma.parameters.on('input', ({ key, query, result }) => {
       return "Not Found";
     }
   });
-
-  // Generate filtered and sorted command suggestions based on current input
-  const suggestions = (findCommand(currentPart, false) || [])
-    .map((cmd) => {
-      if (currentPart.toLowerCase() === cmd.alias.toLowerCase()) {
-        return {
-          name: `${cmd.alias} (${cmd.name})${cmd.suggestion}`,
-        };
-      }
-      if (currentPart.toLowerCase() === cmd.name.toLowerCase()) {
-        return {
-          name: `${cmd.name}${cmd.suggestion}`
-        };
-      }
-      return {
-        name: `${cmd.name} (${cmd.alias})`,
-      };
-    });
-
-    // Process the current (last) command
-    const matchedCommand = findCommand(currentPart, true);
   
+// Inside the figma.parameters.on('input' ...) handler
+
+// Inside the figma.parameters.on('input' ...) handler
+
+// Inside the figma.parameters.on('input' ...) handler
+
+const suggestions = (findCommand(currentPart, false) || [])
+  .map((cmd) => {
+    const matchedCommand = findCommand(currentPart, true);
     const hasNumber = VALUE_FORMAT_REGEX.number.exec(currentPart);
     const hasHex = VALUE_FORMAT_REGEX.hex.exec(currentPart);
     
-      if (matchedCommand) {
-        if (hasHex) {
-          completeCommands.push(`${matchedCommand.name}:${hasHex[0]}`);
-        }
-        else if (hasNumber) {
-          completeCommands.push(`${matchedCommand.name}:${hasNumber[0]}`);
-        }
-        else {
-          completeCommands.push(`${matchedCommand.name} ${matchedCommand.suggestion} "hello"`);
-        }
-        result.setSuggestions([completeCommands.join(' | ')]);
-        return;
+    // If we have a value (number or hex) and a matched command,
+    // only show that specific command
+    if (matchedCommand && (hasNumber || hasHex)) {
+      if (cmd.name !== matchedCommand.name) {
+        return undefined;
       }
+      if ('valueFormat' in matchedCommand) {
+      if (hasHex && matchedCommand.valueFormat === 'hex') {
+        completeCommands.push(`${matchedCommand.name}:${hasHex[0]}`);
+      }
+      else if (hasNumber && (matchedCommand.valueFormat === 'number' || matchedCommand.valueFormat === 'positiveNumber')) {
+        completeCommands.push(`${matchedCommand.name}:${hasNumber[0]}`);
+      }
+      }
+      return;
+    }
+      
+    // Check for exact alias or name match
+    const exactMatch = currentPart.toLowerCase() === cmd.alias.toLowerCase() || 
+                      currentPart.toLowerCase() === cmd.name.toLowerCase();
+    
+    // If we have any exact matches, only return those
+    if (COMMANDS.some(command => 
+      currentPart.toLowerCase() === command.alias.toLowerCase() || 
+      currentPart.toLowerCase() === command.name.toLowerCase()
+    ) && !exactMatch) {
+      return undefined;
+    }
+    
+    // Regular command suggestions
+    if (currentPart.toLowerCase() === cmd.alias.toLowerCase()) {
+      return {
+        name: `${cmd.alias} (${cmd.name})${cmd.suggestion}`,
+      };
+    }
+    if (currentPart.toLowerCase() === cmd.name.toLowerCase()) {
+      return {
+        name: `${cmd.name}${cmd.suggestion}`
+      };
+    }
+    // Only show partial matches if there are no exact matches
+    if (!COMMANDS.some(command => 
+      currentPart.toLowerCase() === command.alias.toLowerCase() || 
+      currentPart.toLowerCase() === command.name.toLowerCase()
+    )) {
+      return {
+        name: `${cmd.name} (${cmd.alias})`,
+      };
+    }
+    return undefined;
+  });
 
-  // Set final suggestions, fallback to original query if no matches found
-  result.setSuggestions(suggestions.length ? suggestions : [query]);
+// Rest of the code remains the same...
+
+
+// Set final suggestions with modified logic
+// Inside the figma.parameters.on('input' ...) handler
+
+// Set final suggestions with modified logic
+const allSuggestions = [
+  // Show command suggestions when there's no trailing space and we have a partial command match
+  ...(query.endsWith(' ') ? [] : 
+    suggestions
+      .filter((s): s is {name: string} => s !== undefined)
+      .sort((a, b) => {
+        const aIsExactAlias = COMMANDS.some(cmd => 
+          cmd.alias.toLowerCase() === currentPart.toLowerCase() && 
+          a.name.startsWith(cmd.alias)
+        );
+        const bIsExactAlias = COMMANDS.some(cmd => 
+          cmd.alias.toLowerCase() === currentPart.toLowerCase() && 
+          b.name.startsWith(cmd.alias)
+        );
+        
+        if (aIsExactAlias && !bIsExactAlias) return -1;
+        if (!aIsExactAlias && bIsExactAlias) return 1;
+        return 0;
+      })
+      .map(s => s.name)
+  ),
+  // Only show complete commands when all parts are valid commands with values
+  // AND the current part isn't a partial command match without a value
+  ...(parts.every(part => {
+    const cmd = findCommand(part, true);
+    if (!cmd) return false;
+    
+    if ('valueFormat' in cmd) {
+      const hasValidValue = 
+        (cmd.valueFormat === 'hex' && VALUE_FORMAT_REGEX.hex.test(part)) ||
+        ((cmd.valueFormat === 'number' || cmd.valueFormat === 'positiveNumber') && 
+         VALUE_FORMAT_REGEX.number.test(part));
+      return hasValidValue;
+    }
+    return true;
+  }) && completeCommands.length > 0 && 
+    !findCommand(currentPart, false).some(cmd => 
+      cmd.type === 'commandWithoutValue' || 
+      (('valueFormat' in cmd) && cmd.valueFormat && !VALUE_FORMAT_REGEX[cmd.valueFormat]?.test(currentPart))
+    ) ? 
+    [completeCommands.join(' | ')] : 
+    []
+  )
+];
+
+result.setSuggestions(allSuggestions.length ? allSuggestions : [query]);
+
 });
 
 figma.on('run', async ({ parameters}) => {
