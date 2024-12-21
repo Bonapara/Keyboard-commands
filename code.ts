@@ -78,11 +78,54 @@ const COMMANDS: Array<Command & { name: CommandName }> = (Object.keys(COMMAND_DE
 });
 
 
+// Define a helper function to evaluate mathematical expressions
+function evaluateExpression(expression: string): number {
+  // Remove all spaces from the expression
+  const sanitized = expression.replace(/\s+/g, '');
+  
+  // Only allow numbers and basic operators
+  if (!/^-?\d+(?:\.\d+)?(?:[-+*/]\d+(?:\.\d+)?)*$/.test(sanitized)) {
+    return parseFloat(sanitized);
+  }
+
+  try {
+    // Split the expression into tokens
+    const tokens = sanitized.match(/([-+*/])|([0-9.]+)/g) || [];
+    
+    // Handle multiplication and division first
+    let i = 1;
+    while (i < tokens.length - 1) {
+      if (tokens[i] === '*' || tokens[i] === '/') {
+        const a = parseFloat(tokens[i - 1]);
+        const b = parseFloat(tokens[i + 1]);
+        const result = tokens[i] === '*' ? a * b : a / b;
+        tokens.splice(i - 1, 3, result.toString());
+      } else {
+        i += 2;
+      }
+    }
+    
+    // Handle addition and subtraction
+    let result = parseFloat(tokens[0] || '0');
+    for (i = 1; i < tokens.length; i += 2) {
+      const operator = tokens[i];
+      const value = parseFloat(tokens[i + 1]);
+      result = operator === '+' ? result + value : result - value;
+    }
+    
+    return result;
+  } catch {
+    return parseFloat(expression);
+  }
+}
+
+// Update the VALUE_FORMAT_REGEX for numbers to capture expressions
 const VALUE_FORMAT_REGEX = {
-  number: /-?\d+(\.\d+)?/,
+  number: /-?\d+(\.\d+)?(?:[-+*/]\d+(\.\d+)?)*/, // Matches numbers and basic arithmetic
   hex: /#?[0-9a-fA-F]{3,6}\b/,
   text: /.+/
 };
+
 const COMMAND_SPLITTER_REGEX = /[\s,]+/;
 const COMMAND_PART_REGEX = /^[\p{L}]+/u;
 
@@ -189,13 +232,16 @@ figma.parameters.on('input', ({ key, query, result }) => {
           matchedCommand.valueFormat === 'number' ? hasNumber :
           true
         );
-  
+    
       if (isValidValue && (hasHex || hasNumber)) {
         if (hasHex) {
           completeCommands.push(`${matchedCommand.name}:${hasHex[0]}`);
         }
         else if (hasNumber) {
-          completeCommands.push(`${matchedCommand.name}:${hasNumber[0]}`);
+          // Calculate the value for number format
+          const numericExpression = hasNumber[0];
+          const calculatedValue = evaluateExpression(numericExpression);
+          completeCommands.push(`${matchedCommand.name}:${calculatedValue}`);
         }
         result.setSuggestions([completeCommands.join(' | ')]);
         return;
@@ -257,7 +303,6 @@ async function executeCommand(cmd: string): Promise<void> {
   }
   const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-  
   const loadingNotification = figma.notify(`Executing ${command.name}...`, { timeout: 0 });
   
   try {
@@ -265,7 +310,13 @@ async function executeCommand(cmd: string): Promise<void> {
     if (command.type === 'commandWithoutValue') {
       await processCommand(command.name);
     } else {
-      const value = extractValue(cmd, command.valueFormat as ValueFormat);
+      let value = extractValue(cmd, command.valueFormat as ValueFormat);
+      
+      // Calculate the value if it's a number format
+      if (value && command.valueFormat === 'number') {
+        value = evaluateExpression(value).toString();
+      }
+      
       if (command.type === 'commandWithValue') {
         if (value) {
           await processCommand(command.name, value);
@@ -296,6 +347,7 @@ function findCommand(cmd: string): Command | undefined {
 }
 
 // Update the input handler to use generic value detection
+// Update the extractValue function
 function extractValue(text: string, format: ValueFormat): string | null {
   const match = text.match(VALUE_FORMAT_REGEX[format]);
   if (!match) return null;
@@ -303,6 +355,16 @@ function extractValue(text: string, format: ValueFormat): string | null {
   if (format === 'hex') {
     const value = match[0];
     return value.startsWith('#') ? value : `#${value}`;
+  }
+  
+  if (format === 'number') {
+    const expression = match[0];
+    try {
+      const result = evaluateExpression(expression);
+      return result.toString();
+    } catch {
+      return expression;
+    }
   }
   
   return match[0];
