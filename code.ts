@@ -32,16 +32,212 @@ type Command = { name: CommandName, type: "commandWithValue" | "commandWithoutVa
 const COMMAND_DEFINITIONS = {
   Width: {
     type: "commandWithValue",
-    alias: 'wi',
+    alias: 'w',
     valueFormat: 'number' as const,
     suggestion: ' - Enter width in pixels',
     functionWithParam: (value: string) => resize(value, 'width'),
   },
-  widthout: {
+  Height: {
+    type: "commandWithValue",
+    alias: "h",
+    valueFormat: "number",
+    suggestion: " - Enter height in pixels",
+    functionWithParam: (value: string) => resize(value, 'height'),
+  },
+  MoveX: {
+    type: "commandWithValue",
+    alias: "mx",
+    valueFormat: 'number' as const,
+    suggestion: " - Enter X position in pixels",
+    functionWithParam: (value: string) => move('x', value),
+  },
+  MoveY: {
+    type: "commandWithValue",
+    alias: "my",
+    valueFormat: 'number' as const,
+    suggestion: " - Enter Y position in pixels",
+    functionWithParam: (value: string) => move('y', value),
+  },
+  PositionX: {
+    type: "commandWithValue",
+    alias: "x",
+    valueFormat: "number",
+    suggestion: " - Enter X coordinate in pixels",
+    functionWithParam: (value: string) => position(value, 'x'),
+  },
+  PositionY: {
+    type: "commandWithValue",
+    alias: "y",
+    valueFormat: "number",
+    suggestion: " - Enter Y coordinate in pixels",
+    functionWithParam: (value: string) => position(value, 'y'),
+  },
+  Delete: {
     type: "commandWithoutValue",
-    alias: 'wid',
-    suggestion: ' - Create horizontal auto-layout',
+    alias: 'de',
+    suggestion: ' 🗑️',
+    functionWithoutParam: () => deleteSelection()
+  },
+  AutoLayout: {
+    type: "commandWithoutValue",
+    alias: 'a',
+    suggestion: '→',
     functionWithoutParam: () => createAutoLayout('HORIZONTAL'),
+  },
+  AutoLayoutVertical: {
+    type: "commandWithoutValue",
+    alias: "av",
+    suggestion: "↓",
+    functionWithoutParam: () => createAutoLayout('VERTICAL'),
+  },
+  RemoveAutoLayout: {
+    type: "commandWithoutValue",
+    alias: 'ra',
+    suggestion: ' 📐🗑️',
+    functionWithoutParam: () => setLayout('NONE')
+  },
+  FlipHorizontal: {
+    type: "commandWithoutValue",
+    alias: 'fh',
+    suggestion: '↔',
+    functionWithoutParam: () => flip('horizontal')
+  },
+  FlipVertical: {
+    type: "commandWithoutValue",
+    alias: 'fv',
+    suggestion: '↕',
+    functionWithoutParam: () => flip('vertical')
+  },
+  Group: {
+    type: "commandWithoutValue",
+    alias: 'gr',
+    suggestion: ' 👥',
+    functionWithoutParam: () => grouping('group')
+  },
+  Ungroup: {
+    type: "commandWithoutValue",
+    alias: 'ugr',
+    suggestion: '👤',
+    functionWithoutParam: () => grouping('ungroup')
+  },
+  
+  VerticalFill: {
+    type: "commandWithoutValue",
+    alias: "vf",
+    suggestion: " ↕",
+    functionWithoutParam: () => layoutSizing('VERTICAL', 'FILL'),
+  },
+  VerticalHug: {
+    type: "commandWithoutValue",
+    alias: "vh",
+    suggestion: " ↓↑",
+    functionWithoutParam: () => layoutSizing('VERTICAL', 'HUG'),
+  },
+  HorizontalFill: {
+    type: "commandWithoutValue",
+    alias: "hf",
+    suggestion: " ↔",
+    functionWithoutParam: () => layoutSizing('HORIZONTAL', 'FILL'),
+  },
+  HorizontalHug: {
+    type: "commandWithoutValue",
+    alias: "hh",
+    suggestion: " →←",
+    functionWithoutParam: () => layoutSizing('HORIZONTAL', 'HUG'),
+  },
+  Gap: {
+    type: "commandWithValue",
+    alias: "g",
+    valueFormat: "number",
+    suggestion: " - Gap in px",
+    functionWithParam: (value: string) => setPrimaryGap(value),
+  },
+  SpaceBetween: {
+    type: "commandWithValue",
+    alias: "sb",
+    valueFormat: "number",
+    suggestion: " - Auto",
+    functionWithParam: () => setPrimaryGap('AUTO'),
+  },
+  VerticalGap: {
+    type: "commandWithValue",
+    alias: "vg",
+    valueFormat: "number",
+    suggestion: " - Vertical Gap in px",
+    functionWithParam: (value: string) => setCounterGap(value),
+  },
+  VerticalSpaceBetween: {
+    type: "commandWithoutValue",
+    alias: "vsb",
+    suggestion: " - Auto",
+    functionWithoutParam: () => setCounterGap('AUTO'),
+  },
+  LayoutHorizontal: {
+    type: "commandWithoutValue",
+    alias: "lh",
+    suggestion: " →",
+    functionWithoutParam: () => setLayout('HORIZONTAL'),
+  },
+  LayoutVertical: {
+    type: "commandWithoutValue",
+    alias: "lv",
+    suggestion: " ↓",
+    functionWithoutParam: () => setLayout('VERTICAL'),
+  },
+  LayoutWrap: {
+    type: "commandWithoutValue",
+    alias: "lw",
+    suggestion: " ↩️",
+    functionWithoutParam: () => setLayout('WRAP'),
+  },
+  Padding: {
+    type: "commandWithValue",
+    alias: "p",
+    valueFormat: "number",
+    suggestion: " - Enter padding for all sides",
+    functionWithParam: (value: string) => setPadding({paddingLeft: value, paddingRight: value, paddingTop: value, paddingBottom: value}),
+  },
+  PaddingHorizontal: {
+    type: "commandWithValue",
+    alias: "ph",
+    valueFormat: "number",
+    suggestion: " - Enter horizontal padding",
+    functionWithParam: (value: string) => setPadding({paddingLeft: value, paddingRight: value}),
+  },
+  PaddingVertical: {
+    type: "commandWithValue",
+    alias: "pv",
+    valueFormat: "number",
+    suggestion: " - Enter vertical padding",
+    functionWithParam: (value: string) => setPadding({paddingTop: value, paddingBottom: value}),
+  },
+  PaddingLeft: {
+    type: "commandWithValue",
+    alias: "pl",
+    valueFormat: "number",
+    suggestion: " - Enter left padding",
+    functionWithParam: (value: string) => setPadding({paddingLeft: value}),
+  },
+  PaddingTop: {
+    type: "commandWithValue",
+    alias: "pt",
+    valueFormat: "number",
+    suggestion: " - Enter top padding",
+    functionWithParam: (value: string) => setPadding({paddingTop: value}),
+  },
+  PaddingRight: {
+    type: "commandWithValue",
+    alias: "pr",
+    valueFormat: "number",
+    suggestion: " - Enter right padding",
+    functionWithParam: (value: string) => setPadding({paddingRight: value}),
+  },
+  PaddingBottom: {
+    type: "commandWithValue",
+    alias: "pb",
+    valueFormat: "number",
+    suggestion: " - Enter bottom padding",
+    functionWithParam: (value: string) => setPadding({paddingBottom: value}),
   },
   Fill: {
     type: "optionalValueCommand",
@@ -58,6 +254,319 @@ const COMMAND_DEFINITIONS = {
     suggestion: ' - Enter rotation angle in degrees',
     functionWithParam: (value: string) => {rotate(parseInt(value));
     }
+  },
+  Scale: {
+    type: "commandWithValue",
+    alias: "s",
+    valueFormat: "number",
+    suggestion: " - Value in % (x1 = 100%)",
+    functionWithParam: (value: string) => scale(value),
+  },
+  ScaleWidth: {
+    type: "commandWithValue",
+    alias: "sw",
+    valueFormat: "number",
+    suggestion: " - New desired width in px",
+    functionWithParam: (value: string) => scale(value, 'width'),
+  },
+  ScaleHeight: {
+    type: "commandWithValue",
+    alias: "sh",
+    valueFormat: "number",
+    suggestion: " - New desired height in px",
+    functionWithParam: (value: string) => scale(value, 'height'),
+  },
+  RadiusTopLeft: {
+    type: "commandWithValue",
+    alias: 'rtl',
+    valueFormat: 'number' as const,
+    suggestion: ' - Top left radius',
+    functionWithParam: (value: string) => setRadius({topLeftRadius: value}),
+  },
+  RadiusTopRight: {
+    type: "commandWithValue",
+    alias: 'rtr',
+    valueFormat: 'number' as const,
+    suggestion: ' - Top right radius',
+    functionWithParam: (value: string) => setRadius({topRightRadius: value}),
+  },
+  RadiusBottomRight: {
+    type: "commandWithValue",
+    alias: 'rbr',
+    valueFormat: 'number' as const,
+    suggestion: ' - Bottom right radius',
+    functionWithParam: (value: string) => setRadius({bottomRightRadius: value}),
+  },
+  RadiusBottomLeft: {
+    type: "commandWithValue",
+    alias: 'rbl',
+    valueFormat: 'number' as const,
+    suggestion: ' - Bottom left radius',
+    functionWithParam: (value: string) => setRadius({bottomLeftRadius: value}),
+  },
+  RadiusAll: {
+    type: "commandWithValue",
+    alias: 'r',
+    valueFormat: 'number' as const,
+    suggestion: ' - All corners radius',
+    functionWithParam: (value: string) => setRadius({topLeftRadius: value, topRightRadius: value, bottomRightRadius: value, bottomLeftRadius: value}),
+  },
+  RadiusLeft: {
+    type: "commandWithValue",
+    alias: 'rl',
+    valueFormat: 'number' as const,
+    suggestion: ' - Left side radius',
+    functionWithParam: (value: string) => setRadius({topLeftRadius: value, bottomLeftRadius: value}),
+  },
+  RadiusTop: {
+    type: "commandWithValue",
+    alias: 'rt',
+    valueFormat: 'number' as const,
+    suggestion: ' - Top side radius',
+    functionWithParam: (value: string) => setRadius({topLeftRadius: value, topRightRadius: value}),
+  },
+  RadiusRight: {
+    type: "commandWithValue",
+    alias: 'rr',
+    valueFormat: 'number' as const,
+    suggestion: ' - Right side radius',
+    functionWithParam: (value: string) => setRadius({topRightRadius: value, bottomRightRadius: value}),
+  },
+  RadiusBottom: {
+    type: "commandWithValue",
+    alias: 'rb',
+    valueFormat: 'number' as const,
+    suggestion: ' - Bottom side radius',
+    functionWithParam: (value: string) => setRadius({bottomLeftRadius: value, bottomRightRadius: value}), 
+  },
+  ClipContent: {
+    type: "commandWithoutValue",
+    alias: 'cc',
+    suggestion: ' 📎',
+    functionWithoutParam: () => clipContent()
+  },
+  Visible: {
+    type: "commandWithoutValue",
+    alias: 'v',
+    suggestion: ' 🕶️',
+    functionWithoutParam: () => toggleVisibility()
+  },
+  Opacity: {
+    type: "optionalValueCommand",
+    alias: 'o',
+    valueFormat: 'number' as const,
+    suggestion: ' - In % (No value = toggle 0% | 100%)',
+    functionWithParam: (value: string) => setOpacity(value),
+    functionWithoutParam: () => toggleOpacity(),
+  },
+  Duplicate: {
+    type: "commandWithoutValue",
+    alias: 'd',
+    suggestion: ' 🔄',
+    functionWithoutParam: () => duplicate()
+  },
+  Border: {
+    type: "optionalValueCommand",
+    alias: 'b',
+    valueFormat: 'number' as const,
+    suggestion: ' - border in px (No value = toggle 0px)',
+    functionWithParam: (value: string) => setBorder('all', value),
+    functionWithoutParam: () => toggleBorder('all'),
+  },
+  BorderLeft: {
+    type: "optionalValueCommand",
+    alias: 'bl',
+    valueFormat: 'number' as const,
+    suggestion: ' - border in px (No value = toggle 0px)',
+    functionWithParam: (value: string) => setBorder('left', value),
+    functionWithoutParam: () => toggleBorder('left'),
+  },
+  BorderRight: {
+    type: "optionalValueCommand",
+    alias: 'br',
+    valueFormat: 'number' as const,
+    suggestion: ' - border in px (No value = toggle 0px)',
+    functionWithParam: (value: string) => setBorder('right', value),
+    functionWithoutParam: () => toggleBorder('right'),
+  },
+  BorderTop: {
+    type: "optionalValueCommand",
+    alias: 'bt',
+    valueFormat: 'number' as const,
+    suggestion: ' - border in px (No value = toggle 0px)',
+    functionWithParam: (value: string) => setBorder('top', value),
+    functionWithoutParam: () => toggleBorder('top'),
+  },
+  BorderBottom: {
+    type: "optionalValueCommand",
+    alias: 'bb',
+    valueFormat: 'number' as const,
+    suggestion: ' - border in px (No value = toggle 0px)',
+    functionWithParam: (value: string) => setBorder('bottom', value),
+    functionWithoutParam: () => toggleBorder('bottom'),
+  },
+  ToggleTheme: {
+    type: "commandWithoutValue",
+    alias: 't',
+    suggestion: ' 🌗',
+    functionWithoutParam: () => toggleTheme()
+  },
+  
+  AlignTopLeft: {
+    type: "commandWithoutValue",
+    alias: 'atl',
+    suggestion: ' ↖',
+    functionWithoutParam: () => setAlignment({ primary: 'MIN', counter: 'MIN' },{ primary: 'MIN', counter: 'MIN' }),
+  },
+  AlignTopCenter: {
+    type: "commandWithoutValue",
+    alias: 'atc',
+    suggestion: ' ↑',
+    functionWithoutParam: () => setAlignment({ primary: 'CENTER', counter: 'MIN' },{ primary: 'MIN', counter: 'CENTER' }),
+  },
+  AlignTopRight: {
+    type: "commandWithoutValue",
+    alias: 'atr',
+    suggestion: ' ↗',
+    functionWithoutParam: () => setAlignment({ primary: 'MAX', counter: 'MIN' },{ primary: 'MIN', counter: 'MAX' }),
+  },
+  AlignCenterLeft: {
+    type: "commandWithoutValue",
+    alias: 'acl',
+    suggestion: ' ←',
+    functionWithoutParam: () => setAlignment({ primary: 'MIN', counter: 'CENTER' },{ primary: 'CENTER', counter: 'MIN' }),
+  },
+  AlignCenterCenter: {
+    type: "commandWithoutValue",
+    alias: 'acc',
+    suggestion: ' ・',
+    functionWithoutParam: () => setAlignment({ primary: 'CENTER', counter: 'CENTER' },{ primary: 'CENTER', counter: 'CENTER' }),
+  },
+  AlignCenterRight: {
+    type: "commandWithoutValue",
+    alias: 'acr',
+    suggestion: ' →',
+    functionWithoutParam: () => setAlignment({ primary: 'MAX', counter: 'CENTER' },{ primary: 'CENTER', counter: 'MAX' }),
+  },
+  AlignBottomLeft: {
+    type: "commandWithoutValue",
+    alias: 'abl',
+    suggestion: ' ↙',
+    functionWithoutParam: () => setAlignment({ primary: 'MIN', counter: 'MAX' },{ primary: 'MAX', counter: 'MIN' }),
+  },
+  AlignBottomRight: {
+    type: "commandWithoutValue",
+    alias: 'abr',
+    suggestion: ' ↘',
+    functionWithoutParam: () => setAlignment({ primary: 'MAX', counter: 'MAX' },{ primary: 'MAX', counter: 'MAX' }),
+  },
+  AlignBottomCenter: {
+    type: "commandWithoutValue",
+    alias: 'abc',
+    suggestion: ' ↓',
+    functionWithoutParam: () => setAlignment({ primary: 'CENTER', counter: 'MAX' },{ primary: 'MAX', counter: 'CENTER' }),
+  },
+  MaxHeight: {
+    type: "optionalValueCommand",
+    alias: 'maxh',
+    valueFormat: 'number' as const,
+    suggestion: ' - ↕ in px',
+    functionWithParam: (value: string) => maxDimension({value:value, type: 'max', direction: 'height', null: false}),
+    functionWithoutParam: () => maxDimension({type: 'max', direction: 'height', null: true}),
+  },
+  MaxWidth: {
+    type: "optionalValueCommand",
+    alias: 'maxw',
+    valueFormat: 'number' as const,
+    suggestion: ' - ↔ in px',
+    functionWithParam: (value: string) => maxDimension({value:value, type: 'max', direction: 'width', null: false}),
+    functionWithoutParam: () => maxDimension({type: 'max', direction: 'width', null: true}),
+  },
+  MinHeight: {
+    type: "optionalValueCommand",
+    alias: 'minh',
+    valueFormat: 'number' as const,
+    suggestion: ' ↓↑ in px',
+    functionWithParam: (value: string) => maxDimension({value:value, type: 'min', direction: 'height', null: false}),
+    functionWithoutParam: () => maxDimension({type: 'min', direction: 'height', null: true}),
+  },
+  MinWidth: {
+    type: "optionalValueCommand",
+    alias: 'minw',
+    valueFormat: 'number' as const,
+    suggestion: ' - →← in px',
+    functionWithParam: (value: string) => maxDimension({value:value, type: 'min', direction: 'width', null: false}),
+    functionWithoutParam: () => maxDimension({type: 'min', direction: 'width', null: true}),
+  },
+  RemoveEffect: {
+    type: "commandWithoutValue",
+    alias: 're',
+    suggestion: ' 📎',
+    functionWithoutParam: () => removeEffect()
+  },
+  ExportSVG: {
+    type: "optionalValueCommand",
+    alias: 'esvg',
+    valueFormat: 'number' as const,
+    suggestion: ' - 🎨',
+    functionWithParam: (value: string) => exportCopy({format:'SVG',action: 'EXPORTED',constraintType: 'SCALE',constraintValue: value}),
+    functionWithoutParam: () => exportCopy({format:'SVG',action: 'EXPORTED',constraintType: 'SCALE',constraintValue: '1'}),
+  },
+  ExportPNG: {
+    type: "optionalValueCommand",
+    alias: 'epng',
+    valueFormat: 'number' as const,
+    suggestion: ' - 🖼️',
+    functionWithParam: (value: string) => exportCopy({format:'PNG',action: 'EXPORTED',constraintType: 'SCALE',constraintValue: value}),
+    functionWithoutParam: () => exportCopy({format:'PNG',action: 'EXPORTED',constraintType: 'SCALE',constraintValue: '1'}),
+  },
+  ExportPDF: {
+    type: "optionalValueCommand",
+    alias: 'epdf',
+    valueFormat: 'number' as const,
+    suggestion: ' - 📄',
+    functionWithParam: (value: string) => exportCopy({format:'PDF',action: 'EXPORTED',constraintType: 'SCALE',constraintValue: value}),
+    functionWithoutParam: () => exportCopy({format:'PDF',action: 'EXPORTED',constraintType: 'SCALE',constraintValue: '1'}),
+  },
+  ExportJPG: {
+    type: "optionalValueCommand",
+    alias: 'ejpg',
+    valueFormat: 'number' as const,
+    suggestion: ' - 🖼️',
+    functionWithParam: (value: string) => exportCopy({format:'JPG',action: 'EXPORTED',constraintType: 'SCALE',constraintValue: value}),
+    functionWithoutParam: () => exportCopy({format:'JPG',action: 'EXPORTED',constraintType: 'SCALE',constraintValue: '1'}),
+  },
+  CopyAsSVG: {
+    type: "optionalValueCommand",
+    alias: 'csvg',
+    valueFormat: 'number' as const,
+    suggestion: ' - 📋🎨',
+    functionWithParam: (value: string) => exportCopy({format:'SVG',action: 'COPIED',constraintType: 'SCALE',constraintValue: value}),
+    functionWithoutParam: () => exportCopy({format:'SVG',action: 'COPIED',constraintType: 'SCALE',constraintValue: '1'}),
+  },
+  CopyAsPNG: {
+    type: "optionalValueCommand",
+    alias: 'cpng',
+    valueFormat: 'number' as const,
+    suggestion: ' - 📋🖼️',
+    functionWithParam: (value: string) => exportCopy({format:'PNG',action: 'COPIED',constraintType: 'SCALE',constraintValue: value}),
+    functionWithoutParam: () => exportCopy({format:'PNG',action: 'COPIED',constraintType: 'SCALE',constraintValue: '1'}),
+  },
+  CopyAsJPG: {
+    type: "optionalValueCommand",
+    alias: 'cjpg',
+    valueFormat: 'number' as const,
+    suggestion: ' - 📋🖼️',
+    functionWithParam: (value: string) => exportCopy({format:'JPG',action: 'COPIED',constraintType: 'SCALE',constraintValue: value}),
+    functionWithoutParam: () => exportCopy({format:'JPG',action: 'COPIED',constraintType: 'SCALE',constraintValue: '1'}),
+  },
+  CopyAsPDF: {
+    type: "optionalValueCommand",
+    alias: 'cpdf',
+    valueFormat: 'number' as const,
+    suggestion: ' - 📋📄',
+    functionWithParam: (value: string) => exportCopy({format:'PDF',action: 'COPIED',constraintType: 'SCALE',constraintValue: value}),
+      functionWithoutParam: () => exportCopy({format:'PDF',action: 'COPIED',constraintType: 'SCALE',constraintValue: '1'}),
   }
 } satisfies Record<string, CommandWithValue | CommandWithoutValue | OptionalValueCommand>;
 
@@ -89,14 +598,14 @@ const VALUE_FORMAT_REGEX = {
 function calculateExpression(expression: string): number {
   // Remove spaces and normalize 'x' to '*'
   const sanitizedExp = expression
-    .replace(/\s+/g, '')
-    .replace(/x/gi, '*');
+  .replace(/\s+/g, '')
+  .replace(/x/gi, '*');
   
   // Validate the expression contains only numbers, allowed operators, and parentheses
   if (!/^-?\(?\d+(\.\d+)?(?:[-+*/]\(?-?\d+(\.\d+)?\)?)*\)?$/.test(sanitizedExp)) {
     throw new Error('Invalid calculation format');
   }
-
+  
   try {
     // Using Function constructor is safe here since we've validated the input
     // eslint-disable-next-line no-new-func
@@ -122,21 +631,21 @@ figma.parameters.on('input', ({ key, query, result }) => {
   // Split input into parts by spaces
   const parts = query.split(' ');
   const currentPart = parts[parts.length - 1];
-
-// Function to find command in the COMMANDS array
+  
+  // Function to find command in the COMMANDS array
   function findCommand<T extends boolean>(part: string, exact: T): T extends true ? Command | null : Command[] {
     const commandPart = part.match(COMMAND_PART_REGEX)?.[0];
     
     if (!commandPart) return (exact ? null : []) as T extends true ? Command | null : Command[];
     
     const matcher = exact
-      ? (cmd: Command) => 
-          cmd.alias.toLowerCase() === commandPart.toLowerCase() ||
-          cmd.name.toLowerCase() === commandPart.toLowerCase()
-      : (cmd: Command) =>
-          cmd.alias.toLowerCase().startsWith(commandPart.toLowerCase()) ||
-          cmd.name.toLowerCase().startsWith(commandPart.toLowerCase());
-  
+    ? (cmd: Command) => 
+      cmd.alias.toLowerCase() === commandPart.toLowerCase() ||
+    cmd.name.toLowerCase() === commandPart.toLowerCase()
+    : (cmd: Command) =>
+      cmd.alias.toLowerCase().startsWith(commandPart.toLowerCase()) ||
+    cmd.name.toLowerCase().startsWith(commandPart.toLowerCase());
+    
     return (exact ? COMMANDS.find(matcher) : COMMANDS.filter(matcher)) as T extends true ? Command | null : Command[];
   }  
   
@@ -145,13 +654,13 @@ figma.parameters.on('input', ({ key, query, result }) => {
     result.setSuggestions(COMMANDS.map((cmd) => `${cmd.name} (${cmd.alias})`));
     return;
   }
-
+  
   // Display a summary of already defined commands
   const completeCommands = parts.slice(0, -1).map((part) => {
     const matchedCommand = findCommand(part, true);
     const hasHex = VALUE_FORMAT_REGEX.hex.exec(part);
     const hasNumber = VALUE_FORMAT_REGEX.number.exec(part);
-
+    
     if (matchedCommand) {
       if (matchedCommand.type === 'commandWithValue') {
         if (hasHex) return `${matchedCommand.name}:${hasHex[0]}`;
@@ -185,71 +694,71 @@ figma.parameters.on('input', ({ key, query, result }) => {
       return "Not Found";
     }
   });
-
+  
   // Generate filtered and sorted command suggestions based on current input
   const suggestions = (findCommand(currentPart, false) || [])
-    .map((cmd) => {
-      if (currentPart.toLowerCase() === cmd.alias.toLowerCase()) {
-        return {
-          name: `${cmd.alias} (${cmd.name})${cmd.suggestion}`,
-          priority: 1  // Give exact alias matches highest priority
-        };
-      }
-      if (currentPart.toLowerCase() === cmd.name.toLowerCase()) {
-        return {
-          name: `${cmd.name}${cmd.suggestion}`,
-          priority: 2  // Give exact name matches second priority
-        };
-      }
+  .map((cmd) => {
+    if (currentPart.toLowerCase() === cmd.alias.toLowerCase()) {
       return {
-        name: `${cmd.name} (${cmd.alias})`,
-        priority: 3  // Give partial matches lowest priority
+        name: `${cmd.alias} (${cmd.name})${cmd.suggestion}`,
+        priority: 1  // Give exact alias matches highest priority
       };
-    })
-    .sort((a, b) => a.priority - b.priority)
-    .map(suggestion => ({ name: suggestion.name }));  // Remove priority before setting suggestions
-
-    // Process the current (last) command
-    const matchedCommand = findCommand(currentPart, true);
-  
-    const hasNumber = VALUE_FORMAT_REGEX.number.exec(currentPart);
-    const hasHex = VALUE_FORMAT_REGEX.hex.exec(currentPart);
-    
-    if (matchedCommand) {
-      // Only show command summary if we have a valid value for the command type
-      const isValidValue = 
-        (matchedCommand.type === "commandWithValue" || matchedCommand.type === "optionalValueCommand") && 
-        'valueFormat' in matchedCommand && (
-          matchedCommand.valueFormat === 'hex' ? hasHex :
-          matchedCommand.valueFormat === 'number' ? hasNumber :
-          true
-        );
-  
-      if (isValidValue && (hasHex || hasNumber)) {
-        if (hasHex) {
-          completeCommands.push(`${matchedCommand.name}:${hasHex[0]}`);
-        }
-        else if (hasNumber) {
-          try {
-            const computedValue = calculateExpression(hasNumber[0]);
-            completeCommands.push(`${matchedCommand.name}:${computedValue}`);
-          } catch {
-            completeCommands.push(`${matchedCommand.name}:${hasNumber[0]}`);
-          }
-        }
-        result.setSuggestions([completeCommands.join(' | ')]);
-        return;
-      } else if ('valueFormat' in matchedCommand && matchedCommand.valueFormat === 'hex' && !hasHex) {
-        // Show full suggestion for hex commands without valid hex value
-        result.setSuggestions([`${matchedCommand.name} (${matchedCommand.alias})${matchedCommand.suggestion}`]);
-        return;
-      } else if (completeCommands.length > 0 && matchedCommand && (matchedCommand.type === 'optionalValueCommand' || matchedCommand.type === 'commandWithoutValue')) {
-        // Show combined suggestion for optional value commands
-        result.setSuggestions([`${completeCommands.join(' | ')} | ${matchedCommand.name} (${matchedCommand.alias})${matchedCommand.suggestion}`]);
-        return;
-      }
     }
- 
+    if (currentPart.toLowerCase() === cmd.name.toLowerCase()) {
+      return {
+        name: `${cmd.name}${cmd.suggestion}`,
+        priority: 2  // Give exact name matches second priority
+      };
+    }
+    return {
+      name: `${cmd.name} (${cmd.alias})`,
+      priority: 3  // Give partial matches lowest priority
+    };
+  })
+  .sort((a, b) => a.priority - b.priority)
+  .map(suggestion => ({ name: suggestion.name }));  // Remove priority before setting suggestions
+  
+  // Process the current (last) command
+  const matchedCommand = findCommand(currentPart, true);
+  
+  const hasNumber = VALUE_FORMAT_REGEX.number.exec(currentPart);
+  const hasHex = VALUE_FORMAT_REGEX.hex.exec(currentPart);
+  
+  if (matchedCommand) {
+    // Only show command summary if we have a valid value for the command type
+    const isValidValue = 
+    (matchedCommand.type === "commandWithValue" || matchedCommand.type === "optionalValueCommand") && 
+    'valueFormat' in matchedCommand && (
+      matchedCommand.valueFormat === 'hex' ? hasHex :
+      matchedCommand.valueFormat === 'number' ? hasNumber :
+      true
+    );
+    
+    if (isValidValue && (hasHex || hasNumber)) {
+      if (hasHex) {
+        completeCommands.push(`${matchedCommand.name}:${hasHex[0]}`);
+      }
+      else if (hasNumber) {
+        try {
+          const computedValue = calculateExpression(hasNumber[0]);
+          completeCommands.push(`${matchedCommand.name}:${computedValue}`);
+        } catch {
+          completeCommands.push(`${matchedCommand.name}:${hasNumber[0]}`);
+        }
+      }
+      result.setSuggestions([completeCommands.join(' | ')]);
+      return;
+    } else if ('valueFormat' in matchedCommand && matchedCommand.valueFormat === 'hex' && !hasHex) {
+      // Show full suggestion for hex commands without valid hex value
+      result.setSuggestions([`${matchedCommand.name} (${matchedCommand.alias})${matchedCommand.suggestion}`]);
+      return;
+    } else if (completeCommands.length > 0 && matchedCommand && (matchedCommand.type === 'optionalValueCommand' || matchedCommand.type === 'commandWithoutValue')) {
+      // Show combined suggestion for optional value commands
+      result.setSuggestions([`${completeCommands.join(' | ')} | ${matchedCommand.name} (${matchedCommand.alias})${matchedCommand.suggestion}`]);
+      return;
+    }
+  }
+  
   // Set final suggestions, showing "No command found" message if no matches
   if (suggestions.length === 0) {
     result.setSuggestions([`No command found for "${currentPart}"`]);
@@ -296,7 +805,7 @@ async function executeCommand(cmd: string): Promise<void> {
     return;
   }
   const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
+  
   
   const loadingNotification = figma.notify(`Executing ${command.name}...`, { timeout: 0 });
   
@@ -362,7 +871,7 @@ function extractValue(text: string, format: ValueFormat): string | null {
 
 // Functions
 
-async function resize(value: string, resizeType: 'width' | 'height') {
+function resize(value: string, resizeType: 'width' | 'height') {
   const numValue = Number(value);
   if (isNaN(numValue)) throw new Error('Invalid number provided');
   
@@ -384,7 +893,7 @@ async function resize(value: string, resizeType: 'width' | 'height') {
   figma.notify(`${resizeType} set to ${value} for all selected items`);
 }
 
-async function setFill(value: string) {
+function setFill(value: string) {
   const selection = figma.currentPage.selection;
   if (selection.length === 0) {
     throw new Error('No items selected');
@@ -424,7 +933,7 @@ async function setFill(value: string) {
   }
 }
 
-async function toggleFill() {
+function toggleFill() {
   const selection = figma.currentPage.selection;
   if (selection.length === 0) {
     throw new Error('No items selected');
@@ -447,7 +956,7 @@ async function toggleFill() {
   }
 }
 
-async function createAutoLayout(direction: 'HORIZONTAL' | 'VERTICAL' = 'HORIZONTAL') {
+function createAutoLayout(direction: 'HORIZONTAL' | 'VERTICAL' = 'HORIZONTAL') {
   const selection = figma.currentPage.selection;
   
   if (selection.length === 0) {
@@ -555,7 +1064,31 @@ async function createAutoLayout(direction: 'HORIZONTAL' | 'VERTICAL' = 'HORIZONT
   figma.notify(`Auto-layout frame created in ${direction.toLowerCase()} direction`);
 }
 
-async function rotate(value: number) {
+function setPadding({ paddingLeft, paddingRight, paddingTop, paddingBottom }: {
+  paddingLeft?: string;
+  paddingRight?: string;
+  paddingTop?: string;
+  paddingBottom?: string;
+}) {
+  const selection = figma.currentPage.selection;
+  
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+  
+  for (const node of selection) {
+    if ('paddingLeft' in node) {
+      if (paddingLeft !== undefined) node.paddingLeft = Number(paddingLeft);
+      if (paddingRight !== undefined) node.paddingRight = Number(paddingRight);
+      if (paddingTop !== undefined) node.paddingTop = Number(paddingTop);
+      if (paddingBottom !== undefined) node.paddingBottom = Number(paddingBottom);
+    }
+  }
+  
+  figma.notify('Padding updated for all selected items');
+}
+
+function rotate(value: number) {
   if (!value && value !== 0) throw new Error('No value provided');
   const selection = figma.currentPage.selection;
   
@@ -571,4 +1104,816 @@ async function rotate(value: number) {
   }
   
   figma.notify(`Rotated ${value}° for all selected items`);
+}
+
+function move(direction: 'x' | 'y', value: string) {
+  if (value === undefined) throw new Error('No value provided');
+  const selection = figma.currentPage.selection;
+  
+  if (selection.length === 0) throw new Error('No items selected');
+  
+  for (const node of selection) {
+    if (direction === 'x' && 'x' in node) {
+      node.x += Number(value);
+    } else if (direction === 'y' && 'y' in node) {
+      node.y += Number(value);
+    }
+  }
+  
+  const dirText = direction === 'x' ? 'horizontally' : 'vertically';
+  figma.notify(`Moved items ${dirText} by ${value} pixels`);
+}
+
+
+function position(value: string, axisPosition: 'x' | 'y') {
+  const selection = figma.currentPage.selection;
+  
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+  
+  for (const node of selection) {
+    if ('x' in node) {
+      const newPosition = {
+        x: axisPosition === 'x' ? Number(value) : node.x,
+        y: axisPosition === 'y' ? Number(value) : node.y
+      };
+      node.x = newPosition.x;
+      node.y = newPosition.y;
+    }
+  }
+  
+  figma.notify(`${axisPosition} set to ${value} for all selected items`);
+}
+
+function scale(value?: string, dimension?: 'width' | 'height') {
+  if (value === undefined) throw new Error('No value provided');
+  const selection = figma.currentPage.selection;
+  
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+  
+  for (const node of selection) {
+    if ('rescale' in node) {
+      let scaleFactor: number;
+      
+      if (dimension === 'width') {
+        scaleFactor = Number(value) / node.width;
+      } else if (dimension === 'height') {
+        scaleFactor = Number(value) / node.height;
+      } else {
+        scaleFactor = Number(value) / 100;
+      }
+      
+      if (scaleFactor < 0.01) throw new Error('Scale factor must be at least 1%');
+      node.rescale(scaleFactor);
+    }
+  }
+  
+  const message = dimension 
+  ? `Scaled items to ${value}${dimension === 'width' ? 'w' : 'h'}`
+  : `Scaled items to ${value}%`;
+  
+  figma.notify(message);
+}
+
+function layoutSizing(direction: 'HORIZONTAL' | 'VERTICAL', value: 'HUG' | 'FIXED' | 'FILL') {
+  const selection = figma.currentPage.selection;
+  
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+  
+  selection.forEach(node => {
+    // Handle frames: add auto-layout if needed
+    if ('layoutMode' in node) {
+      // Enable auto-layout if not already set
+      if (node.layoutMode === 'NONE') {
+        node.layoutMode = direction;
+      }
+      try {
+        if (direction === 'HORIZONTAL') {
+          if ('layoutSizingHorizontal' in node) {
+            node.layoutSizingHorizontal = value;
+            figma.notify(`Horizontal layout sizing set to ${value.toLowerCase()}`);
+          }
+        } else {
+          if ('layoutSizingVertical' in node) {
+            node.layoutSizingVertical = value;
+            figma.notify(`Vertical layout sizing set to ${value.toLowerCase()}`);
+          }
+        }
+        return;
+      } catch (error) {
+        console.warn(`Failed to set layout sizing on node:`, error);
+        figma.notify('Failed to set layout sizing');
+        return;
+      }
+    }
+    
+    // For non-frames, check if the node is inside an auto-layout frame
+    const parent = node.parent;
+    if (!parent || !('layoutMode' in parent) || parent.layoutMode === 'NONE') {
+      figma.notify('Selected item must be inside an auto-layout frame');
+      return;
+    }
+    
+    try {
+      // Attempt to set the layout sizing directly
+      if (direction === 'HORIZONTAL') {
+        if ('layoutSizingHorizontal' in node) {
+          node.layoutSizingHorizontal = value;
+          figma.notify(`Horizontal layout sizing set to ${value.toLowerCase()}`);
+        }
+      } else {
+        if ('layoutSizingVertical' in node) {
+          node.layoutSizingVertical = value;
+          figma.notify(`Vertical layout sizing set to ${value.toLowerCase()}`);
+        }
+      }
+    } catch (error) {
+      console.warn(`Failed to set layout sizing on node:`, error);
+      figma.notify('Failed to set layout sizing');
+    }
+  });
+}
+
+// Set primary axis gap (horizontal)
+function setPrimaryGap(gap: string | 'AUTO') {
+  const selection = figma.currentPage.selection;
+  
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+  
+  selection.forEach(node => {
+    if (node.type === 'FRAME') {
+      if (!('layoutMode' in node)) {
+        figma.notify('Selected frame must be an auto-layout frame');
+        return;
+      }
+      
+      if (gap === 'AUTO') {
+        node.primaryAxisAlignItems = 'SPACE_BETWEEN';
+        figma.notify('Primary gap set to AUTO');
+      } else {
+        node.primaryAxisAlignItems = 'MIN';
+        node.itemSpacing = Number(gap);
+        figma.notify(`Primary gap set to ${gap}`);
+      }
+    }
+  });
+}
+
+// Set counter axis gap (vertical for wrap layouts)
+function setCounterGap(gap: string | 'AUTO') {
+  const selection = figma.currentPage.selection;
+  
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+  
+  selection.forEach(node => {
+    if (node.type === 'FRAME') {
+      if (!('layoutMode' in node) || node.layoutWrap !== 'WRAP') {
+        figma.notify('Selected frame must be a wrap auto-layout frame');
+        return;
+      }
+      
+      if (gap === 'AUTO') {
+        node.counterAxisAlignContent = 'SPACE_BETWEEN';
+        figma.notify('Counter gap set to AUTO');
+      } else {
+        node.counterAxisAlignContent = 'AUTO';
+        node.counterAxisSpacing = Number(gap);
+        figma.notify(`Counter gap set to ${gap}`);
+      }
+    }
+  });
+}
+
+
+function setLayout(mode: 'HORIZONTAL' | 'VERTICAL' | 'WRAP' | 'NONE') {
+  const selection = figma.currentPage.selection;
+  
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+  
+  selection.forEach(node => {
+    if (node.type === 'FRAME') {
+      if (mode === 'WRAP') {
+        node.layoutMode = 'HORIZONTAL'; // Set to HORIZONTAL for WRAP
+        node.layoutWrap = 'WRAP';
+      } else {
+        node.layoutMode = mode as 'HORIZONTAL' | 'VERTICAL' | 'NONE';
+        node.layoutWrap = 'NO_WRAP';
+      }
+      
+      figma.notify(`${mode.toLowerCase()} layout applied`);
+    } else {
+      console.warn('Selected item is not a frame:', node);
+    }
+  });
+}
+
+function deleteSelection() {
+  const selection = figma.currentPage.selection;
+  
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+  
+  for (const node of selection) {
+    node.remove();
+  }
+  figma.notify('Items deleted');
+}
+
+function setRadius({ 
+  topLeftRadius, 
+  topRightRadius, 
+  bottomLeftRadius, 
+  bottomRightRadius 
+}: {
+  topLeftRadius?: string;
+  topRightRadius?: string;
+  bottomLeftRadius?: string;
+  bottomRightRadius?: string;
+}) {
+  const selection = figma.currentPage.selection;
+  
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+  
+  for (const node of selection) {
+    if ('topLeftRadius' in node) {
+      if (topLeftRadius !== undefined) node.topLeftRadius = Number(topLeftRadius);
+      if (topRightRadius !== undefined) node.topRightRadius = Number(topRightRadius)  ;
+      if (bottomLeftRadius !== undefined) node.bottomLeftRadius = Number(bottomLeftRadius);
+      if (bottomRightRadius !== undefined) node.bottomRightRadius = Number(bottomRightRadius);
+    }
+  }
+  
+  figma.notify('Radius updated for all selected items');
+}
+
+
+function flip(direction: 'horizontal' | 'vertical') {
+  const selection = figma.currentPage.selection;
+  if (selection.length === 0) return;
+  
+  for (const node of selection) {
+    if ("relativeTransform" in node) {
+      const transform = node.relativeTransform;
+      if (direction === "horizontal" && "width" in node) {
+        const cx = node.x;
+        node.relativeTransform = [
+          [-transform[0][0], -transform[0][1], transform[0][2]],
+          [ transform[1][0],  transform[1][1], transform[1][2]]
+        ];
+        if (node.relativeTransform[0][0] < 0) node.x = cx + node.width;
+        else node.x = cx - node.width;
+      } else if (direction === "vertical" && "height" in node) {
+        const cy = node.y;
+        node.relativeTransform = [
+          [transform[0][0],  transform[0][1], transform[0][2]],
+          [-transform[1][0], -transform[1][1], transform[1][2]]
+        ];
+        if (node.relativeTransform[1][1] < 0) node.y = cy + node.height;
+        else node.y = cy - node.height;
+      }
+    }
+  }
+}
+
+function grouping(action: 'group' | 'ungroup') {
+  const selection = figma.currentPage.selection;
+  
+  if (action === 'group') {
+    if (selection.length < 2) {
+      throw new Error('Select at least 2 items to group');
+    }
+    
+    const parent = selection[0].parent;
+    if (!parent) throw new Error('No parent found for selected items');
+    
+    for (const node of selection) {
+      if (node.parent !== parent) {
+        throw new Error('All selected items must share the same parent to group');
+      }
+    }
+    
+    const groupNode = figma.group(selection, parent);
+    figma.currentPage.selection = [groupNode];
+    figma.notify('Items grouped');
+    
+  } else if (action === 'ungroup') {
+    if (selection.length === 0) throw new Error('No items selected');
+    
+    const ungroupedChildren: SceneNode[] = [];
+    for (const node of selection) {
+      if ((node.type === 'GROUP' || node.type === 'FRAME') && 'children' in node) {
+        const children = figma.ungroup(node);
+        ungroupedChildren.push(...children);
+      }
+    }
+    
+    if (ungroupedChildren.length > 0) {
+      figma.currentPage.selection = ungroupedChildren;
+    }
+    
+    figma.notify('Items ungrouped');
+  }
+}
+
+function clipContent() {
+  const selection = figma.currentPage.selection;
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+  
+  for (const node of selection) {
+    switch (node.type) {
+      case 'COMPONENT':
+      case 'COMPONENT_SET':
+      case 'FRAME':
+      case 'INSTANCE':
+      if ('clipsContent' in node) {
+        (node as FrameNode).clipsContent = !(node as FrameNode).clipsContent;
+      }
+      break;
+    }
+  }
+}
+
+function toggleVisibility() {
+  const selection = figma.currentPage.selection;
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+  
+  for (const node of selection) {
+    if ('visible' in node) {
+      node.visible = !node.visible;
+    }
+  }
+}
+
+function toggleOpacity() {
+  const selection = figma.currentPage.selection;
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+  
+  for (const node of selection) {
+    if ('opacity' in node) {
+      node.opacity = node.opacity === 0 ? 1 : 0;
+    }
+  }
+  
+  const firstNode = selection[0];
+  if ('opacity' in firstNode) {
+    const newOpacity = firstNode.opacity === 0 ? 0 : 100;
+    figma.notify(`Opacity toggled to ${newOpacity}%`);
+  }
+}
+
+function setOpacity(value: string) {
+  const selection = figma.currentPage.selection;
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+  
+  for (const node of selection) {
+    if ('opacity' in node) {
+      node.opacity = Math.max(0, Math.min(100, Number(value))) / 100;
+    }
+  }
+  
+  figma.notify(`Opacity set to ${Math.min(100, Math.max(0, Number(value)))}%`);
+}
+
+function duplicate() {
+  const selection = figma.currentPage.selection;
+  
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+  
+  const duplicates = selection.map(node => node.clone());
+  figma.currentPage.selection = duplicates;
+  
+  figma.notify('Items duplicated');
+}
+
+// Helper function to get existing stroke style or create new one
+function getOrCreateStroke(node: SceneNode): Paint[] {
+  if ('strokes' in node && node.strokes.length > 0) {
+    // Create a new array from the readonly strokes
+    return [...node.strokes];
+  }
+  return [{
+    type: 'SOLID' as const,
+    color: { r: 0, g: 0, b: 0 },
+    opacity: 1
+  }];
+}
+
+// Function to set border with specific width
+function setBorder(side: 'all' | 'left' | 'right' | 'top' | 'bottom', width: string) {
+  const selection = figma.currentPage.selection;
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+  
+  for (const node of selection) {
+    if (!('strokes' in node) || !('strokeWeight' in node) || 
+    !('strokeLeftWeight' in node) || !('strokeRightWeight' in node) || 
+    !('strokeTopWeight' in node) || !('strokeBottomWeight' in node)) {
+      continue;
+    }
+    
+    if (node.strokes.length === 0) {
+      node.strokes = getOrCreateStroke(node);
+    }
+    
+    if (side !== 'all') {
+      node.strokeAlign = 'INSIDE';
+    }
+    
+    switch (side) {
+      case 'all':
+      node.strokeWeight = Number(width);
+      break;
+      case 'left':
+      node.strokeLeftWeight = Number(width);
+      break;
+      case 'right':
+      node.strokeRightWeight = Number(width);
+      break;
+      case 'top':
+      node.strokeTopWeight = Number(width);
+      break;
+      case 'bottom':
+      node.strokeBottomWeight = Number(width);
+      break;
+    }
+  }
+  
+  figma.notify(`${side.charAt(0).toUpperCase() + side.slice(1)} border set to ${Number(width)}px`);
+}
+
+function toggleBorder(side: 'all' | 'left' | 'right' | 'top' | 'bottom') {
+  const selection = figma.currentPage.selection;
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+  
+  for (const node of selection) {
+    if (!('strokes' in node) || !('strokeWeight' in node) ||
+    !('strokeLeftWeight' in node) || !('strokeRightWeight' in node) ||
+    !('strokeTopWeight' in node) || !('strokeBottomWeight' in node)) {
+      continue;
+    }
+    
+    // Handle 'all' separately
+    if (side === 'all') {
+      if (node.strokes.length === 0) {
+        node.strokes = getOrCreateStroke(node);
+        node.strokeWeight = 1;
+      } else {
+        node.strokes = [];
+      }
+      continue;
+    }
+    
+    // If no strokes are set, this means no visible border. 
+    // Set all sides to 0, then apply border to the toggled side.
+    const noVisibleBorder = (node.strokes.length === 0);
+    if (noVisibleBorder) {
+      node.strokes = getOrCreateStroke(node);
+      node.strokeAlign = 'INSIDE';
+      
+      node.strokeLeftWeight = 0;
+      node.strokeRightWeight = 0;
+      node.strokeTopWeight = 0;
+      node.strokeBottomWeight = 0;
+      
+      // Since we know there's no visible border, just set this side to 1
+      switch (side) {
+        case 'left':
+        node.strokeLeftWeight = 1;
+        break;
+        case 'right':
+        node.strokeRightWeight = 1;
+        break;
+        case 'top':
+        node.strokeTopWeight = 1;
+        break;
+        case 'bottom':
+        node.strokeBottomWeight = 1;
+        break;
+      }
+      
+      figma.notify(`${side.charAt(0).toUpperCase() + side.slice(1)} border toggled`);
+      continue;
+    }
+    
+    // If we reach here, some border exists. Toggle on/off this side without affecting others.
+    node.strokeAlign = 'INSIDE';
+    
+    const currentWeight = (() => {
+      switch (side) {
+        case 'left': return node.strokeLeftWeight;
+        case 'right': return node.strokeRightWeight;
+        case 'top': return node.strokeTopWeight;
+        case 'bottom': return node.strokeBottomWeight;
+      }
+    })();
+    
+    const hasAnyBorder =
+    node.strokeLeftWeight > 0 ||
+    node.strokeRightWeight > 0 ||
+    node.strokeTopWeight > 0 ||
+    node.strokeBottomWeight > 0;
+    
+    let newWidth: number;
+    if (currentWeight > 0) {
+      // This side currently has a border, remove it
+      newWidth = 0;
+    } else {
+      // This side has no border currently
+      if (!hasAnyBorder) {
+        // If somehow no border is set (shouldn't happen here because we handled noVisibleBorder above),
+        // just set this side to 1.
+        newWidth = 1;
+      } else {
+        // Some other side has a border, match its thickness
+        const widths = [
+          node.strokeLeftWeight,
+          node.strokeRightWeight,
+          node.strokeTopWeight,
+          node.strokeBottomWeight
+        ].filter(w => w > 0);
+        const existingWidth = widths[0] || 1;
+        newWidth = existingWidth;
+      }
+    }
+    
+    // Apply the new width
+    switch (side) {
+      case 'left':
+      node.strokeLeftWeight = newWidth;
+      break;
+      case 'right':
+      node.strokeRightWeight = newWidth;
+      break;
+      case 'top':
+      node.strokeTopWeight = newWidth;
+      break;
+      case 'bottom':
+      node.strokeBottomWeight = newWidth;
+      break;
+    }
+    
+    figma.notify(`${side.charAt(0).toUpperCase() + side.slice(1)} border toggled`);
+  }
+}
+
+async function toggleTheme() {
+  const selection = figma.currentPage.selection;
+  if (!selection.length) return;
+  
+  async function findThemeCollection() {
+    const localCollections = await figma.variables.getLocalVariableCollectionsAsync();
+    const themeCollection = localCollections.find(c =>
+      c.name.toLowerCase().includes("theme") || c.name.toLowerCase().includes("appearance")
+    );
+    if (themeCollection) return themeCollection;
+    
+    const libraryCollections = await figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync();
+    const libraryTheme = libraryCollections.find(c =>
+      c.name.toLowerCase().includes("theme") || c.name.toLowerCase().includes("appearance")
+    );
+    if (!libraryTheme) return;
+    
+    const libraryVars = await figma.teamLibrary.getVariablesInLibraryCollectionAsync(libraryTheme.key);
+    if (!libraryVars.length) return;
+    
+    const importedVar = await figma.variables.importVariableByKeyAsync(libraryVars[0].key);
+    return figma.variables.getVariableCollectionByIdAsync(importedVar.variableCollectionId);
+  }
+  
+  const themeCollection = await findThemeCollection();
+  if (!themeCollection) return;
+  
+  const lightMode = themeCollection.modes.find(m => /light|day/i.test(m.name));
+  const darkMode = themeCollection.modes.find(m => /dark|night/i.test(m.name));
+  if (!lightMode || !darkMode) return;
+  
+  for (const node of selection) {
+    const currentModeId = node.resolvedVariableModes[themeCollection.id];
+    if (node.boundVariables && themeCollection.id in node.resolvedVariableModes) {
+      if (currentModeId === lightMode.modeId) {
+        node.setExplicitVariableModeForCollection(themeCollection, darkMode.modeId);
+      } else if (currentModeId === darkMode.modeId) {
+        node.clearExplicitVariableModeForCollection(themeCollection);
+      }
+    } else {
+      if (themeCollection.defaultModeId === lightMode.modeId) {
+        node.setExplicitVariableModeForCollection(themeCollection, darkMode.modeId);
+      } else if (themeCollection.defaultModeId === darkMode.modeId) {
+        node.setExplicitVariableModeForCollection(themeCollection, lightMode.modeId);
+      }
+    }
+  }
+}
+
+
+type PrimaryAxisAlignment = 'MIN' | 'CENTER' | 'MAX' | 'SPACE_BETWEEN';
+type CounterAxisAlignment = 'MIN' | 'CENTER' | 'MAX' | 'BASELINE';
+
+// Define a type for nodes that support auto-layout
+type AutoLayoutNode = FrameNode | ComponentNode | InstanceNode;
+
+// Helper function to check if a node supports auto-layout
+function isAutoLayoutNode(node: SceneNode): node is AutoLayoutNode {
+  return 'layoutMode' in node &&
+  'primaryAxisAlignItems' in node &&
+  'counterAxisAlignItems' in node;
+}
+
+function alignItems(
+  direction: 'PRIMARY' | 'COUNTER',
+  value: PrimaryAxisAlignment | CounterAxisAlignment,
+  node: AutoLayoutNode
+) {
+  try {
+    if (direction === 'PRIMARY') {
+      node.primaryAxisAlignItems = value as PrimaryAxisAlignment;
+    } else {
+      node.counterAxisAlignItems = value as CounterAxisAlignment;
+    }
+  } catch (error) {
+    console.warn(`Failed to set axis alignment on node:`, error);
+    figma.notify('Failed to set axis alignment');
+  }
+}
+
+function setAlignment(horizontal: {
+  primary: PrimaryAxisAlignment,
+  counter: CounterAxisAlignment
+}, vertical: {
+  primary: PrimaryAxisAlignment,
+  counter: CounterAxisAlignment
+}) {
+  const selection = figma.currentPage.selection;
+  
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+  
+  selection.forEach(node => {
+    if (!isAutoLayoutNode(node)) {
+      figma.notify('Only auto-layout frames can have axis alignment');
+      return;
+    }
+    
+    if (node.layoutMode === 'NONE') {
+      figma.notify('Frame must have auto-layout enabled');
+      return;
+    }
+    
+    const isHorizontal = node.layoutMode === 'HORIZONTAL';
+    const { primary, counter } = isHorizontal ? horizontal : vertical;
+    
+    alignItems('PRIMARY', primary, node);
+    alignItems('COUNTER', counter, node);
+    
+    figma.notify(`Alignment set for ${isHorizontal ? 'horizontal' : 'vertical'} layout`);
+  });
+}
+
+
+
+interface DimensionOptions {
+  type: 'max' | 'min';
+  direction: 'width' | 'height';
+  null: boolean;
+  value?: string;
+}
+
+function maxDimension({ type, direction, null: isNull, value }: DimensionOptions): void {
+  const selection = figma.currentPage.selection;
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+  
+  for (const node of selection) {
+    // Check if node supports max/min width/height properties
+    if ('maxWidth' in node && 'maxHeight' in node) {
+      if (isNull) {
+        // Set the property to null to remove constraint
+        if (type === 'max' && direction === 'width') {
+          node.maxWidth = null;
+        } else if (type === 'max' && direction === 'height') {
+          node.maxHeight = null;
+        } else if (type === 'min' && direction === 'width') {
+          node.minWidth = null;
+        } else if (type === 'min' && direction === 'height') {
+          node.minHeight = null;
+        }
+      } else {
+        // Set the constraint value
+        console.log("value:", value);
+        console.log("direction:", direction);
+        console.log("type:", type);        
+        if (value !== undefined && Number(value) > 0) {
+          if (type === 'max' && direction === 'width') {
+            node.maxWidth = Number(value);
+          } else if (type === 'max' && direction === 'height') {
+            node.maxHeight = Number(value);
+          } else if (type === 'min' && direction === 'width') {
+            node.minWidth = Number(value);
+          } else if (type === 'min' && direction === 'height') {
+            node.minHeight = Number(value);
+          }
+        }
+      }
+    }
+  }
+  
+  const dimensionType = `${type} ${direction}`;
+  const message = isNull 
+  ? `Removed ${dimensionType} constraint`
+  : `Set ${dimensionType} to ${value}px`;
+  
+  figma.notify(message);
+}
+
+
+// Remove effects
+function removeEffect() {
+  const selection = figma.currentPage.selection;
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+  
+  for (const node of selection) {
+    if ('effects' in node) {
+      node.effects = [];
+    }
+  }
+}
+
+async function exportCopy({
+  format,
+  action,
+  constraintType = 'SCALE',
+  constraintValue
+}: {
+  format: 'SVG' | 'PNG' | 'PDF' | 'JPG';
+  action: 'COPIED' | 'EXPORTED';
+  constraintType?: 'SCALE' | 'WIDTH' | 'HEIGHT';
+  constraintValue: string;
+}) {
+  const selection = figma.currentPage.selection;
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+  
+  console.log("hellos");
+  
+  // Create export settings object
+  const settings = {
+    format: format,
+    constraint: {
+      type: constraintType,
+      value: Number(constraintValue)
+    }
+  };
+  
+  // Log export attempt
+  console.log(`Attempting to ${action.toLowerCase()} selection as ${format}`);
+  console.log('Export settings:', settings);
+  
+  try {
+    // Export each selected node
+    for (const node of selection) {
+      const exportResult = await node.exportAsync(settings as ExportSettingsImage);
+      console.log(`Successfully exported node "${node.name}"`, {
+        format: format,
+        action: action,
+        byteLength: exportResult.byteLength || exportResult.length,
+        constraintType: constraintType,
+        constraintValue: constraintValue
+      });
+    }
+  } catch (error) {
+    console.error('Export failed:', error);
+    throw error;
+  }
 }
