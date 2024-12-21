@@ -1884,9 +1884,7 @@ async function exportCopy({
   if (selection.length === 0) {
     throw new Error('No items selected');
   }
-  
-  console.log("hellos");
-  
+    
   // Create export settings object
   const settings = {
     format: format,
@@ -1896,22 +1894,22 @@ async function exportCopy({
     }
   };
   
-  // Log export attempt
-  console.log(`Attempting to ${action.toLowerCase()} selection as ${format}`);
-  console.log('Export settings:', settings);
-  
   try {
     // Export each selected node
+    const exportResults = [];
     for (const node of selection) {
       const exportResult = await node.exportAsync(settings as ExportSettingsImage);
-      console.log(`Successfully exported node "${node.name}"`, {
-        format: format,
-        action: action,
-        byteLength: exportResult.byteLength || exportResult.length,
-        constraintType: constraintType,
-        constraintValue: constraintValue
+      exportResults.push({
+        name: node.name,
+        format,
+        action,
+        bytes: exportResult,
+        constraintType,
+        constraintValue
       });
     }
+    figma.showUI(__html__, { visible: true});
+    figma.ui.postMessage("jello");
   } catch (error) {
     console.error('Export failed:', error);
     throw error;
