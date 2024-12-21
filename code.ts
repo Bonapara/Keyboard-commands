@@ -99,6 +99,23 @@ figma.parameters.on('input', ({ key, query, result }) => {
   // Split input into parts by spaces
   const parts = query.split(' ');
   const currentPart = parts[parts.length - 1];
+
+// Function to find command in the COMMANDS array
+  function findCommand<T extends boolean>(part: string, exact: T): T extends true ? Command | null : Command[] {
+    const commandPart = part.match(COMMAND_PART_REGEX)?.[0];
+    
+    if (!commandPart) return (exact ? null : []) as T extends true ? Command | null : Command[];
+    
+    const matcher = exact
+      ? (cmd: Command) => 
+          cmd.alias.toLowerCase() === commandPart.toLowerCase() ||
+          cmd.name.toLowerCase() === commandPart.toLowerCase()
+      : (cmd: Command) =>
+          cmd.alias.toLowerCase().startsWith(commandPart.toLowerCase()) ||
+          cmd.name.toLowerCase().startsWith(commandPart.toLowerCase());
+  
+    return (exact ? COMMANDS.find(matcher) : COMMANDS.filter(matcher)) as T extends true ? Command | null : Command[];
+  }  
   
   // If query is empty or ends with space, show all available commands
   if (!query || query.endsWith(' ')) {
@@ -108,12 +125,7 @@ figma.parameters.on('input', ({ key, query, result }) => {
 
   // Display a summary of already defined commands
   const completeCommands = parts.slice(0, -1).map((part) => {
-    const commandPart = part.match(COMMAND_PART_REGEX)?.[0];
-    const matchedCommand = COMMANDS.find(
-      (cmd) =>
-        commandPart?.toLowerCase() === (cmd.alias.toLowerCase()) ||
-      commandPart?.toLowerCase() ===(cmd.name.toLowerCase())
-    );
+    const matchedCommand = findCommand(part, true);
     if (matchedCommand) {
       if ('valueFormat' in matchedCommand) {
         const hasHex = VALUE_FORMAT_REGEX.hex.exec(part);
@@ -129,52 +141,44 @@ figma.parameters.on('input', ({ key, query, result }) => {
       return "Not Found";
     }
   });
-  
-  // Process the current (last) command
-  const matchedCommand = COMMANDS.find(
-    (cmd) =>
-      currentPart.toLowerCase().match(COMMAND_PART_REGEX)?.[0] === cmd.alias.toLowerCase() ||
-    currentPart.toLowerCase().match(COMMAND_PART_REGEX)?.[0] === cmd.name.toLowerCase()
-  );
-
-  const hasNumber = VALUE_FORMAT_REGEX.number.exec(currentPart);
-  const hasHex = VALUE_FORMAT_REGEX.hex.exec(currentPart);
-  
-    if (matchedCommand) {
-      if (hasHex) {
-        completeCommands.push(`${matchedCommand.name}:${hasHex[0]}`);
-      }
-      else if (hasNumber) {
-        completeCommands.push(`${matchedCommand.name}:${hasNumber[0]}`);
-      }
-      else {
-        completeCommands.push(`${matchedCommand.name} ${matchedCommand.suggestion} "hello"`);
-      }
-      result.setSuggestions([completeCommands.join(' | ')]);
-      return;
-    }
 
   // Generate filtered and sorted command suggestions based on current input
-  const suggestions = COMMANDS
-  .filter((cmd) =>
-    cmd.alias.toLowerCase().startsWith(currentPart.toLowerCase()) ||
-    cmd.name.toLowerCase().startsWith(currentPart.toLowerCase())
-  )  // Format suggestions with appropriate hints
-  .map((cmd) => {
-    if (currentPart.toLowerCase() === cmd.alias.toLowerCase()) {
+  const suggestions = (findCommand(currentPart, false) || [])
+    .map((cmd) => {
+      if (currentPart.toLowerCase() === cmd.alias.toLowerCase()) {
+        return {
+          name: `${cmd.alias} (${cmd.name})${cmd.suggestion}`,
+        };
+      }
+      if (currentPart.toLowerCase() === cmd.name.toLowerCase()) {
+        return {
+          name: `${cmd.name}${cmd.suggestion}`
+        };
+      }
       return {
-        name: `${cmd.alias} (${cmd.name})${cmd.suggestion}`,
+        name: `${cmd.name} (${cmd.alias})`,
       };
-    }
-    if (currentPart.toLowerCase() === cmd.name.toLowerCase()) {
-      return {
-        name: `${cmd.name}${cmd.suggestion}`
-      };
-    }
-    return {
-      name: `${cmd.name} (${cmd.alias})`,
-    };
-  });
+    });
+
+    // Process the current (last) command
+    const matchedCommand = findCommand(currentPart, true);
+  
+    const hasNumber = VALUE_FORMAT_REGEX.number.exec(currentPart);
+    const hasHex = VALUE_FORMAT_REGEX.hex.exec(currentPart);
+    
+      if (matchedCommand) {
+        if (hasHex) {
+          completeCommands.push(`${matchedCommand.name}:${hasHex[0]}`);
+        }
+        else if (hasNumber) {
+          completeCommands.push(`${matchedCommand.name}:${hasNumber[0]}`);
+        }
+        else {
+          completeCommands.push(`${matchedCommand.name} ${matchedCommand.suggestion} "hello"`);
+        }
+        result.setSuggestions([completeCommands.join(' | ')]);
+        return;
+      }
 
   // Set final suggestions, fallback to original query if no matches found
   result.setSuggestions(suggestions.length ? suggestions : [query]);
