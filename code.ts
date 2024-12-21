@@ -84,7 +84,8 @@ const VALUE_FORMAT_REGEX = {
   text: /.+/
 };
 const COMMAND_SPLITTER_REGEX = /[\s,]+/;
-const COMMAND_PART_REGEX = /^[a-zA-Z]+/;
+const COMMAND_PART_REGEX = /^[\p{L}]+/u;
+
 
 let originalInput = '';
 
@@ -221,8 +222,9 @@ figma.on('run', async () => {
   try {
     const commandString = originalInput.trim();
     const commands = commandString.split(COMMAND_SPLITTER_REGEX).filter(Boolean);
-    await Promise.all(commands.map(cmd => executeCommand(cmd)));
-    figma.closePlugin();
+    for (const cmd of commands) {
+      await executeCommand(cmd);
+    }    figma.closePlugin();
   } catch (error) {
     figma.notify(error instanceof Error ? error.message : 'An unknown error occurred');
     figma.closePlugin();
@@ -253,10 +255,13 @@ async function executeCommand(cmd: string): Promise<void> {
   if (!command) {
     return;
   }
+  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
   
   const loadingNotification = figma.notify(`Executing ${command.name}...`, { timeout: 0 });
   
   try {
+    await delay(1);
     if (command.type === 'commandWithoutValue') {
       await processCommand(command.name);
     } else {
@@ -274,6 +279,7 @@ async function executeCommand(cmd: string): Promise<void> {
       }
     }
   } finally {
+    await delay(1);
     loadingNotification.cancel();
   }
 }
