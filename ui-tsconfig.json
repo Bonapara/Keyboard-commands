@@ -1,0 +1,14 @@
+{
+    "compilerOptions": {
+      "target": "es6",
+      "lib": ["es6", "dom"],
+      "strict": true,
+      "typeRoots": [
+        "./node_modules/@types"
+      ],
+      "outDir": "dist"
+    },
+    "include": ["ui.ts"],
+    "exclude": ["code.ts", "node_modules", "node_modules/@figma/plugin-typings"]
+  }
+  

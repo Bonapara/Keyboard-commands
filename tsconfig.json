@@ -6,6 +6,9 @@
     "typeRoots": [
       "./node_modules/@types",
       "./node_modules/@figma"
-    ]
-  }
+    ],
+    "outDir": "dist"
+  },
+  "include": ["code.ts"],
+  "exclude": ["ui.ts", "node_modules"]
 }

@@ -1,0 +1,66 @@
+<html>
+<head>
+</head>
+<body>
+    <script>
+        // UI code directly embedded
+        console.log("UI Initialized");
+        
+        // Helper functions to determine file types
+        function typedArrayToBuffer(array) {
+            return array.buffer.slice(array.byteOffset, array.byteLength + array.byteOffset)
+        }
+        
+        function exportTypeToBlobType(type) {
+            switch(type) {
+                case "PDF": return 'application/pdf'
+                case "SVG": return 'image/svg+xml'
+                case "PNG": return 'image/png'
+                case "JPG": return 'image/jpeg'
+                default: return 'image/png'
+            }
+        }
+        
+        function exportTypeToFileExtension(type) {
+            switch(type) {
+                case "PDF": return '.pdf'
+                case "SVG": return '.svg'
+                case "PNG": return '.png'
+                case "JPG": return '.jpg'
+                default: return '.png'
+            }
+        }
+        
+        // Handle messages from the plugin
+        window.onmessage = async (event) => {
+            if (!event.data.pluginMessage) return
+            
+            const exportResults = event.data.pluginMessage;
+            
+            // Process each exported item
+            for (const data of exportResults) {
+                const { bytes, name, format } = data;
+                const cleanBytes = typedArrayToBuffer(bytes);
+                const type = exportTypeToBlobType(format);
+                const extension = exportTypeToFileExtension(format);
+                
+                // Create blob and trigger download
+                const blob = new Blob([cleanBytes], { type });
+                const blobURL = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = blobURL;
+                link.download = `${name}${extension}`;
+                
+                // Trigger the download
+                link.click();
+                
+                // Clean up
+                window.URL.revokeObjectURL(blobURL);
+            }
+            
+            // Notify the plugin that we're done
+            window.parent.postMessage({ pluginMessage: 'Done!' }, '*');
+        }
+    </script>
+</body>
+</html>

@@ -355,7 +355,7 @@ const COMMAND_DEFINITIONS = {
     type: "optionalValueCommand",
     alias: 'o',
     valueFormat: 'number' as const,
-    suggestion: ' - In % (No value = toggle 0% | 100%)',
+    suggestion: ' - In % (No value = 0% ↔️ 100%)',
     functionWithParam: (value: string) => setOpacity(value),
     functionWithoutParam: () => toggleOpacity(),
   },
@@ -369,7 +369,7 @@ const COMMAND_DEFINITIONS = {
     type: "optionalValueCommand",
     alias: 'b',
     valueFormat: 'number' as const,
-    suggestion: ' - border in px (No value = toggle 0px)',
+    suggestion: ' - border in px (No value = toggle)',
     functionWithParam: (value: string) => setBorder('all', value),
     functionWithoutParam: () => toggleBorder('all'),
   },
@@ -377,7 +377,7 @@ const COMMAND_DEFINITIONS = {
     type: "optionalValueCommand",
     alias: 'bl',
     valueFormat: 'number' as const,
-    suggestion: ' - border in px (No value = toggle 0px)',
+    suggestion: ' - border in px (No value = toggle)',
     functionWithParam: (value: string) => setBorder('left', value),
     functionWithoutParam: () => toggleBorder('left'),
   },
@@ -385,7 +385,7 @@ const COMMAND_DEFINITIONS = {
     type: "optionalValueCommand",
     alias: 'br',
     valueFormat: 'number' as const,
-    suggestion: ' - border in px (No value = toggle 0px)',
+    suggestion: ' - border in px (No value = toggle)',
     functionWithParam: (value: string) => setBorder('right', value),
     functionWithoutParam: () => toggleBorder('right'),
   },
@@ -393,7 +393,7 @@ const COMMAND_DEFINITIONS = {
     type: "optionalValueCommand",
     alias: 'bt',
     valueFormat: 'number' as const,
-    suggestion: ' - border in px (No value = toggle 0px)',
+    suggestion: ' - border in px (No value = toggle)',
     functionWithParam: (value: string) => setBorder('top', value),
     functionWithoutParam: () => toggleBorder('top'),
   },
@@ -401,7 +401,7 @@ const COMMAND_DEFINITIONS = {
     type: "optionalValueCommand",
     alias: 'bb',
     valueFormat: 'number' as const,
-    suggestion: ' - border in px (No value = toggle 0px)',
+    suggestion: ' - border in px (No value = toggle)',
     functionWithParam: (value: string) => setBorder('bottom', value),
     functionWithoutParam: () => toggleBorder('bottom'),
   },
@@ -509,64 +509,32 @@ const COMMAND_DEFINITIONS = {
     alias: 'esvg',
     valueFormat: 'number' as const,
     suggestion: ' - 🎨',
-    functionWithParam: (value: string) => exportCopy({format:'SVG',action: 'EXPORTED',constraintType: 'SCALE',constraintValue: value}),
-    functionWithoutParam: () => exportCopy({format:'SVG',action: 'EXPORTED',constraintType: 'SCALE',constraintValue: '1'}),
+    functionWithParam: (value: string) => exportAs({format:'SVG',constraintType: 'SCALE',constraintValue: value}),
+    functionWithoutParam: () => exportAs({format:'SVG',constraintType: 'SCALE',constraintValue: '1'}),
   },
   ExportPNG: {
     type: "optionalValueCommand",
     alias: 'epng',
     valueFormat: 'number' as const,
     suggestion: ' - 🖼️',
-    functionWithParam: (value: string) => exportCopy({format:'PNG',action: 'EXPORTED',constraintType: 'SCALE',constraintValue: value}),
-    functionWithoutParam: () => exportCopy({format:'PNG',action: 'EXPORTED',constraintType: 'SCALE',constraintValue: '1'}),
+    functionWithParam: (value: string) => exportAs({format:'PNG',constraintType: 'SCALE',constraintValue: value}),
+    functionWithoutParam: () => exportAs({format:'PNG',constraintType: 'SCALE',constraintValue: '1'}),
   },
   ExportPDF: {
     type: "optionalValueCommand",
     alias: 'epdf',
     valueFormat: 'number' as const,
     suggestion: ' - 📄',
-    functionWithParam: (value: string) => exportCopy({format:'PDF',action: 'EXPORTED',constraintType: 'SCALE',constraintValue: value}),
-    functionWithoutParam: () => exportCopy({format:'PDF',action: 'EXPORTED',constraintType: 'SCALE',constraintValue: '1'}),
+    functionWithParam: (value: string) => exportAs({format:'PDF',constraintType: 'SCALE',constraintValue: value}),
+    functionWithoutParam: () => exportAs({format:'PDF',constraintType: 'SCALE',constraintValue: '1'}),
   },
   ExportJPG: {
     type: "optionalValueCommand",
     alias: 'ejpg',
     valueFormat: 'number' as const,
     suggestion: ' - 🖼️',
-    functionWithParam: (value: string) => exportCopy({format:'JPG',action: 'EXPORTED',constraintType: 'SCALE',constraintValue: value}),
-    functionWithoutParam: () => exportCopy({format:'JPG',action: 'EXPORTED',constraintType: 'SCALE',constraintValue: '1'}),
-  },
-  CopyAsSVG: {
-    type: "optionalValueCommand",
-    alias: 'csvg',
-    valueFormat: 'number' as const,
-    suggestion: ' - 📋🎨',
-    functionWithParam: (value: string) => exportCopy({format:'SVG',action: 'COPIED',constraintType: 'SCALE',constraintValue: value}),
-    functionWithoutParam: () => exportCopy({format:'SVG',action: 'COPIED',constraintType: 'SCALE',constraintValue: '1'}),
-  },
-  CopyAsPNG: {
-    type: "optionalValueCommand",
-    alias: 'cpng',
-    valueFormat: 'number' as const,
-    suggestion: ' - 📋🖼️',
-    functionWithParam: (value: string) => exportCopy({format:'PNG',action: 'COPIED',constraintType: 'SCALE',constraintValue: value}),
-    functionWithoutParam: () => exportCopy({format:'PNG',action: 'COPIED',constraintType: 'SCALE',constraintValue: '1'}),
-  },
-  CopyAsJPG: {
-    type: "optionalValueCommand",
-    alias: 'cjpg',
-    valueFormat: 'number' as const,
-    suggestion: ' - 📋🖼️',
-    functionWithParam: (value: string) => exportCopy({format:'JPG',action: 'COPIED',constraintType: 'SCALE',constraintValue: value}),
-    functionWithoutParam: () => exportCopy({format:'JPG',action: 'COPIED',constraintType: 'SCALE',constraintValue: '1'}),
-  },
-  CopyAsPDF: {
-    type: "optionalValueCommand",
-    alias: 'cpdf',
-    valueFormat: 'number' as const,
-    suggestion: ' - 📋📄',
-    functionWithParam: (value: string) => exportCopy({format:'PDF',action: 'COPIED',constraintType: 'SCALE',constraintValue: value}),
-      functionWithoutParam: () => exportCopy({format:'PDF',action: 'COPIED',constraintType: 'SCALE',constraintValue: '1'}),
+    functionWithParam: (value: string) => exportAs({format:'JPG',constraintType: 'SCALE',constraintValue: value}),
+    functionWithoutParam: () => exportAs({format:'JPG',constraintType: 'SCALE',constraintValue: '1'}),
   }
 } satisfies Record<string, CommandWithValue | CommandWithoutValue | OptionalValueCommand>;
 
@@ -772,8 +740,13 @@ figma.on('run', async () => {
     const commandString = originalInput.trim();
     const commands = commandString.split(COMMAND_SPLITTER_REGEX).filter(Boolean);
     for (const cmd of commands) {
+      if (cmd.toLowerCase() === 'hello' || cmd.toLowerCase() === 'he') {
+        await executeCommand(cmd);
+        return; // Exit without closing
+      }
       await executeCommand(cmd);
-    }    figma.closePlugin();
+    }    
+    figma.closePlugin();
   } catch (error) {
     figma.notify(error instanceof Error ? error.message : 'An unknown error occurred');
     figma.closePlugin();
@@ -1869,14 +1842,12 @@ function removeEffect() {
   }
 }
 
-async function exportCopy({
+async function exportAs({
   format,
-  action,
   constraintType = 'SCALE',
   constraintValue
 }: {
   format: 'SVG' | 'PNG' | 'PDF' | 'JPG';
-  action: 'COPIED' | 'EXPORTED';
   constraintType?: 'SCALE' | 'WIDTH' | 'HEIGHT';
   constraintValue: string;
 }) {
@@ -1884,34 +1855,56 @@ async function exportCopy({
   if (selection.length === 0) {
     throw new Error('No items selected');
   }
-    
-  // Create export settings object
-  const settings = {
-    format: format,
-    constraint: {
-      type: constraintType,
-      value: Number(constraintValue)
+
+  // Create export settings object based on format
+  const settings: ExportSettings = (() => {
+    switch (format) {
+      case 'PDF':
+        return {
+          format: 'PDF'
+        };
+      case 'SVG':
+        return {
+          format: 'SVG'
+        };
+      case 'PNG':
+      case 'JPG':
+        return {
+          format: format,
+          constraint: {
+            type: constraintType,
+            value: Number(constraintValue)
+          }
+        };
+      default:
+        throw new Error(`Unsupported format: ${format}`);
     }
-  };
-  
+  })();
+
   try {
     // Export each selected node
     const exportResults = [];
     for (const node of selection) {
-      const exportResult = await node.exportAsync(settings as ExportSettingsImage);
+      const exportResult = await node.exportAsync(settings);
       exportResults.push({
         name: node.name,
         format,
-        action,
-        bytes: exportResult,
-        constraintType,
-        constraintValue
+        bytes: exportResult
       });
     }
-    figma.showUI(__html__, { visible: true});
-    figma.ui.postMessage("jello");
+    figma.showUI(__html__, { visible: false });
+    figma.ui.postMessage(exportResults);
   } catch (error) {
     console.error('Export failed:', error);
     throw error;
   }
+
+  // Handle messages from UI
+  return new Promise(resolve => {
+    figma.ui.onmessage = msg => {
+      console.log('Message from UI:', msg);
+      resolve(msg);
+      figma.closePlugin();
+    };
+  });
 }
