@@ -505,36 +505,60 @@ const COMMAND_DEFINITIONS = {
     functionWithoutParam: () => removeEffect()
   },
   ExportSVG: {
-    type: "optionalValueCommand",
-    alias: 'esvg',
-    valueFormat: 'number' as const,
+    type: "commandWithoutValue",
+    alias: 'svg',
     suggestion: ' - 🎨',
-    functionWithParam: (value: string) => exportAs({format:'SVG',constraintType: 'SCALE',constraintValue: value}),
     functionWithoutParam: () => exportAs({format:'SVG',constraintType: 'SCALE',constraintValue: '1'}),
+  },
+  ExportPDF: {
+    type: "commandWithoutValue",
+    alias: 'pdf',
+    suggestion: ' - 📄',
+    functionWithoutParam: () => exportAs({format:'PDF',constraintType: 'SCALE',constraintValue: '1'}),
   },
   ExportPNG: {
     type: "optionalValueCommand",
-    alias: 'epng',
+    alias: 'png',
     valueFormat: 'number' as const,
-    suggestion: ' - 🖼️',
+    suggestion: ' - Opt: Scale (e.g. png2 = 200%)',
     functionWithParam: (value: string) => exportAs({format:'PNG',constraintType: 'SCALE',constraintValue: value}),
     functionWithoutParam: () => exportAs({format:'PNG',constraintType: 'SCALE',constraintValue: '1'}),
   },
-  ExportPDF: {
-    type: "optionalValueCommand",
-    alias: 'epdf',
-    valueFormat: 'number' as const,
-    suggestion: ' - 📄',
-    functionWithParam: (value: string) => exportAs({format:'PDF',constraintType: 'SCALE',constraintValue: value}),
-    functionWithoutParam: () => exportAs({format:'PDF',constraintType: 'SCALE',constraintValue: '1'}),
-  },
   ExportJPG: {
     type: "optionalValueCommand",
-    alias: 'ejpg',
+    alias: 'jpg',
     valueFormat: 'number' as const,
-    suggestion: ' - 🖼️',
+    suggestion: ' - Opt: Scale (e.g. jpg2 = 200%)',
     functionWithParam: (value: string) => exportAs({format:'JPG',constraintType: 'SCALE',constraintValue: value}),
     functionWithoutParam: () => exportAs({format:'JPG',constraintType: 'SCALE',constraintValue: '1'}),
+  },
+  ExportPNGWidth: {
+    type: "commandWithValue",
+    alias: 'pngw',
+    valueFormat: 'number' as const,
+    suggestion: ' - Export Width in px',
+    functionWithParam: (value: string) => exportAs({format:'PNG',constraintType: 'WIDTH',constraintValue: value}),
+  },
+  ExportJPGWidth: {
+    type: "commandWithValue",
+    alias: 'jpgw',
+    valueFormat: 'number' as const,
+    suggestion: ' - Export Width in px',
+    functionWithParam: (value: string) => exportAs({format:'JPG',constraintType: 'WIDTH',constraintValue: value}),
+  },
+  ExportPNGHeight: {
+    type: "commandWithValue",
+    alias: 'pngh',
+    valueFormat: 'number' as const,
+    suggestion: ' - Export Height in px',
+    functionWithParam: (value: string) => exportAs({format:'PNG',constraintType: 'HEIGHT',constraintValue: value}),
+  },
+  ExportJPGHeight: {
+    type: "commandWithValue",
+    alias: 'jpgh',
+    valueFormat: 'number' as const,
+    suggestion: ' - Export Height in px',
+    functionWithParam: (value: string) => exportAs({format:'JPG',constraintType: 'HEIGHT',constraintValue: value}),
   }
 } satisfies Record<string, CommandWithValue | CommandWithoutValue | OptionalValueCommand>;
 
@@ -628,7 +652,7 @@ figma.parameters.on('input', ({ key, query, result }) => {
     const matchedCommand = findCommand(part, true);
     const hasHex = VALUE_FORMAT_REGEX.hex.exec(part);
     const hasNumber = VALUE_FORMAT_REGEX.number.exec(part);
-    
+
     if (matchedCommand) {
       if (matchedCommand.type === 'commandWithValue') {
         if (hasHex) return `${matchedCommand.name}:${hasHex[0]}`;
@@ -1844,7 +1868,7 @@ function removeEffect() {
 
 async function exportAs({
   format,
-  constraintType = 'SCALE',
+  constraintType,
   constraintValue
 }: {
   format: 'SVG' | 'PNG' | 'PDF' | 'JPG';
@@ -1855,24 +1879,24 @@ async function exportAs({
   if (selection.length === 0) {
     throw new Error('No items selected');
   }
-
+console.log("hzezf -- constraintValue:", constraintValue);
   // Create export settings object based on format
   const settings: ExportSettings = (() => {
     switch (format) {
       case 'PDF':
         return {
-          format: 'PDF'
+          format: 'PDF',
         };
       case 'SVG':
         return {
-          format: 'SVG'
+          format: 'SVG',
         };
       case 'PNG':
       case 'JPG':
         return {
           format: format,
           constraint: {
-            type: constraintType,
+            type: constraintType || 'SCALE',
             value: Number(constraintValue)
           }
         };
