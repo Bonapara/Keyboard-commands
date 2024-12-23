@@ -120,7 +120,6 @@ const COMMAND_DEFINITIONS = {
     suggestion: '👤',
     functionWithoutParam: () => grouping('ungroup')
   },
-  
   VerticalFill: {
     type: "commandWithoutValue",
     alias: "vf",
@@ -243,7 +242,7 @@ const COMMAND_DEFINITIONS = {
     type: "optionalValueCommand",
     alias: 'f',
     valueFormat: 'hex' as const,
-    suggestion: ' - Enter #HEX color',
+    suggestion: ' - Enter #HEX color (No value = toggle)',
     functionWithoutParam: () => toggleFill(),
     functionWithParam: (value: string) => setFill(value),
   },
