@@ -44,50 +44,78 @@ const COMMAND_DEFINITIONS = {
     suggestion: " - Enter height in pixels",
     functionWithParam: (value: string) => resize(value, 'height'),
   },
-  MoveX: {
+  MoveTop: {
     type: "commandWithValue",
-    alias: "mx",
+    alias: "mt",
     valueFormat: 'number' as const,
-    suggestion: " - Enter X position in pixels",
-    functionWithParam: (value: string) => move('x', value),
+    suggestion: " - Move X pixels up",
+    functionWithParam: (value: string) => move('TOP', value),
   },
-  MoveY: {
+  MoveBottom: {
     type: "commandWithValue",
-    alias: "my",
+    alias: "mb",
     valueFormat: 'number' as const,
-    suggestion: " - Enter Y position in pixels",
-    functionWithParam: (value: string) => move('y', value),
+    suggestion: " - Move X pixels down",
+    functionWithParam: (value: string) => move('BOTTOM', value),
   },
-  PositionX: {
+  MoveLeft: {
     type: "commandWithValue",
-    alias: "x",
-    valueFormat: "number",
-    suggestion: " - Enter X coordinate in pixels",
-    functionWithParam: (value: string) => position(value, 'x'),
+    alias: "ml",
+    valueFormat: 'number' as const,
+    suggestion: " - Move X pixels left",
+    functionWithParam: (value: string) => move('LEFT', value),
   },
-  PositionY: {
+  MoveRight: {
     type: "commandWithValue",
-    alias: "y",
+    alias: "mr",
+    valueFormat: 'number' as const,
+    suggestion: " - Move X pixels right",
+    functionWithParam: (value: string) => move('RIGHT', value),
+  },
+  PositionLeft: {
+    type: "commandWithValue",
+    alias: "pol",
     valueFormat: "number",
-    suggestion: " - Enter Y coordinate in pixels",
-    functionWithParam: (value: string) => position(value, 'y'),
+    suggestion: " - Enter a position in pixels from left",
+    functionWithParam: (value: string) => position(value, 'left'),
+  },
+  PositionRight: {
+    type: "commandWithValue",
+    alias: "por",
+    valueFormat: "number",
+    suggestion: " - Enter a position in pixels from right",
+    functionWithParam: (value: string) => position(value, 'right'),
+  },
+  PositionTop: {
+    type: "commandWithValue",
+    alias: "pot",
+    valueFormat: "number",
+    suggestion: " - Enter a position in pixels from top",
+    functionWithParam: (value: string) => position(value, 'top'),
+  },
+  PositionBottom: {
+    type: "commandWithValue",
+    alias: "pob",
+    valueFormat: "number",
+    suggestion: " - Enter a position in pixels from bottom",
+    functionWithParam: (value: string) => position(value, 'bottom'),
   },
   Delete: {
     type: "commandWithoutValue",
     alias: 'de',
-    suggestion: ' 🗑️',
+    suggestion: ' - 🗑️',
     functionWithoutParam: () => deleteSelection()
   },
   AutoLayout: {
     type: "commandWithoutValue",
     alias: 'a',
-    suggestion: '→',
+    suggestion: ' - →',
     functionWithoutParam: () => createAutoLayout('HORIZONTAL'),
   },
   AutoLayoutVertical: {
     type: "commandWithoutValue",
     alias: "av",
-    suggestion: "↓",
+    suggestion: " - ↓",
     functionWithoutParam: () => createAutoLayout('VERTICAL'),
   },
   RemoveAutoLayout: {
@@ -99,49 +127,49 @@ const COMMAND_DEFINITIONS = {
   FlipHorizontal: {
     type: "commandWithoutValue",
     alias: 'fh',
-    suggestion: '↔',
+    suggestion: ' - ↔',
     functionWithoutParam: () => flip('horizontal')
   },
   FlipVertical: {
     type: "commandWithoutValue",
     alias: 'fv',
-    suggestion: '↕',
+    suggestion: ' - ↕',
     functionWithoutParam: () => flip('vertical')
   },
   Group: {
     type: "commandWithoutValue",
     alias: 'gr',
-    suggestion: ' 👥',
+    suggestion: ' - 👥',
     functionWithoutParam: () => grouping('group')
   },
   Ungroup: {
     type: "commandWithoutValue",
     alias: 'ugr',
-    suggestion: '👤',
+    suggestion: ' - 👤',
     functionWithoutParam: () => grouping('ungroup')
   },
   VerticalFill: {
     type: "commandWithoutValue",
     alias: "vf",
-    suggestion: " ↕",
+    suggestion: " - ↕",
     functionWithoutParam: () => layoutSizing('VERTICAL', 'FILL'),
   },
   VerticalHug: {
     type: "commandWithoutValue",
     alias: "vh",
-    suggestion: " ↓↑",
+    suggestion: " - ↓↑",
     functionWithoutParam: () => layoutSizing('VERTICAL', 'HUG'),
   },
   HorizontalFill: {
     type: "commandWithoutValue",
     alias: "hf",
-    suggestion: " ↔",
+    suggestion: " - ↔",
     functionWithoutParam: () => layoutSizing('HORIZONTAL', 'FILL'),
   },
   HorizontalHug: {
     type: "commandWithoutValue",
     alias: "hh",
-    suggestion: " →←",
+    suggestion: " - →←",
     functionWithoutParam: () => layoutSizing('HORIZONTAL', 'HUG'),
   },
   Gap: {
@@ -174,20 +202,26 @@ const COMMAND_DEFINITIONS = {
   LayoutHorizontal: {
     type: "commandWithoutValue",
     alias: "lh",
-    suggestion: " →",
+    suggestion: " - →",
     functionWithoutParam: () => setLayout('HORIZONTAL'),
   },
   LayoutVertical: {
     type: "commandWithoutValue",
     alias: "lv",
-    suggestion: " ↓",
+    suggestion: " - ↓",
     functionWithoutParam: () => setLayout('VERTICAL'),
   },
   LayoutWrap: {
     type: "commandWithoutValue",
     alias: "lw",
-    suggestion: " ↩️",
+    suggestion: " - ↩️",
     functionWithoutParam: () => setLayout('WRAP'),
+  },
+  AbsolutePosition: {
+    type: "commandWithoutValue",
+    alias: "ap",
+    suggestion: " - ignore auto-layout (toggle)",
+    functionWithoutParam: () => absolutePosition(),
   },
   Padding: {
     type: "commandWithValue",
@@ -341,13 +375,13 @@ const COMMAND_DEFINITIONS = {
   ClipContent: {
     type: "commandWithoutValue",
     alias: 'cc',
-    suggestion: ' 📎',
+    suggestion: ' - 📎',
     functionWithoutParam: () => clipContent()
   },
   Visible: {
     type: "commandWithoutValue",
     alias: 'v',
-    suggestion: ' 🕶️',
+    suggestion: ' - 👁️',
     functionWithoutParam: () => toggleVisibility()
   },
   Opacity: {
@@ -361,7 +395,7 @@ const COMMAND_DEFINITIONS = {
   Duplicate: {
     type: "commandWithoutValue",
     alias: 'd',
-    suggestion: ' 🔄',
+    suggestion: ' - 🔄',
     functionWithoutParam: () => duplicate()
   },
   Border: {
@@ -407,62 +441,62 @@ const COMMAND_DEFINITIONS = {
   ToggleTheme: {
     type: "commandWithoutValue",
     alias: 't',
-    suggestion: ' 🌗',
+    suggestion: ' - 🌗',
     functionWithoutParam: () => toggleTheme()
   },
   
   AlignTopLeft: {
     type: "commandWithoutValue",
     alias: 'atl',
-    suggestion: ' ↖',
+    suggestion: ' - ↖',
     functionWithoutParam: () => setAlignment({ primary: 'MIN', counter: 'MIN' },{ primary: 'MIN', counter: 'MIN' }),
   },
   AlignTopCenter: {
     type: "commandWithoutValue",
     alias: 'atc',
-    suggestion: ' ↑',
+    suggestion: ' - ↑',
     functionWithoutParam: () => setAlignment({ primary: 'CENTER', counter: 'MIN' },{ primary: 'MIN', counter: 'CENTER' }),
   },
   AlignTopRight: {
     type: "commandWithoutValue",
     alias: 'atr',
-    suggestion: ' ↗',
+    suggestion: ' - ↗',
     functionWithoutParam: () => setAlignment({ primary: 'MAX', counter: 'MIN' },{ primary: 'MIN', counter: 'MAX' }),
   },
   AlignCenterLeft: {
     type: "commandWithoutValue",
     alias: 'acl',
-    suggestion: ' ←',
+    suggestion: ' - ←',
     functionWithoutParam: () => setAlignment({ primary: 'MIN', counter: 'CENTER' },{ primary: 'CENTER', counter: 'MIN' }),
   },
   AlignCenterCenter: {
     type: "commandWithoutValue",
     alias: 'acc',
-    suggestion: ' ・',
+    suggestion: ' - ・',
     functionWithoutParam: () => setAlignment({ primary: 'CENTER', counter: 'CENTER' },{ primary: 'CENTER', counter: 'CENTER' }),
   },
   AlignCenterRight: {
     type: "commandWithoutValue",
     alias: 'acr',
-    suggestion: ' →',
+    suggestion: ' - →',
     functionWithoutParam: () => setAlignment({ primary: 'MAX', counter: 'CENTER' },{ primary: 'CENTER', counter: 'MAX' }),
   },
   AlignBottomLeft: {
     type: "commandWithoutValue",
     alias: 'abl',
-    suggestion: ' ↙',
+    suggestion: ' - ↙',
     functionWithoutParam: () => setAlignment({ primary: 'MIN', counter: 'MAX' },{ primary: 'MAX', counter: 'MIN' }),
   },
   AlignBottomRight: {
     type: "commandWithoutValue",
     alias: 'abr',
-    suggestion: ' ↘',
+    suggestion: ' - ↘',
     functionWithoutParam: () => setAlignment({ primary: 'MAX', counter: 'MAX' },{ primary: 'MAX', counter: 'MAX' }),
   },
   AlignBottomCenter: {
     type: "commandWithoutValue",
     alias: 'abc',
-    suggestion: ' ↓',
+    suggestion: ' - ↓',
     functionWithoutParam: () => setAlignment({ primary: 'CENTER', counter: 'MAX' },{ primary: 'MAX', counter: 'CENTER' }),
   },
   MaxHeight: {
@@ -485,7 +519,7 @@ const COMMAND_DEFINITIONS = {
     type: "optionalValueCommand",
     alias: 'minh',
     valueFormat: 'number' as const,
-    suggestion: ' ↓↑ in px (No value = toggle)',
+    suggestion: ' - ↓↑ in px (No value = toggle)',
     functionWithParam: (value: string) => maxDimension({value:value, type: 'min', direction: 'height', null: false}),
     functionWithoutParam: () => maxDimension({type: 'min', direction: 'height', null: true}),
   },
@@ -500,7 +534,7 @@ const COMMAND_DEFINITIONS = {
   RemoveEffect: {
     type: "commandWithoutValue",
     alias: 're',
-    suggestion: ' 📎',
+    suggestion: ' - 📎',
     functionWithoutParam: () => removeEffect()
   },
   ExportSVG: {
@@ -558,7 +592,78 @@ const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: ' - Export Height in px',
     functionWithParam: (value: string) => exportAs({format:'JPG',constraintType: 'HEIGHT',constraintValue: value}),
-  }
+  },
+  // Horizontal Constraints
+  ConstraintLeft: {
+    type: "commandWithoutValue",
+    alias: 'cl',
+    suggestion: ' - Set horizontal constraint to left',
+    functionWithoutParam: () => setConstraints('HORIZONTAL', 'MIN'),
+  },
+  
+  ConstraintCenterHorizontal: {
+    type: "commandWithoutValue",
+    alias: 'cch',
+    suggestion: ' - Set horizontal constraint to center',
+    functionWithoutParam: () => setConstraints('HORIZONTAL', 'CENTER'),
+  },
+  
+  ConstraintRight: {
+    type: "commandWithoutValue",
+    alias: 'cr',
+    suggestion: ' - Set horizontal constraint to right',
+    functionWithoutParam: () => setConstraints('HORIZONTAL', 'MAX'),
+  },
+  
+  ConstraintLeftAndRight: {
+    type: "commandWithoutValue",
+    alias: 'clr',
+    suggestion: ' - Set horizontal constraint to left + right',
+    functionWithoutParam: () => setConstraints('HORIZONTAL', 'STRETCH'),
+  },
+  
+  ConstraintScaleHorizontal: {
+    type: "commandWithoutValue",
+    alias: 'csh',
+    suggestion: ' - Set horizontal constraint to scale',
+    functionWithoutParam: () => setConstraints('HORIZONTAL', 'SCALE'),
+  },
+  
+  // Vertical Constraints
+  ConstraintTop: {
+    type: "commandWithoutValue",
+    alias: 'ct',
+    suggestion: ' - Set vertical constraint to top',
+    functionWithoutParam: () => setConstraints('VERTICAL', 'MIN'),
+  },
+  
+  ConstraintCenterVertical: {
+    type: "commandWithoutValue",
+    alias: 'ccv',
+    suggestion: ' - Set vertical constraint to center',
+    functionWithoutParam: () => setConstraints('VERTICAL', 'CENTER'),
+  },
+  
+  ConstraintBottom: {
+    type: "commandWithoutValue",
+    alias: 'cb',
+    suggestion: ' - Set vertical constraint to bottom',
+    functionWithoutParam: () => setConstraints('VERTICAL', 'MAX'),
+  },
+  
+  ConstraintTopAndBottom: {
+    type: "commandWithoutValue",
+    alias: 'ctb',
+    suggestion: ' - Set vertical constraint to top + bottom',
+    functionWithoutParam: () => setConstraints('VERTICAL', 'STRETCH'),
+  },
+  
+  ConstraintScaleVertical: {
+    type: "commandWithoutValue",
+    alias: 'csv',
+    suggestion: ' - Set vertical constraint to scale',
+    functionWithoutParam: () => setConstraints('VERTICAL', 'SCALE'),
+  },  
 } satisfies Record<string, CommandWithValue | CommandWithoutValue | OptionalValueCommand>;
 
 
@@ -1118,44 +1223,24 @@ function rotate(value: number) {
   figma.notify(`Rotated ${value}° for all selected items`);
 }
 
-function move(direction: 'x' | 'y', value: string) {
+function move(direction: 'TOP' | 'RIGHT' | 'LEFT' | 'BOTTOM', value: string) {
   if (value === undefined) throw new Error('No value provided');
   const selection = figma.currentPage.selection;
   
   if (selection.length === 0) throw new Error('No items selected');
   
+  const numValue = Number(value);
+  
   for (const node of selection) {
-    if (direction === 'x' && 'x' in node) {
-      node.x += Number(value);
-    } else if (direction === 'y' && 'y' in node) {
-      node.y += Number(value);
+    if ((direction === 'LEFT' || direction === 'RIGHT') && 'x' in node) {
+      node.x += direction === 'RIGHT' ? numValue : -numValue;
+    } else if ((direction === 'TOP' || direction === 'BOTTOM') && 'y' in node) {
+      node.y += direction === 'BOTTOM' ? numValue : -numValue;
     }
   }
   
-  const dirText = direction === 'x' ? 'horizontally' : 'vertically';
-  figma.notify(`Moved items ${dirText} by ${value} pixels`);
-}
-
-
-function position(value: string, axisPosition: 'x' | 'y') {
-  const selection = figma.currentPage.selection;
-  
-  if (selection.length === 0) {
-    throw new Error('No items selected');
-  }
-  
-  for (const node of selection) {
-    if ('x' in node) {
-      const newPosition = {
-        x: axisPosition === 'x' ? Number(value) : node.x,
-        y: axisPosition === 'y' ? Number(value) : node.y
-      };
-      node.x = newPosition.x;
-      node.y = newPosition.y;
-    }
-  }
-  
-  figma.notify(`${axisPosition} set to ${value} for all selected items`);
+  const dirValue = (direction === 'LEFT' || direction === 'TOP') ? -numValue : numValue;
+  figma.notify(`Moved items ${direction.toLowerCase()} by ${Math.abs(dirValue)} pixels`);
 }
 
 function scale(value?: string, dimension?: 'width' | 'height') {
@@ -1946,4 +2031,98 @@ async function exportAs({
       figma.closePlugin();
     };
   });
+}
+
+function absolutePosition() {
+  const selection = figma.currentPage.selection;
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+  
+  for (const node of selection) {
+    if ('layoutPositioning' in node) {
+      if (node.layoutPositioning === 'ABSOLUTE') {
+        node.layoutPositioning = 'AUTO';
+      } else {
+        node.layoutPositioning = 'ABSOLUTE';
+      }
+    }
+    break;
+  }
+}
+
+function setConstraints(direction: 'VERTICAL' | 'HORIZONTAL', value: 'MIN' | 'CENTER' | 'MAX' | 'STRETCH' | 'SCALE') {
+  const selection = figma.currentPage.selection;
+  
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+  
+  selection.forEach(node => {
+    // Check if node has constraints property
+    if ('constraints' in node) {
+      try {
+        // Create new constraints object maintaining the other direction's value
+        const newConstraints = { ...node.constraints };
+        
+        // Update the specified direction
+        if (direction === 'HORIZONTAL') {
+          newConstraints.horizontal = value;
+        } else {
+          newConstraints.vertical = value;
+        }
+        
+        // Set the new constraints
+        node.constraints = newConstraints;
+        figma.notify(`${direction.toLowerCase()} constraint set to ${value.toLowerCase()}`);
+      } catch (error) {
+        console.warn(`Failed to set constraints on node:`, error);
+        figma.notify('Failed to set constraints');
+      }
+    } else {
+      figma.notify('Selected item does not support constraints');
+    }
+  });
+}
+
+// Main positioning function that handles all sides
+function position(value: string, side: 'left' | 'right' | 'top' | 'bottom') {
+  const selection = figma.currentPage.selection;
+  
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+  
+  for (const node of selection) {
+    if ('x' in node && node.parent) {
+      // Check if parent has width/height properties
+      if (!('width' in node.parent) || !('height' in node.parent)) {
+        throw new Error('Parent node must be a frame, component, or other container with dimensions');
+      }
+
+      const numValue = Number(value);
+      
+      switch (side) {
+        case 'left':
+          node.x = numValue;
+          break;
+        
+        case 'right':
+          // Position from right = parent width - node width - desired distance from right
+          node.x = (node.parent as FrameNode).width - node.width - numValue;
+          break;
+        
+        case 'top':
+          node.y = numValue;
+          break;
+        
+        case 'bottom':
+          // Position from bottom = parent height - node height - desired distance from bottom
+          node.y = (node.parent as FrameNode).height - node.height - numValue;
+          break;
+      }
+    }
+  }
+  
+  figma.notify(`Position set ${value}px from ${side} for all selected items`);
 }
