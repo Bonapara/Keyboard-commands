@@ -469,7 +469,7 @@ const COMMAND_DEFINITIONS = {
     type: "optionalValueCommand",
     alias: 'maxh',
     valueFormat: 'number' as const,
-    suggestion: ' - ↕ in px',
+    suggestion: ' - ↕ in px (No value = toggle)',
     functionWithParam: (value: string) => maxDimension({value:value, type: 'max', direction: 'height', null: false}),
     functionWithoutParam: () => maxDimension({type: 'max', direction: 'height', null: true}),
   },
@@ -477,7 +477,7 @@ const COMMAND_DEFINITIONS = {
     type: "optionalValueCommand",
     alias: 'maxw',
     valueFormat: 'number' as const,
-    suggestion: ' - ↔ in px',
+    suggestion: ' - ↔ in px (No value = toggle)',
     functionWithParam: (value: string) => maxDimension({value:value, type: 'max', direction: 'width', null: false}),
     functionWithoutParam: () => maxDimension({type: 'max', direction: 'width', null: true}),
   },
@@ -485,7 +485,7 @@ const COMMAND_DEFINITIONS = {
     type: "optionalValueCommand",
     alias: 'minh',
     valueFormat: 'number' as const,
-    suggestion: ' ↓↑ in px',
+    suggestion: ' ↓↑ in px (No value = toggle)',
     functionWithParam: (value: string) => maxDimension({value:value, type: 'min', direction: 'height', null: false}),
     functionWithoutParam: () => maxDimension({type: 'min', direction: 'height', null: true}),
   },
@@ -493,7 +493,7 @@ const COMMAND_DEFINITIONS = {
     type: "optionalValueCommand",
     alias: 'minw',
     valueFormat: 'number' as const,
-    suggestion: ' - →← in px',
+    suggestion: ' - →← in px (No value = toggle)',
     functionWithParam: (value: string) => maxDimension({value:value, type: 'min', direction: 'width', null: false}),
     functionWithoutParam: () => maxDimension({type: 'min', direction: 'width', null: true}),
   },
@@ -651,7 +651,7 @@ figma.parameters.on('input', ({ key, query, result }) => {
     const matchedCommand = findCommand(part, true);
     const hasHex = VALUE_FORMAT_REGEX.hex.exec(part);
     const hasNumber = VALUE_FORMAT_REGEX.number.exec(part);
-
+    
     if (matchedCommand) {
       if (matchedCommand.type === 'commandWithValue') {
         if (hasHex) return `${matchedCommand.name}:${hasHex[0]}`;
@@ -1085,6 +1085,7 @@ function setPadding({ paddingLeft, paddingRight, paddingTop, paddingBottom }: {
 }
 
 function rotate(value: number) {
+  console.log(value);
   if (!value && value !== 0) throw new Error('No value provided');
   const selection = figma.currentPage.selection;
   
@@ -1095,9 +1096,24 @@ function rotate(value: number) {
   for (const node of selection) {
     if ('rotation' in node) {
       // Keep the existing rotation and add the new value
-      node.rotation = (node.rotation + value) % 360;
+      // node.rotation = 0;
+      const theta = value * (Math.PI/180); // radians
+      
+      //center coordinates of the node
+      const cx = node.x + node.width/2;
+      const cy = node.y + node.height/2;
+      
+      const newx = Math.cos(theta) * node.x + node.y * Math.sin(theta) - cy * Math.sin(theta) - cx * Math.cos(theta) + cx;
+      const newy = -Math.sin(theta) * node.x + cx * Math.sin(theta) + node.y * Math.cos(theta) - cy * Math.cos(theta) + cy;
+      
+      node.relativeTransform = [
+        [Math.cos(theta), Math.sin(theta), newx],
+        [-Math.sin(theta), Math.cos(theta), newy]
+      ];
+      
     }
   }
+  
   
   figma.notify(`Rotated ${value}° for all selected items`);
 }
@@ -1878,32 +1894,32 @@ async function exportAs({
   if (selection.length === 0) {
     throw new Error('No items selected');
   }
-console.log("hzezf -- constraintValue:", constraintValue);
+  console.log("hzezf -- constraintValue:", constraintValue);
   // Create export settings object based on format
   const settings: ExportSettings = (() => {
     switch (format) {
       case 'PDF':
-        return {
-          format: 'PDF',
-        };
+      return {
+        format: 'PDF',
+      };
       case 'SVG':
-        return {
-          format: 'SVG',
-        };
+      return {
+        format: 'SVG',
+      };
       case 'PNG':
       case 'JPG':
-        return {
-          format: format,
-          constraint: {
-            type: constraintType || 'SCALE',
-            value: Number(constraintValue)
-          }
-        };
+      return {
+        format: format,
+        constraint: {
+          type: constraintType || 'SCALE',
+          value: Number(constraintValue)
+        }
+      };
       default:
-        throw new Error(`Unsupported format: ${format}`);
+      throw new Error(`Unsupported format: ${format}`);
     }
   })();
-
+  
   try {
     // Export each selected node
     const exportResults = [];
@@ -1921,7 +1937,7 @@ console.log("hzezf -- constraintValue:", constraintValue);
     console.error('Export failed:', error);
     throw error;
   }
-
+  
   // Handle messages from UI
   return new Promise(resolve => {
     figma.ui.onmessage = msg => {
