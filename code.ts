@@ -76,28 +76,28 @@ const COMMAND_DEFINITIONS = {
     type: "commandWithValue",
     alias: "pol",
     valueFormat: "number",
-    suggestion: " - Enter a position in pixels from left",
+    suggestion: " - Position in px from left",
     functionWithParam: (value: string) => position(value, 'left'),
   },
   PositionRight: {
     type: "commandWithValue",
     alias: "por",
     valueFormat: "number",
-    suggestion: " - Enter a position in pixels from right",
+    suggestion: " - Position in px from right",
     functionWithParam: (value: string) => position(value, 'right'),
   },
   PositionTop: {
     type: "commandWithValue",
     alias: "pot",
     valueFormat: "number",
-    suggestion: " - Enter a position in pixels from top",
+    suggestion: " - Position in px from top",
     functionWithParam: (value: string) => position(value, 'top'),
   },
   PositionBottom: {
     type: "commandWithValue",
     alias: "pob",
     valueFormat: "number",
-    suggestion: " - Enter a position in pixels from bottom",
+    suggestion: " - Position in px from bottom",
     functionWithParam: (value: string) => position(value, 'bottom'),
   },
   Delete: {
@@ -438,6 +438,24 @@ const COMMAND_DEFINITIONS = {
     functionWithParam: (value: string) => setBorder('bottom', value),
     functionWithoutParam: () => toggleBorder('bottom'),
   },
+  BorderAlignCenter: {
+    type: "commandWithoutValue",
+    alias: 'bc',
+    suggestion: ' - ◌',
+    functionWithoutParam: () => setBorderAlign('CENTER')
+  },
+  BorderAlignInside: {
+    type: "commandWithoutValue",
+    alias: 'bi',
+    suggestion: ' - ⊖',
+    functionWithoutParam: () => setBorderAlign('INSIDE')
+  },
+  BorderAlignOutside: {
+    type: "commandWithoutValue",
+    alias: 'bo',
+    suggestion: ' - ◯',
+    functionWithoutParam: () => setBorderAlign('OUTSIDE')
+  },
   ToggleTheme: {
     type: "commandWithoutValue",
     alias: 't',
@@ -664,6 +682,19 @@ const COMMAND_DEFINITIONS = {
     suggestion: ' - Set vertical constraint to scale',
     functionWithoutParam: () => setConstraints('VERTICAL', 'SCALE'),
   },  
+  CornerSmoothing: {
+    type: "commandWithValue",
+    alias: "cs",
+    valueFormat: "number",
+    suggestion: " - Corner smoothing (0-100)",
+    functionWithParam: (value: string) => setCornerSmoothing(value),
+  },
+  CornerSmoothingIOS: {
+    type: "commandWithoutValue",
+    alias: "csi",
+    suggestion: " - 📱 (IOS)",
+    functionWithoutParam: () => setCornerSmoothing("60"),
+  },
 } satisfies Record<string, CommandWithValue | CommandWithoutValue | OptionalValueCommand>;
 
 
@@ -1486,6 +1517,25 @@ function flip(direction: 'horizontal' | 'vertical') {
   }
 }
 
+function setCornerSmoothing(value: string) {
+  const selection = figma.currentPage.selection;
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+
+  // Convert value from 0-100 range to 0-1 range and clamp
+  const inputValue = Math.max(0, Math.min(100, Number(value)));
+  const smoothing = inputValue / 100;
+
+  for (const node of selection) {
+    if ('cornerSmoothing' in node) {
+      node.cornerSmoothing = smoothing;
+    }
+  }
+
+  figma.notify(`Corner smoothing set to ${inputValue}%`);
+}
+
 function grouping(action: 'group' | 'ungroup') {
   const selection = figma.currentPage.selection;
   
@@ -1606,10 +1656,10 @@ function duplicate() {
   figma.notify('Items duplicated');
 }
 
-// Helper function to get existing stroke style or create new one
-function getOrCreateStroke(node: SceneNode): Paint[] {
+// Helper function to get existing border style or create new one
+function getOrCreateBorder(node: SceneNode): Paint[] {
   if ('strokes' in node && node.strokes.length > 0) {
-    // Create a new array from the readonly strokes
+    // Create a new array from the readonly borders
     return [...node.strokes];
   }
   return [{
@@ -1634,7 +1684,7 @@ function setBorder(side: 'all' | 'left' | 'right' | 'top' | 'bottom', width: str
     }
     
     if (node.strokes.length === 0) {
-      node.strokes = getOrCreateStroke(node);
+      node.strokes = getOrCreateBorder(node);
     }
     
     if (side !== 'all') {
@@ -1660,7 +1710,7 @@ function setBorder(side: 'all' | 'left' | 'right' | 'top' | 'bottom', width: str
     }
   }
   
-  figma.notify(`${side.charAt(0).toUpperCase() + side.slice(1)} border set to ${Number(width)}px`);
+  figma.notify(`${side.charAt(0).toUpperCase() + side.slice(1)} stroke set to ${Number(width)}px`);
 }
 
 function toggleBorder(side: 'all' | 'left' | 'right' | 'top' | 'bottom') {
@@ -1679,7 +1729,7 @@ function toggleBorder(side: 'all' | 'left' | 'right' | 'top' | 'bottom') {
     // Handle 'all' separately
     if (side === 'all') {
       if (node.strokes.length === 0) {
-        node.strokes = getOrCreateStroke(node);
+        node.strokes = getOrCreateBorder(node);
         node.strokeWeight = 1;
       } else {
         node.strokes = [];
@@ -1687,11 +1737,11 @@ function toggleBorder(side: 'all' | 'left' | 'right' | 'top' | 'bottom') {
       continue;
     }
     
-    // If no strokes are set, this means no visible border. 
-    // Set all sides to 0, then apply border to the toggled side.
+    // If no strokes are set, this means no visible stroke. 
+    // Set all sides to 0, then apply stroke to the toggled side.
     const noVisibleBorder = (node.strokes.length === 0);
     if (noVisibleBorder) {
-      node.strokes = getOrCreateStroke(node);
+      node.strokes = getOrCreateBorder(node);
       node.strokeAlign = 'INSIDE';
       
       node.strokeLeftWeight = 0;
@@ -1699,7 +1749,7 @@ function toggleBorder(side: 'all' | 'left' | 'right' | 'top' | 'bottom') {
       node.strokeTopWeight = 0;
       node.strokeBottomWeight = 0;
       
-      // Since we know there's no visible border, just set this side to 1
+      // Since we know there's no visible stroke, just set this side to 1
       switch (side) {
         case 'left':
         node.strokeLeftWeight = 1;
@@ -1715,11 +1765,11 @@ function toggleBorder(side: 'all' | 'left' | 'right' | 'top' | 'bottom') {
         break;
       }
       
-      figma.notify(`${side.charAt(0).toUpperCase() + side.slice(1)} border toggled`);
+      figma.notify(`${side.charAt(0).toUpperCase() + side.slice(1)} stroke toggled`);
       continue;
     }
     
-    // If we reach here, some border exists. Toggle on/off this side without affecting others.
+    // If we reach here, some stroke exists. Toggle on/off this side without affecting others.
     node.strokeAlign = 'INSIDE';
     
     const currentWeight = (() => {
@@ -2125,4 +2175,23 @@ function position(value: string, side: 'left' | 'right' | 'top' | 'bottom') {
   }
   
   figma.notify(`Position set ${value}px from ${side} for all selected items`);
+}
+
+function setBorderAlign(alignment: 'CENTER' | 'INSIDE' | 'OUTSIDE') {
+  const selection = figma.currentPage.selection;
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+  
+  for (const node of selection) {
+    // Check if the node supports border alignment
+    if (!('strokeAlign' in node)) {
+      continue;
+    }
+    
+    // Set the border alignment
+    node.strokeAlign = alignment;
+  }
+  
+  figma.notify(`Border alignment set to ${alignment.toLowerCase()}`);
 }
