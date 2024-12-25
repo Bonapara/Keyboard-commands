@@ -751,6 +751,7 @@ let originalInput = '';
 
 // Manages command suggestions and autocompletion as the user types
 figma.parameters.on('input', ({ key, query, result }) => {
+
   // Only process 'command' parameter inputs
   if (key !== 'command') return;
   originalInput = query;
@@ -894,18 +895,20 @@ figma.parameters.on('input', ({ key, query, result }) => {
   }
 });
 
-figma.on('run', async () => {
+figma.on('run', async (parameters) => {
   try {
     const commandString = originalInput.trim();
     const commands = commandString.split(COMMAND_SPLITTER_REGEX).filter(Boolean);
+
     for (const cmd of commands) {
-      if (cmd.toLowerCase() === 'hello' || cmd.toLowerCase() === 'he') {
-        await executeCommand(cmd);
-        return; // Exit without closing
-      }
       await executeCommand(cmd);
-    }    
+    }
+    // allow to run command from pressing enter on a suggestion
+    if (parameters) {
+      await executeCommand(parameters?.parameters?.command);
+    }
     figma.closePlugin();
+
   } catch (error) {
     figma.notify(error instanceof Error ? error.message : 'An unknown error occurred');
     figma.closePlugin();
@@ -938,7 +941,7 @@ async function executeCommand(cmd: string): Promise<void> {
   }
   const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
   
-  
+
   const loadingNotification = figma.notify(`Executing ${command.name}...`, { timeout: 0 });
   
   try {
@@ -950,6 +953,9 @@ async function executeCommand(cmd: string): Promise<void> {
       if (command.type === 'commandWithValue') {
         if (value) {
           await processCommand(command.name, value);
+        }
+        else {
+          figma.notify(`No value provided for ${command.name}`);
         }
       } else if (command.type === 'optionalValueCommand') {
         if (value) {
