@@ -863,10 +863,10 @@ figma.parameters.on('input', ({ key, query, result }) => {
     );
     
     if (isValidValue && (hasHex || hasNumber)) {
-      if (hasHex) {
+      if (matchedCommand.valueFormat === 'hex' && hasHex) {
         completeCommands.push(`${matchedCommand.name}:${hasHex[0]}`);
       }
-      else if (hasNumber) {
+      else if (matchedCommand.valueFormat === 'number' && hasNumber) {
         try {
           const computedValue = calculateExpression(hasNumber[0]);
           completeCommands.push(`${matchedCommand.name}:${computedValue}`);
