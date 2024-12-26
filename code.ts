@@ -897,16 +897,24 @@ figma.parameters.on('input', ({ key, query, result }) => {
 
 figma.on('run', async (parameters) => {
   try {
-    const commandString = originalInput.trim();
-    const commands = commandString.split(COMMAND_SPLITTER_REGEX).filter(Boolean);
+    console.log('🏃‍♂️ Run triggered with:', { originalInput, parameters });
+    
+    // If we have original input, use that
+    if (originalInput.trim()) {
+      console.log('📝 Using original input:', originalInput);
+      const commandString = originalInput.trim();
+      const commands = commandString.split(COMMAND_SPLITTER_REGEX).filter(Boolean);
 
-    for (const cmd of commands) {
-      await executeCommand(cmd);
+      for (const cmd of commands) {
+        await executeCommand(cmd);
+      }
+    } 
+    // Only use parameters if we don't have original input
+    else if (parameters?.parameters?.command) {
+      console.log('📝 Using parameters command:', parameters.parameters.command);
+      await executeCommand(parameters.parameters.command);
     }
-    // allow to run command from pressing enter on a suggestion
-    if (parameters) {
-      await executeCommand(parameters?.parameters?.command);
-    }
+    
     figma.closePlugin();
 
   } catch (error) {
