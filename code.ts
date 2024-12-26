@@ -896,12 +896,9 @@ figma.parameters.on('input', ({ key, query, result }) => {
 });
 
 figma.on('run', async (parameters) => {
-  try {
-    console.log('🏃‍♂️ Run triggered with:', { originalInput, parameters });
-    
+  try {    
     // If we have original input, use that
     if (originalInput.trim()) {
-      console.log('📝 Using original input:', originalInput);
       const commandString = originalInput.trim();
       const commands = commandString.split(COMMAND_SPLITTER_REGEX).filter(Boolean);
 
@@ -909,9 +906,8 @@ figma.on('run', async (parameters) => {
         await executeCommand(cmd);
       }
     } 
-    // Only use parameters if we don't have original input
+    // Only use parameters if we don't have original input 
     else if (parameters?.parameters?.command) {
-      console.log('📝 Using parameters command:', parameters.parameters.command);
       await executeCommand(parameters.parameters.command);
     }
     
