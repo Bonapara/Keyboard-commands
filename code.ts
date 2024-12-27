@@ -927,7 +927,7 @@ figma.on('run', async (parameters) => {
           console.log('Command found: ', cmd);
           await executeCommand(cmd);
         } else {
-          // If command not found, use parameters
+          // If command try with parameters
           console.log('Command not found: ', cmd);
           await executeCommand(parameters.parameters?.command || '');
         }
