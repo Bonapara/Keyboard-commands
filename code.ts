@@ -3,7 +3,7 @@ type ValueFormat = 'number' | 'hex' | 'text';
 
 type CommandWithValue = {
   type: "commandWithValue";
-  alias: string;
+  alias: Array<string>;
   valueFormat: ValueFormat;
   functionWithParam: (value: string) => void;
   suggestion: string;
@@ -11,14 +11,14 @@ type CommandWithValue = {
 
 type CommandWithoutValue = {
   type: "commandWithoutValue";
-  alias: string;
+  alias: Array<string>;
   functionWithoutParam: () => void;
   suggestion: string;
 };
 
 type OptionalValueCommand = {
   type: "optionalValueCommand";
-  alias: string;
+  alias: Array<string>;
   valueFormat?: ValueFormat;
   suggestion: string;
   functionWithoutParam: () => void;
@@ -32,255 +32,255 @@ type Command = { name: CommandName, type: "commandWithValue" | "commandWithoutVa
 const COMMAND_DEFINITIONS = {
   Width: {
     type: "commandWithValue",
-    alias: 'w',
+    alias: ['w'],
     valueFormat: 'number' as const,
     suggestion: ' - Enter width in pixels',
     functionWithParam: (value: string) => resize(value, 'width'),
   },
   Height: {
     type: "commandWithValue",
-    alias: "h",
+    alias: ['h'],
     valueFormat: "number",
     suggestion: " - Enter height in pixels",
     functionWithParam: (value: string) => resize(value, 'height'),
   },
   GoToMainComponent: {
     type: "commandWithoutValue",
-    alias: "m",
+    alias: ['m'],
     suggestion: " - use ⌘Z to come back",
     functionWithoutParam: () => selectMasterComponent(),
   },
   MoveTop: {
     type: "commandWithValue",
-    alias: "mt",
+    alias: ['mt'],
     valueFormat: 'number' as const,
     suggestion: " - Move X pixels up",
     functionWithParam: (value: string) => move('TOP', value),
   },
   MoveBottom: {
     type: "commandWithValue",
-    alias: "mb",
+    alias: ['mb'],
     valueFormat: 'number' as const,
     suggestion: " - Move X pixels down",
     functionWithParam: (value: string) => move('BOTTOM', value),
   },
   MoveLeft: {
     type: "commandWithValue",
-    alias: "ml",
+      alias: ['ml'],
     valueFormat: 'number' as const,
     suggestion: " - Move X pixels left",
     functionWithParam: (value: string) => move('LEFT', value),
   },
   MoveRight: {
     type: "commandWithValue",
-    alias: "mr",
+    alias: ['mr'],
     valueFormat: 'number' as const,
     suggestion: " - Move X pixels right",
     functionWithParam: (value: string) => move('RIGHT', value),
   },
   PositionLeft: {
     type: "commandWithValue",
-    alias: "pol",
+    alias: ['pol'],
     valueFormat: "number",
     suggestion: " - Position in px from left",
     functionWithParam: (value: string) => position(value, 'left'),
   },
   PositionRight: {
     type: "commandWithValue",
-    alias: "por",
+    alias: ['por'],
     valueFormat: "number",
     suggestion: " - Position in px from right",
     functionWithParam: (value: string) => position(value, 'right'),
   },
   PositionTop: {
     type: "commandWithValue",
-    alias: "pot",
+    alias: ['pot'],
     valueFormat: "number",
     suggestion: " - Position in px from top",
     functionWithParam: (value: string) => position(value, 'top'),
   },
   PositionBottom: {
     type: "commandWithValue",
-    alias: "pob",
+    alias: ['pob'],
     valueFormat: "number",
     suggestion: " - Position in px from bottom",
     functionWithParam: (value: string) => position(value, 'bottom'),
   },
   Delete: {
     type: "commandWithoutValue",
-    alias: 'de',
+    alias: ['de'],
     suggestion: ' - 🗑️',
     functionWithoutParam: () => deleteSelection()
   },
   AutoLayout: {
     type: "commandWithoutValue",
-    alias: 'a',
+    alias: ['a'],
     suggestion: ' - →',
     functionWithoutParam: () => createAutoLayout('HORIZONTAL'),
   },
   AutoLayoutVertical: {
     type: "commandWithoutValue",
-    alias: "av",
+    alias: ['av'],
     suggestion: " - ↓",
     functionWithoutParam: () => createAutoLayout('VERTICAL'),
   },
   RemoveAutoLayout: {
     type: "commandWithoutValue",
-    alias: 'ra',
+    alias: ['ra'],
     suggestion: ' 📐🗑️',
     functionWithoutParam: () => setLayout('NONE')
   },
   FlipHorizontal: {
     type: "commandWithoutValue",
-    alias: 'fh',
+    alias: ['fh'],
     suggestion: ' - ↔',
     functionWithoutParam: () => flip('horizontal')
   },
   FlipVertical: {
     type: "commandWithoutValue",
-    alias: 'fv',
+    alias: ['fv'],
     suggestion: ' - ↕',
     functionWithoutParam: () => flip('vertical')
   },
   Group: {
     type: "commandWithoutValue",
-    alias: 'gr',
+    alias: ['gr'],
     suggestion: ' - 👥',
     functionWithoutParam: () => grouping('group')
   },
   Ungroup: {
     type: "commandWithoutValue",
-    alias: 'ugr',
+    alias: ['ugr'],
     suggestion: ' - 👤',
     functionWithoutParam: () => grouping('ungroup')
   },
   VerticalFill: {
     type: "commandWithoutValue",
-    alias: "vf",
+    alias: ['vf'],
     suggestion: " - ↕",
     functionWithoutParam: () => layoutSizing('VERTICAL', 'FILL'),
   },
   VerticalHug: {
     type: "commandWithoutValue",
-    alias: "vh",
+    alias: ['vh'],
     suggestion: " - ↓↑",
     functionWithoutParam: () => layoutSizing('VERTICAL', 'HUG'),
   },
   HorizontalFill: {
     type: "commandWithoutValue",
-    alias: "hf",
+    alias: ['hf'],
     suggestion: " - ↔",
     functionWithoutParam: () => layoutSizing('HORIZONTAL', 'FILL'),
   },
   HorizontalHug: {
     type: "commandWithoutValue",
-    alias: "hh",
+    alias: ['hh'],
     suggestion: " - →←",
     functionWithoutParam: () => layoutSizing('HORIZONTAL', 'HUG'),
   },
   Gap: {
     type: "commandWithValue",
-    alias: "g",
+    alias: ['g'],
     valueFormat: "number",
     suggestion: " - Gap in px",
     functionWithParam: (value: string) => setPrimaryGap(value),
   },
   SpaceBetween: {
     type: "commandWithValue",
-    alias: "sb",
+    alias: ['sb'],
     valueFormat: "number",
     suggestion: " - Auto",
     functionWithParam: () => setPrimaryGap('AUTO'),
   },
   VerticalGap: {
     type: "commandWithValue",
-    alias: "vg",
+    alias: ['vg'],
     valueFormat: "number",
     suggestion: " - Vertical Gap in px",
     functionWithParam: (value: string) => setCounterGap(value),
   },
   VerticalSpaceBetween: {
     type: "commandWithoutValue",
-    alias: "vsb",
+    alias: ['vsb'],
     suggestion: " - Auto",
     functionWithoutParam: () => setCounterGap('AUTO'),
   },
   LayoutHorizontal: {
     type: "commandWithoutValue",
-    alias: "lh",
+    alias: ['lh'],
     suggestion: " - →",
     functionWithoutParam: () => setLayout('HORIZONTAL'),
   },
   LayoutVertical: {
     type: "commandWithoutValue",
-    alias: "lv",
+    alias: ['lv'],
     suggestion: " - ↓",
     functionWithoutParam: () => setLayout('VERTICAL'),
   },
   LayoutWrap: {
     type: "commandWithoutValue",
-    alias: "lw",
+    alias: ['lw'],
     suggestion: " - ↩️",
     functionWithoutParam: () => setLayout('WRAP'),
   },
   AbsolutePosition: {
     type: "commandWithoutValue",
-    alias: "ap",
+    alias: ['ap'],
     suggestion: " - ignore auto-layout (toggle)",
     functionWithoutParam: () => absolutePosition(),
   },
   Padding: {
     type: "commandWithValue",
-    alias: "p",
+    alias: ['p'],
     valueFormat: "number",
     suggestion: " - Enter padding for all sides",
     functionWithParam: (value: string) => setPadding({paddingLeft: value, paddingRight: value, paddingTop: value, paddingBottom: value}),
   },
   PaddingHorizontal: {
     type: "commandWithValue",
-    alias: "ph",
+      alias: ['ph'],
     valueFormat: "number",
     suggestion: " - Enter horizontal padding",
     functionWithParam: (value: string) => setPadding({paddingLeft: value, paddingRight: value}),
   },
   PaddingVertical: {
     type: "commandWithValue",
-    alias: "pv",
+    alias: ['pv'],
     valueFormat: "number",
     suggestion: " - Enter vertical padding",
     functionWithParam: (value: string) => setPadding({paddingTop: value, paddingBottom: value}),
   },
   PaddingLeft: {
     type: "commandWithValue",
-    alias: "pl",
+    alias: ['pl'],
     valueFormat: "number",
     suggestion: " - Enter left padding",
     functionWithParam: (value: string) => setPadding({paddingLeft: value}),
   },
   PaddingTop: {
     type: "commandWithValue",
-    alias: "pt",
+    alias: ['pt'],
     valueFormat: "number",
     suggestion: " - Enter top padding",
     functionWithParam: (value: string) => setPadding({paddingTop: value}),
   },
   PaddingRight: {
     type: "commandWithValue",
-    alias: "pr",
+    alias: ['pr'],
     valueFormat: "number",
     suggestion: " - Enter right padding",
     functionWithParam: (value: string) => setPadding({paddingRight: value}),
   },
   PaddingBottom: {
     type: "commandWithValue",
-    alias: "pb",
+    alias: ['pb'],
     valueFormat: "number",
     suggestion: " - Enter bottom padding",
     functionWithParam: (value: string) => setPadding({paddingBottom: value}),
   },
   Fill: {
     type: "optionalValueCommand",
-    alias: 'f',
+    alias: ['f'],
     valueFormat: 'hex' as const,
     suggestion: ' - Enter #HEX color (No value = toggle)',
     functionWithoutParam: () => toggleFill(),
@@ -288,7 +288,7 @@ const COMMAND_DEFINITIONS = {
   },
   Rotate: {
     type: "commandWithValue",
-    alias: 'ro',
+    alias: ['ro'],
     valueFormat: 'number' as const,
     suggestion: ' - Enter rotation angle in degrees',
     functionWithParam: (value: string) => {rotate(parseInt(value));
@@ -296,103 +296,103 @@ const COMMAND_DEFINITIONS = {
   },
   Scale: {
     type: "commandWithValue",
-    alias: "s",
+    alias: ['s'],
     valueFormat: "number",
     suggestion: " - Value in % (x1 = 100%)",
     functionWithParam: (value: string) => scale(value),
   },
   ScaleWidth: {
     type: "commandWithValue",
-    alias: "sw",
+    alias: ['sw'],
     valueFormat: "number",
     suggestion: " - New desired width in px",
     functionWithParam: (value: string) => scale(value, 'width'),
   },
   ScaleHeight: {
     type: "commandWithValue",
-    alias: "sh",
+    alias: ['sh'],
     valueFormat: "number",
     suggestion: " - New desired height in px",
     functionWithParam: (value: string) => scale(value, 'height'),
   },
   RadiusTopLeft: {
     type: "commandWithValue",
-    alias: 'rtl',
+    alias: ['rtl'],
     valueFormat: 'number' as const,
     suggestion: ' - Top left radius',
     functionWithParam: (value: string) => setRadius({topLeftRadius: value}),
   },
   RadiusTopRight: {
     type: "commandWithValue",
-    alias: 'rtr',
+    alias: ['rtr'],
     valueFormat: 'number' as const,
     suggestion: ' - Top right radius',
     functionWithParam: (value: string) => setRadius({topRightRadius: value}),
   },
   RadiusBottomRight: {
     type: "commandWithValue",
-    alias: 'rbr',
+    alias: ['rbr'],
     valueFormat: 'number' as const,
     suggestion: ' - Bottom right radius',
     functionWithParam: (value: string) => setRadius({bottomRightRadius: value}),
   },
   RadiusBottomLeft: {
     type: "commandWithValue",
-    alias: 'rbl',
+    alias: ['rbl'],
     valueFormat: 'number' as const,
     suggestion: ' - Bottom left radius',
     functionWithParam: (value: string) => setRadius({bottomLeftRadius: value}),
   },
   RadiusAll: {
     type: "commandWithValue",
-    alias: 'r',
+    alias: ['r'],
     valueFormat: 'number' as const,
     suggestion: ' - All corners radius',
     functionWithParam: (value: string) => setRadius({topLeftRadius: value, topRightRadius: value, bottomRightRadius: value, bottomLeftRadius: value}),
   },
   RadiusLeft: {
     type: "commandWithValue",
-    alias: 'rl',
+    alias: ['rl'],
     valueFormat: 'number' as const,
     suggestion: ' - Left side radius',
     functionWithParam: (value: string) => setRadius({topLeftRadius: value, bottomLeftRadius: value}),
   },
   RadiusTop: {
     type: "commandWithValue",
-    alias: 'rt',
+    alias: ['rt'],
     valueFormat: 'number' as const,
     suggestion: ' - Top side radius',
     functionWithParam: (value: string) => setRadius({topLeftRadius: value, topRightRadius: value}),
   },
   RadiusRight: {
     type: "commandWithValue",
-    alias: 'rr',
+    alias: ['rr'],
     valueFormat: 'number' as const,
     suggestion: ' - Right side radius',
     functionWithParam: (value: string) => setRadius({topRightRadius: value, bottomRightRadius: value}),
   },
   RadiusBottom: {
     type: "commandWithValue",
-    alias: 'rb',
+    alias: ['rb'],
     valueFormat: 'number' as const,
     suggestion: ' - Bottom side radius',
     functionWithParam: (value: string) => setRadius({bottomLeftRadius: value, bottomRightRadius: value}), 
   },
   ClipContent: {
     type: "commandWithoutValue",
-    alias: 'cc',
+    alias: ['cc'],
     suggestion: ' - 📎',
     functionWithoutParam: () => clipContent()
   },
   Visible: {
     type: "commandWithoutValue",
-    alias: 'v',
+    alias: ['v'],
     suggestion: ' - 👁️',
     functionWithoutParam: () => toggleVisibility()
   },
   Opacity: {
     type: "optionalValueCommand",
-    alias: 'o',
+    alias: ['o'],
     valueFormat: 'number' as const,
     suggestion: ' - In % (No value = 0% ↔️ 100%)',
     functionWithParam: (value: string) => setOpacity(value),
@@ -400,132 +400,132 @@ const COMMAND_DEFINITIONS = {
   },
   Duplicate: {
     type: "commandWithoutValue",
-    alias: 'd',
+    alias: ['d'],
     suggestion: ' - 🔄',
     functionWithoutParam: () => duplicate()
   },
-  Border: {
+  Stroke: {
     type: "optionalValueCommand",
-    alias: 'b',
+    alias: ['st','b'],
     valueFormat: 'number' as const,
     suggestion: ' - border in px (No value = toggle)',
     functionWithParam: (value: string) => setBorder('all', value),
     functionWithoutParam: () => toggleBorder('all'),
   },
-  BorderLeft: {
+  StrokeLeft: {
     type: "optionalValueCommand",
-    alias: 'bl',
+    alias: ['stl','bl'],
     valueFormat: 'number' as const,
     suggestion: ' - border in px (No value = toggle)',
     functionWithParam: (value: string) => setBorder('left', value),
     functionWithoutParam: () => toggleBorder('left'),
   },
-  BorderRight: {
+  StrokeRight: {
     type: "optionalValueCommand",
-    alias: 'br',
+    alias: ['str','br'],
     valueFormat: 'number' as const,
     suggestion: ' - border in px (No value = toggle)',
     functionWithParam: (value: string) => setBorder('right', value),
     functionWithoutParam: () => toggleBorder('right'),
   },
-  BorderTop: {
+  StrokeTop: {
     type: "optionalValueCommand",
-    alias: 'bt',
+    alias: ['stt','bt'],
     valueFormat: 'number' as const,
     suggestion: ' - border in px (No value = toggle)',
     functionWithParam: (value: string) => setBorder('top', value),
     functionWithoutParam: () => toggleBorder('top'),
   },
-  BorderBottom: {
+  StrokeBottom: {
     type: "optionalValueCommand",
-    alias: 'bb',
+    alias: ['stb','bb'],
     valueFormat: 'number' as const,
     suggestion: ' - border in px (No value = toggle)',
     functionWithParam: (value: string) => setBorder('bottom', value),
     functionWithoutParam: () => toggleBorder('bottom'),
   },
-  BorderAlignCenter: {
+  StrokeAlignCenter: {
     type: "commandWithoutValue",
-    alias: 'bc',
+    alias: ['stc','bc'],
     suggestion: ' - ◌',
     functionWithoutParam: () => setBorderAlign('CENTER')
   },
-  BorderAlignInside: {
+  StrokeAlignInside: {
     type: "commandWithoutValue",
-    alias: 'bi',
+    alias: ['sti','bi'],
     suggestion: ' - ⊖',
     functionWithoutParam: () => setBorderAlign('INSIDE')
   },
-  BorderAlignOutside: {
+  StrokeAlignOutside: {
     type: "commandWithoutValue",
-    alias: 'bo',
+    alias: ['sto','bo'],
     suggestion: ' - ◯',
     functionWithoutParam: () => setBorderAlign('OUTSIDE')
   },
   ToggleTheme: {
     type: "commandWithoutValue",
-    alias: 't',
+    alias: ['t'],
     suggestion: ' - 🌗',
     functionWithoutParam: () => toggleTheme()
   },
   
   AlignTopLeft: {
     type: "commandWithoutValue",
-    alias: 'atl',
+    alias: ['atl'],
     suggestion: ' - ↖',
     functionWithoutParam: () => setAlignment({ primary: 'MIN', counter: 'MIN' },{ primary: 'MIN', counter: 'MIN' }),
   },
   AlignTopCenter: {
     type: "commandWithoutValue",
-    alias: 'atc',
+    alias: ['atc'],
     suggestion: ' - ↑',
     functionWithoutParam: () => setAlignment({ primary: 'CENTER', counter: 'MIN' },{ primary: 'MIN', counter: 'CENTER' }),
   },
   AlignTopRight: {
     type: "commandWithoutValue",
-    alias: 'atr',
+    alias: ['atr'],
     suggestion: ' - ↗',
     functionWithoutParam: () => setAlignment({ primary: 'MAX', counter: 'MIN' },{ primary: 'MIN', counter: 'MAX' }),
   },
   AlignCenterLeft: {
     type: "commandWithoutValue",
-    alias: 'acl',
+    alias: ['acl'],
     suggestion: ' - ←',
     functionWithoutParam: () => setAlignment({ primary: 'MIN', counter: 'CENTER' },{ primary: 'CENTER', counter: 'MIN' }),
   },
   AlignCenterCenter: {
     type: "commandWithoutValue",
-    alias: 'acc',
+    alias: ['acc'],
     suggestion: ' - ・',
     functionWithoutParam: () => setAlignment({ primary: 'CENTER', counter: 'CENTER' },{ primary: 'CENTER', counter: 'CENTER' }),
   },
   AlignCenterRight: {
     type: "commandWithoutValue",
-    alias: 'acr',
+    alias: ['acr'],
     suggestion: ' - →',
     functionWithoutParam: () => setAlignment({ primary: 'MAX', counter: 'CENTER' },{ primary: 'CENTER', counter: 'MAX' }),
   },
   AlignBottomLeft: {
     type: "commandWithoutValue",
-    alias: 'abl',
+    alias: ['abl'],
     suggestion: ' - ↙',
     functionWithoutParam: () => setAlignment({ primary: 'MIN', counter: 'MAX' },{ primary: 'MAX', counter: 'MIN' }),
   },
   AlignBottomRight: {
     type: "commandWithoutValue",
-    alias: 'abr',
+    alias: ['abr'],
     suggestion: ' - ↘',
     functionWithoutParam: () => setAlignment({ primary: 'MAX', counter: 'MAX' },{ primary: 'MAX', counter: 'MAX' }),
   },
   AlignBottomCenter: {
     type: "commandWithoutValue",
-    alias: 'abc',
+    alias: ['abc'],
     suggestion: ' - ↓',
     functionWithoutParam: () => setAlignment({ primary: 'CENTER', counter: 'MAX' },{ primary: 'MAX', counter: 'CENTER' }),
   },
   MaxHeight: {
     type: "optionalValueCommand",
-    alias: 'maxh',
+    alias: ['maxh'],
     valueFormat: 'number' as const,
     suggestion: ' - ↕ in px (No value = toggle)',
     functionWithParam: (value: string) => maxDimension({value:value, type: 'max', direction: 'height', null: false}),
@@ -533,7 +533,7 @@ const COMMAND_DEFINITIONS = {
   },
   MaxWidth: {
     type: "optionalValueCommand",
-    alias: 'maxw',
+    alias: ['maxw'],
     valueFormat: 'number' as const,
     suggestion: ' - ↔ in px (No value = toggle)',
     functionWithParam: (value: string) => maxDimension({value:value, type: 'max', direction: 'width', null: false}),
@@ -541,7 +541,7 @@ const COMMAND_DEFINITIONS = {
   },
   MinHeight: {
     type: "optionalValueCommand",
-    alias: 'minh',
+    alias: ['minh'],
     valueFormat: 'number' as const,
     suggestion: ' - ↓↑ in px (No value = toggle)',
     functionWithParam: (value: string) => maxDimension({value:value, type: 'min', direction: 'height', null: false}),
@@ -549,7 +549,7 @@ const COMMAND_DEFINITIONS = {
   },
   MinWidth: {
     type: "optionalValueCommand",
-    alias: 'minw',
+    alias: ['minw'],
     valueFormat: 'number' as const,
     suggestion: ' - →← in px (No value = toggle)',
     functionWithParam: (value: string) => maxDimension({value:value, type: 'min', direction: 'width', null: false}),
@@ -557,25 +557,25 @@ const COMMAND_DEFINITIONS = {
   },
   RemoveEffect: {
     type: "commandWithoutValue",
-    alias: 're',
+    alias: ['re'],
     suggestion: ' - 📎',
     functionWithoutParam: () => removeEffect()
   },
   ExportSVG: {
     type: "commandWithoutValue",
-    alias: 'svg',
+    alias: ['svg'],
     suggestion: ' - 🎨',
     functionWithoutParam: () => exportAs({format:'SVG',constraintType: 'SCALE',constraintValue: '1'}),
   },
   ExportPDF: {
     type: "commandWithoutValue",
-    alias: 'pdf',
+    alias: ['pdf'],
     suggestion: ' - 📄',
     functionWithoutParam: () => exportAs({format:'PDF',constraintType: 'SCALE',constraintValue: '1'}),
   },
   ExportPNG: {
     type: "optionalValueCommand",
-    alias: 'png',
+    alias: ['png'],
     valueFormat: 'number' as const,
     suggestion: ' - Opt: Scale (e.g. png2 = 2x)',
     functionWithParam: (value: string) => exportAs({format:'PNG',constraintType: 'SCALE',constraintValue: value}),
@@ -583,7 +583,7 @@ const COMMAND_DEFINITIONS = {
   },
   ExportJPG: {
     type: "optionalValueCommand",
-    alias: 'jpg',
+    alias: ['jpg'],
     valueFormat: 'number' as const,
     suggestion: ' - Opt: Scale (e.g. jpg2 = 2x)',
     functionWithParam: (value: string) => exportAs({format:'JPG',constraintType: 'SCALE',constraintValue: value}),
@@ -591,28 +591,28 @@ const COMMAND_DEFINITIONS = {
   },
   ExportPNGWidth: {
     type: "commandWithValue",
-    alias: 'pngw',
+    alias: ['pngw'],
     valueFormat: 'number' as const,
     suggestion: ' - Export Width in px',
     functionWithParam: (value: string) => exportAs({format:'PNG',constraintType: 'WIDTH',constraintValue: value}),
   },
   ExportJPGWidth: {
     type: "commandWithValue",
-    alias: 'jpgw',
+    alias: ['jpgw'],
     valueFormat: 'number' as const,
     suggestion: ' - Export Width in px',
     functionWithParam: (value: string) => exportAs({format:'JPG',constraintType: 'WIDTH',constraintValue: value}),
   },
   ExportPNGHeight: {
     type: "commandWithValue",
-    alias: 'pngh',
+    alias: ['pngh'],
     valueFormat: 'number' as const,
     suggestion: ' - Export Height in px',
     functionWithParam: (value: string) => exportAs({format:'PNG',constraintType: 'HEIGHT',constraintValue: value}),
   },
   ExportJPGHeight: {
     type: "commandWithValue",
-    alias: 'jpgh',
+    alias: ['jpgh'],
     valueFormat: 'number' as const,
     suggestion: ' - Export Height in px',
     functionWithParam: (value: string) => exportAs({format:'JPG',constraintType: 'HEIGHT',constraintValue: value}),
@@ -620,35 +620,35 @@ const COMMAND_DEFINITIONS = {
   // Horizontal Constraints
   ConstraintLeft: {
     type: "commandWithoutValue",
-    alias: 'cl',
+    alias: ['cl'],
     suggestion: ' - Set horizontal constraint to left',
     functionWithoutParam: () => setConstraints('HORIZONTAL', 'MIN'),
   },
   
   ConstraintCenterHorizontal: {
     type: "commandWithoutValue",
-    alias: 'cch',
+    alias: ['cch'],
     suggestion: ' - Set horizontal constraint to center',
     functionWithoutParam: () => setConstraints('HORIZONTAL', 'CENTER'),
   },
   
   ConstraintRight: {
     type: "commandWithoutValue",
-    alias: 'cr',
+    alias: ['cr'],
     suggestion: ' - Set horizontal constraint to right',
     functionWithoutParam: () => setConstraints('HORIZONTAL', 'MAX'),
   },
   
   ConstraintLeftAndRight: {
     type: "commandWithoutValue",
-    alias: 'clr',
+    alias: ['clr'],
     suggestion: ' - Set horizontal constraint to left + right',
     functionWithoutParam: () => setConstraints('HORIZONTAL', 'STRETCH'),
   },
   
   ConstraintScaleHorizontal: {
     type: "commandWithoutValue",
-    alias: 'csh',
+    alias: ['csh'],
     suggestion: ' - Set horizontal constraint to scale',
     functionWithoutParam: () => setConstraints('HORIZONTAL', 'SCALE'),
   },
@@ -656,48 +656,48 @@ const COMMAND_DEFINITIONS = {
   // Vertical Constraints
   ConstraintTop: {
     type: "commandWithoutValue",
-    alias: 'ct',
+    alias: ['ct'],
     suggestion: ' - Set vertical constraint to top',
     functionWithoutParam: () => setConstraints('VERTICAL', 'MIN'),
   },
   
   ConstraintCenterVertical: {
     type: "commandWithoutValue",
-    alias: 'ccv',
+    alias: ['ccv'],
     suggestion: ' - Set vertical constraint to center',
     functionWithoutParam: () => setConstraints('VERTICAL', 'CENTER'),
   },
   
   ConstraintBottom: {
     type: "commandWithoutValue",
-    alias: 'cb',
+    alias: ['cb'],
     suggestion: ' - Set vertical constraint to bottom',
     functionWithoutParam: () => setConstraints('VERTICAL', 'MAX'),
   },
   
   ConstraintTopAndBottom: {
     type: "commandWithoutValue",
-    alias: 'ctb',
+    alias: ['ctb'],
     suggestion: ' - Set vertical constraint to top + bottom',
     functionWithoutParam: () => setConstraints('VERTICAL', 'STRETCH'),
   },
   
   ConstraintScaleVertical: {
     type: "commandWithoutValue",
-    alias: 'csv',
+    alias: ['csv'],
     suggestion: ' - Set vertical constraint to scale',
     functionWithoutParam: () => setConstraints('VERTICAL', 'SCALE'),
   },  
   CornerSmoothing: {
     type: "commandWithValue",
-    alias: "cs",
+    alias: ['cs'],
     valueFormat: "number",
     suggestion: " - Corner smoothing (0-100)",
     functionWithParam: (value: string) => setCornerSmoothing(value),
   },
   CornerSmoothingIOS: {
     type: "commandWithoutValue",
-    alias: "csi",
+    alias: ['csi'],
     suggestion: " - 📱 (IOS)",
     functionWithoutParam: () => setCornerSmoothing("60"),
   },
@@ -711,12 +711,12 @@ const COMMANDS: Array<Command & { name: CommandName }> = (Object.keys(COMMAND_DE
 })
 .sort((a, b) => {
   // First sort by alias length
-  if (a.alias.length !== b.alias.length) {
-    return a.alias.length - b.alias.length;
+  if (a.alias[0].length !== b.alias[0].length) {
+    return a.alias[0].length - b.alias[0].length;
   }
   
   // If lengths are equal, sort alphabetically
-  return a.alias.toLowerCase().localeCompare(b.alias.toLowerCase());
+  return a.alias[0].toLowerCase().localeCompare(b.alias[0].toLowerCase());
 });
 
 // Unified findCommand function that handles both exact and partial matches
@@ -734,13 +734,15 @@ function findCommand<T extends boolean>(
   
   const matcher = (cmd: Command & { name: CommandName }) => {
     const cmdLower = commandPart.toLowerCase();
-    const aliasLower = cmd.alias.toLowerCase();
     const nameLower = cmd.name.toLowerCase();
+    const aliases = Array.isArray(cmd.alias) ? cmd.alias : [cmd.alias];
     
     if (exact) {
-      return aliasLower === cmdLower || nameLower === cmdLower;
+      return aliases.some(alias => alias.toLowerCase() === cmdLower) || 
+             nameLower === cmdLower;
     }
-    return aliasLower.startsWith(cmdLower) || nameLower.startsWith(cmdLower);
+    return aliases.some(alias => alias.toLowerCase().startsWith(cmdLower)) || 
+           nameLower.startsWith(cmdLower);
   };
   
   return (exact 
@@ -750,6 +752,7 @@ function findCommand<T extends boolean>(
     ? (Command & { name: CommandName }) | null 
     : Array<Command & { name: CommandName }>;
 }
+
 
 // Update the VALUE_FORMAT_REGEX for numbers
 const VALUE_FORMAT_REGEX = {
@@ -799,7 +802,7 @@ figma.parameters.on('input', ({ key, query, result }) => {
   
   // If query is empty or ends with space, show all available commands
   if (!query || query.endsWith(' ')) {
-    result.setSuggestions(COMMANDS.map((cmd) => `${cmd.name} (${cmd.alias})`));
+    result.setSuggestions(COMMANDS.map((cmd) => `${cmd.name} (${cmd.alias[0]})`));
     return;
   }
   
@@ -846,9 +849,9 @@ figma.parameters.on('input', ({ key, query, result }) => {
   // Generate filtered and sorted command suggestions based on current input
   const suggestions = (findCommand(currentPart, false))
   .map((cmd) => {
-    if (currentPart.toLowerCase() === cmd.alias.toLowerCase()) {
+    if (cmd.alias.some(alias => currentPart.toLowerCase() === alias.toLowerCase())) {
       return {
-        name: `${cmd.alias} (${cmd.name})${cmd.suggestion}`,
+        name: `${currentPart} (${cmd.name})${cmd.suggestion}`,
         priority: 1  // Give exact alias matches highest priority
       };
     }
@@ -898,11 +901,11 @@ figma.parameters.on('input', ({ key, query, result }) => {
       return;
     } else if ('valueFormat' in matchedCommand && matchedCommand.valueFormat === 'hex' && !hasHex) {
       // Show full suggestion for hex commands without valid hex value
-      result.setSuggestions([`${matchedCommand.name} (${matchedCommand.alias})${matchedCommand.suggestion}`]);
+      result.setSuggestions([`${matchedCommand.name} (${matchedCommand.alias[0]})${matchedCommand.suggestion}`]);
       return;
     } else if (completeCommands.length > 0 && matchedCommand && (matchedCommand.type === 'optionalValueCommand' || matchedCommand.type === 'commandWithoutValue')) {
       // Show combined suggestion for optional value commands
-      result.setSuggestions([`${completeCommands.join(' | ')} | ${matchedCommand.name} (${matchedCommand.alias})${matchedCommand.suggestion}`]);
+      result.setSuggestions([`${completeCommands.join(' | ')} | ${matchedCommand.name} (${matchedCommand.alias[0]})${matchedCommand.suggestion}`]);
       return;
     }
   }
