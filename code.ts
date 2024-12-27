@@ -46,7 +46,7 @@ const COMMAND_DEFINITIONS = {
   },
   GoToMainComponent: {
     type: "commandWithoutValue",
-    alias: "gmc",
+    alias: "m",
     suggestion: " - use ⌘Z to come back",
     functionWithoutParam: () => selectMasterComponent(),
   },
@@ -719,6 +719,37 @@ const COMMANDS: Array<Command & { name: CommandName }> = (Object.keys(COMMAND_DE
   return a.alias.toLowerCase().localeCompare(b.alias.toLowerCase());
 });
 
+// Unified findCommand function that handles both exact and partial matches
+function findCommand<T extends boolean>(
+  part: string, 
+  exact: T
+): T extends true ? (Command & { name: CommandName }) | null : Array<Command & { name: CommandName }> {
+  const commandPart = part.match(COMMAND_PART_REGEX)?.[0];
+  
+  if (!commandPart) {
+    return (exact ? null : []) as T extends true 
+      ? (Command & { name: CommandName }) | null 
+      : Array<Command & { name: CommandName }>;
+  }
+  
+  const matcher = (cmd: Command & { name: CommandName }) => {
+    const cmdLower = commandPart.toLowerCase();
+    const aliasLower = cmd.alias.toLowerCase();
+    const nameLower = cmd.name.toLowerCase();
+    
+    if (exact) {
+      return aliasLower === cmdLower || nameLower === cmdLower;
+    }
+    return aliasLower.startsWith(cmdLower) || nameLower.startsWith(cmdLower);
+  };
+  
+  return (exact 
+    ? COMMANDS.find(matcher) || null
+    : COMMANDS.filter(matcher)
+  ) as T extends true 
+    ? (Command & { name: CommandName }) | null 
+    : Array<Command & { name: CommandName }>;
+}
 
 // Update the VALUE_FORMAT_REGEX for numbers
 const VALUE_FORMAT_REGEX = {
@@ -765,23 +796,6 @@ figma.parameters.on('input', ({ key, query, result }) => {
   // Split input into parts by spaces
   const parts = query.split(' ');
   const currentPart = parts[parts.length - 1];
-  
-  // Function to find command in the COMMANDS array
-  function findCommand<T extends boolean>(part: string, exact: T): T extends true ? Command | null : Command[] {
-    const commandPart = part.match(COMMAND_PART_REGEX)?.[0];
-    
-    if (!commandPart) return (exact ? null : []) as T extends true ? Command | null : Command[];
-    
-    const matcher = exact
-    ? (cmd: Command) => 
-      cmd.alias.toLowerCase() === commandPart.toLowerCase() ||
-    cmd.name.toLowerCase() === commandPart.toLowerCase()
-    : (cmd: Command) =>
-      cmd.alias.toLowerCase().startsWith(commandPart.toLowerCase()) ||
-    cmd.name.toLowerCase().startsWith(commandPart.toLowerCase());
-    
-    return (exact ? COMMANDS.find(matcher) : COMMANDS.filter(matcher)) as T extends true ? Command | null : Command[];
-  }  
   
   // If query is empty or ends with space, show all available commands
   if (!query || query.endsWith(' ')) {
@@ -830,7 +844,7 @@ figma.parameters.on('input', ({ key, query, result }) => {
   });
   
   // Generate filtered and sorted command suggestions based on current input
-  const suggestions = (findCommand(currentPart, false) || [])
+  const suggestions = (findCommand(currentPart, false))
   .map((cmd) => {
     if (currentPart.toLowerCase() === cmd.alias.toLowerCase()) {
       return {
@@ -909,10 +923,17 @@ figma.on('run', async (parameters) => {
       const commands = commandString.split(COMMAND_SPLITTER_REGEX).filter(Boolean);
       
       for (const cmd of commands) {
-        await executeCommand(cmd);
+        if (findCommand(cmd, true)) {
+          console.log('Command found: ', cmd);
+          await executeCommand(cmd);
+        } else {
+          // If command not found, use parameters
+          console.log('Command not found: ', cmd);
+          await executeCommand(parameters.parameters?.command || '');
+        }
       }
     } 
-    // Only use parameters if we don't have original input 
+    // Only use parameters if we don't have any inputs
     else if (parameters?.parameters?.command) {
       await executeCommand(parameters.parameters.command);
     }
@@ -945,7 +966,7 @@ async function processCommand(commandName: CommandName, value?: string): Promise
 async function executeCommand(cmd: string): Promise<void> {
   if (!cmd) return;
   
-  const command = findCommand(cmd);
+  const command = findCommand(cmd, true);
   if (!command) {
     return;
   }
@@ -979,17 +1000,6 @@ async function executeCommand(cmd: string): Promise<void> {
     await delay(1);
     loadingNotification.cancel();
   }
-}
-
-// Helper functions
-function findCommand(cmd: string): Command | undefined {
-  // Extract command part before any numbers or special characters
-  const cmdPart = cmd.match(/^[a-zA-Z]+/)?.[0] || '';
-  
-  return COMMANDS.find(c =>
-    cmdPart.toLowerCase() === c.alias.toLowerCase() ||
-    cmdPart.toLowerCase() === c.name.toLowerCase()
-  );
 }
 
 // Update the input handler to use generic value detection
