@@ -44,6 +44,12 @@ const COMMAND_DEFINITIONS = {
     suggestion: " - Enter height in pixels",
     functionWithParam: (value: string) => resize(value, 'height'),
   },
+  GoToMainComponent: {
+    type: "commandWithoutValue",
+    alias: "gmc",
+    suggestion: " - use ⌘Z to come back",
+    functionWithoutParam: () => selectMasterComponent(),
+  },
   MoveTop: {
     type: "commandWithValue",
     alias: "mt",
@@ -751,7 +757,7 @@ let originalInput = '';
 
 // Manages command suggestions and autocompletion as the user types
 figma.parameters.on('input', ({ key, query, result }) => {
-
+  
   // Only process 'command' parameter inputs
   if (key !== 'command') return;
   originalInput = query;
@@ -901,7 +907,7 @@ figma.on('run', async (parameters) => {
     if (originalInput.trim()) {
       const commandString = originalInput.trim();
       const commands = commandString.split(COMMAND_SPLITTER_REGEX).filter(Boolean);
-
+      
       for (const cmd of commands) {
         await executeCommand(cmd);
       }
@@ -912,7 +918,7 @@ figma.on('run', async (parameters) => {
     }
     
     figma.closePlugin();
-
+    
   } catch (error) {
     figma.notify(error instanceof Error ? error.message : 'An unknown error occurred');
     figma.closePlugin();
@@ -945,7 +951,7 @@ async function executeCommand(cmd: string): Promise<void> {
   }
   const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
   
-
+  
   const loadingNotification = figma.notify(`Executing ${command.name}...`, { timeout: 0 });
   
   try {
@@ -1532,17 +1538,17 @@ function setCornerSmoothing(value: string) {
   if (selection.length === 0) {
     throw new Error('No items selected');
   }
-
+  
   // Convert value from 0-100 range to 0-1 range and clamp
   const inputValue = Math.max(0, Math.min(100, Number(value)));
   const smoothing = inputValue / 100;
-
+  
   for (const node of selection) {
     if ('cornerSmoothing' in node) {
       node.cornerSmoothing = smoothing;
     }
   }
-
+  
   figma.notify(`Corner smoothing set to ${inputValue}%`);
 }
 
@@ -2159,27 +2165,27 @@ function position(value: string, side: 'left' | 'right' | 'top' | 'bottom') {
       if (!('width' in node.parent) || !('height' in node.parent)) {
         throw new Error('Parent node must be a frame, component, or other container with dimensions');
       }
-
+      
       const numValue = Number(value);
       
       switch (side) {
         case 'left':
-          node.x = numValue;
-          break;
+        node.x = numValue;
+        break;
         
         case 'right':
-          // Position from right = parent width - node width - desired distance from right
-          node.x = (node.parent as FrameNode).width - node.width - numValue;
-          break;
+        // Position from right = parent width - node width - desired distance from right
+        node.x = (node.parent as FrameNode).width - node.width - numValue;
+        break;
         
         case 'top':
-          node.y = numValue;
-          break;
+        node.y = numValue;
+        break;
         
         case 'bottom':
-          // Position from bottom = parent height - node height - desired distance from bottom
-          node.y = (node.parent as FrameNode).height - node.height - numValue;
-          break;
+        // Position from bottom = parent height - node height - desired distance from bottom
+        node.y = (node.parent as FrameNode).height - node.height - numValue;
+        break;
       }
     }
   }
@@ -2204,4 +2210,55 @@ function setBorderAlign(alignment: 'CENTER' | 'INSIDE' | 'OUTSIDE') {
   }
   
   figma.notify(`Border alignment set to ${alignment.toLowerCase()}`);
+}
+
+async function selectMasterComponent() {
+  const selection = figma.currentPage.selection;
+  
+  if (selection.length === 0) {
+    figma.notify('No items selected');
+    return;
+  }
+  
+  const selectedNode = selection[0];
+  
+  if ('getMainComponentAsync' in selectedNode) {
+    try {
+      const mainComponent = await selectedNode.getMainComponentAsync();
+      
+      if (!mainComponent) {
+        figma.notify('No master component found');
+        return;
+      }
+      
+      if (mainComponent.remote) {
+        figma.notify('Master component is in a different file');
+        return;
+      }
+
+      // Find the page containing the master component
+      let componentPage = mainComponent.parent;
+      while (componentPage && componentPage.type !== 'PAGE') {
+        componentPage = componentPage.parent;
+      }
+      
+      if (componentPage) {
+        // Switch to the page if different
+        if (componentPage.id !== figma.currentPage.id) {
+          await figma.setCurrentPageAsync(componentPage);
+        }
+        
+        figma.currentPage.selection = [mainComponent];
+        figma.viewport.scrollAndZoomIntoView([mainComponent]);
+        
+        figma.notify(componentPage.id !== figma.currentPage.id 
+          ? `Master component selected (on page "${componentPage.name}")`
+          : 'Master component selected');
+      }
+    } catch (error) {
+      figma.notify('Error accessing master component');
+    }
+  } else {
+    figma.notify('Selected item is not an instance');
+  }
 }
