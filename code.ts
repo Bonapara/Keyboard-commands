@@ -1698,7 +1698,6 @@ function getOrCreateBorder(node: SceneNode): Paint[] {
   }];
 }
 
-// Function to set border with specific width
 function setBorder(side: 'all' | 'left' | 'right' | 'top' | 'bottom', width: string) {
   const selection = figma.currentPage.selection;
   if (selection.length === 0) {
@@ -1712,8 +1711,16 @@ function setBorder(side: 'all' | 'left' | 'right' | 'top' | 'bottom', width: str
       continue;
     }
     
+    // If no strokes are set, initialize with all sides at 0
     if (node.strokes.length === 0) {
       node.strokes = getOrCreateBorder(node);
+      node.strokeAlign = 'INSIDE';
+      
+      // Reset all sides to 0
+      node.strokeLeftWeight = 0;
+      node.strokeRightWeight = 0;
+      node.strokeTopWeight = 0;
+      node.strokeBottomWeight = 0;
     }
     
     if (side !== 'all') {
@@ -1722,25 +1729,26 @@ function setBorder(side: 'all' | 'left' | 'right' | 'top' | 'bottom', width: str
     
     switch (side) {
       case 'all':
-      node.strokeWeight = Number(width);
-      break;
+        node.strokeWeight = Number(width);
+        break;
       case 'left':
-      node.strokeLeftWeight = Number(width);
-      break;
+        node.strokeLeftWeight = Number(width);
+        break;
       case 'right':
-      node.strokeRightWeight = Number(width);
-      break;
+        node.strokeRightWeight = Number(width);
+        break;
       case 'top':
-      node.strokeTopWeight = Number(width);
-      break;
+        node.strokeTopWeight = Number(width);
+        break;
       case 'bottom':
-      node.strokeBottomWeight = Number(width);
-      break;
+        node.strokeBottomWeight = Number(width);
+        break;
     }
   }
   
   figma.notify(`${side.charAt(0).toUpperCase() + side.slice(1)} stroke set to ${Number(width)}px`);
 }
+
 
 function toggleBorder(side: 'all' | 'left' | 'right' | 'top' | 'bottom') {
   const selection = figma.currentPage.selection;
@@ -1757,7 +1765,8 @@ function toggleBorder(side: 'all' | 'left' | 'right' | 'top' | 'bottom') {
     
     // Handle 'all' separately
     if (side === 'all') {
-      if (node.strokes.length === 0) {
+      if (node.strokes.length === 0 || node.strokeWeight === 0)
+      {
         node.strokes = getOrCreateBorder(node);
         node.strokeWeight = 1;
       } else {
@@ -1768,7 +1777,8 @@ function toggleBorder(side: 'all' | 'left' | 'right' | 'top' | 'bottom') {
     
     // If no strokes are set, this means no visible stroke. 
     // Set all sides to 0, then apply stroke to the toggled side.
-    const noVisibleBorder = (node.strokes.length === 0);
+    const noVisibleBorder = (node.strokes.length === 0 || node.strokeWeight === 0);
+
     if (noVisibleBorder) {
       node.strokes = getOrCreateBorder(node);
       node.strokeAlign = 'INSIDE';
