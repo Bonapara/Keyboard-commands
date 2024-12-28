@@ -287,10 +287,11 @@ const COMMAND_DEFINITIONS = {
     functionWithParam: (value: string) => setFill(value),
   },
   Rotate: {
-    type: "commandWithValue",
+    type: "optionalValueCommand",
     alias: ['ro'],
     valueFormat: 'number' as const,
     suggestion: ' - Enter rotation angle in degrees',
+    functionWithoutParam: () => rotate(0),
     functionWithParam: (value: string) => {rotate(parseInt(value));
     }
   },
@@ -1250,7 +1251,6 @@ function setPadding({ paddingLeft, paddingRight, paddingTop, paddingBottom }: {
 }
 
 function rotate(value: number) {
-  console.log(value);
   if (!value && value !== 0) throw new Error('No value provided');
   const selection = figma.currentPage.selection;
   
@@ -1260,28 +1260,40 @@ function rotate(value: number) {
   
   for (const node of selection) {
     if ('rotation' in node) {
-      // Keep the existing rotation and add the new value
+      // Store original position if not already stored
+      if (!node.getPluginData('originalX')) {
+        node.setPluginData('originalX', node.x.toString());
+        node.setPluginData('originalY', node.y.toString());
+      }
+      
+      // Get original position
+      const originalX = parseFloat(node.getPluginData('originalX'));
+      const originalY = parseFloat(node.getPluginData('originalY'));
+      
+      // Reset rotation
       node.rotation = 0;
       const theta = value * (Math.PI/180); // radians
       
-      //center coordinates of the node
-      const cx = node.x + node.width/2;
-      const cy = node.y + node.height/2;
+      // Use original position for center calculation
+      const cx = originalX + node.width/2;
+      const cy = originalY + node.height/2;
       
-      const newx = Math.cos(theta) * node.x + node.y * Math.sin(theta) - cy * Math.sin(theta) - cx * Math.cos(theta) + cx;
-      const newy = -Math.sin(theta) * node.x + cx * Math.sin(theta) + node.y * Math.cos(theta) - cy * Math.cos(theta) + cy;
+      // Calculate new position using original coordinates
+      const newx = Math.cos(theta) * originalX + originalY * Math.sin(theta) 
+                  - cy * Math.sin(theta) - cx * Math.cos(theta) + cx;
+      const newy = -Math.sin(theta) * originalX + cx * Math.sin(theta) 
+                  + originalY * Math.cos(theta) - cy * Math.cos(theta) + cy;
       
       node.relativeTransform = [
         [Math.cos(theta), Math.sin(theta), newx],
         [-Math.sin(theta), Math.cos(theta), newy]
       ];
-      
     }
   }
   
-  
   figma.notify(`Rotated ${value}° for all selected items`);
 }
+
 
 function move(direction: 'TOP' | 'RIGHT' | 'LEFT' | 'BOTTOM', value: string) {
   if (value === undefined) throw new Error('No value provided');
