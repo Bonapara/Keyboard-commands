@@ -1,5 +1,5 @@
 // Type definitions
-type ValueFormat = 'number' | 'hex' | 'text';
+type ValueFormat = 'number' | 'hex';
 
 type CommandWithValue = {
   type: "commandWithValue";
@@ -726,8 +726,6 @@ function findCommand<T extends boolean>(
   exact: T
 ): T extends true ? (Command & { name: CommandName }) | null : Array<Command & { name: CommandName }> {
   const commandPart = part.match(COMMAND_PART_REGEX)?.[0];
-  console.log('Part:', part);
-  console.log('Command part:', commandPart);
   
   if (!commandPart) {
     return (exact ? null : []) as T extends true 
@@ -762,7 +760,6 @@ const VALUE_FORMAT_REGEX = {
   // Support parentheses and 'x' for multiplication
   number: /-?\s*\(?(\d+(\.\d+)?(?:\s*[-+*/x]\s*\(?-?\d+(\.\d+)?\)?)*\)?)/, 
   hex: /#?[0-9a-fA-F]{3,6}\b/,
-  text: /.+/
 };
 
 function calculateExpression(expression: string): number {
@@ -1263,29 +1260,35 @@ function rotate(value: number) {
   
   for (const node of selection) {
     if ('rotation' in node) {
-      // Store original position if not already stored
-      if (!node.getPluginData('originalX')) {
-        node.setPluginData('originalX', node.x.toString());
-        node.setPluginData('originalY', node.y.toString());
+      // Get or store original position
+      let originalX = node.getPluginData('originalX');
+      let originalY = node.getPluginData('originalY');
+      
+      // If no stored position, use current position and store it
+      if (!originalX || !originalY) {
+        originalX = node.x.toString();
+        originalY = node.y.toString();
+        node.setPluginData('originalX', originalX);
+        node.setPluginData('originalY', originalY);
       }
       
-      // Get original position
-      const originalX = parseFloat(node.getPluginData('originalX'));
-      const originalY = parseFloat(node.getPluginData('originalY'));
+      // Convert to numbers
+      const origX = parseFloat(originalX);
+      const origY = parseFloat(originalY);
       
       // Reset rotation
       node.rotation = 0;
       const theta = value * (Math.PI/180); // radians
       
       // Use original position for center calculation
-      const cx = originalX + node.width/2;
-      const cy = originalY + node.height/2;
+      const cx = origX + node.width/2;
+      const cy = origY + node.height/2;
       
       // Calculate new position using original coordinates
-      const newx = Math.cos(theta) * originalX + originalY * Math.sin(theta) 
+      const newx = Math.cos(theta) * origX + origY * Math.sin(theta) 
                   - cy * Math.sin(theta) - cx * Math.cos(theta) + cx;
-      const newy = -Math.sin(theta) * originalX + cx * Math.sin(theta) 
-                  + originalY * Math.cos(theta) - cy * Math.cos(theta) + cy;
+      const newy = -Math.sin(theta) * origX + cx * Math.sin(theta) 
+                  + origY * Math.cos(theta) - cy * Math.cos(theta) + cy;
       
       node.relativeTransform = [
         [Math.cos(theta), Math.sin(theta), newx],
@@ -1296,6 +1299,8 @@ function rotate(value: number) {
   
   figma.notify(`Rotated ${value}° for all selected items`);
 }
+
+
 
 
 function move(direction: 'TOP' | 'RIGHT' | 'LEFT' | 'BOTTOM', value: string) {
@@ -2028,10 +2033,7 @@ function maxDimension({ type, direction, null: isNull, value }: DimensionOptions
           node.minHeight = null;
         }
       } else {
-        // Set the constraint value
-        console.log("value:", value);
-        console.log("direction:", direction);
-        console.log("type:", type);        
+        // Set the constraint value   
         if (value !== undefined && Number(value) > 0) {
           if (type === 'max' && direction === 'width') {
             node.maxWidth = Number(value);
@@ -2083,7 +2085,6 @@ async function exportAs({
   if (selection.length === 0) {
     throw new Error('No items selected');
   }
-  console.log("hzezf -- constraintValue:", constraintValue);
   // Create export settings object based on format
   const settings: ExportSettings = (() => {
     switch (format) {
@@ -2130,7 +2131,6 @@ async function exportAs({
   // Handle messages from UI
   return new Promise(resolve => {
     figma.ui.onmessage = msg => {
-      console.log('Message from UI:', msg);
       resolve(msg);
       figma.closePlugin();
     };
