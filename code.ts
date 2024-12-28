@@ -52,7 +52,7 @@ const COMMAND_DEFINITIONS = {
   },
   MoveTop: {
     type: "commandWithValue",
-    alias: ['mt'],
+    alias: ['mt', 'my'],
     valueFormat: 'number' as const,
     suggestion: " - Move X pixels up",
     functionWithParam: (value: string) => move('TOP', value),
@@ -66,7 +66,7 @@ const COMMAND_DEFINITIONS = {
   },
   MoveLeft: {
     type: "commandWithValue",
-      alias: ['ml'],
+      alias: ['ml', 'mx'],
     valueFormat: 'number' as const,
     suggestion: " - Move X pixels left",
     functionWithParam: (value: string) => move('LEFT', value),
@@ -80,7 +80,7 @@ const COMMAND_DEFINITIONS = {
   },
   PositionLeft: {
     type: "commandWithValue",
-    alias: ['pol'],
+    alias: ['pol', 'x'],
     valueFormat: "number",
     suggestion: " - Position in px from left",
     functionWithParam: (value: string) => position(value, 'left'),
@@ -94,7 +94,7 @@ const COMMAND_DEFINITIONS = {
   },
   PositionTop: {
     type: "commandWithValue",
-    alias: ['pot'],
+    alias: ['pot', 'y'],
     valueFormat: "number",
     suggestion: " - Position in px from top",
     functionWithParam: (value: string) => position(value, 'top'),
