@@ -702,6 +702,42 @@ const COMMAND_DEFINITIONS = {
     suggestion: " - 📱 (IOS)",
     functionWithoutParam: () => setCornerSmoothing("60"),
   },
+  AlignTop: {
+    type: "commandWithoutValue",
+    alias: ['at'],
+    suggestion: " - Align items to top",
+    functionWithoutParam: () => alignNodes('TOP'),
+  },
+  AlignBottom: {
+    type: "commandWithoutValue",
+    alias: ['ab'],
+    suggestion: " - Align items to bottom",
+    functionWithoutParam: () => alignNodes('BOTTOM'),
+  },
+  AlignLeft: {
+      type: "commandWithoutValue",
+    alias: ['al'],
+    suggestion: " - Align items to left",
+    functionWithoutParam: () => alignNodes('LEFT'),
+  },
+  AlignRight: {
+    type: "commandWithoutValue",
+    alias: ['ar'],
+    suggestion: " - Align items to right",
+    functionWithoutParam: () => alignNodes('RIGHT'),
+  },
+  AlignVerticalCenter: {
+    type: "commandWithoutValue",
+    alias: ['avc'],
+    suggestion: " - Align items to vertical center",
+    functionWithoutParam: () => alignNodes('VERTICAL_CENTER'),
+  },
+  AlignHorizontalCenter: {
+    type: "commandWithoutValue",
+    alias: ['ahc'],
+    suggestion: " - Align items to horizontal center",
+    functionWithoutParam: () => alignNodes('HORIZONTAL_CENTER'),
+  },
 } satisfies Record<string, CommandWithValue | CommandWithoutValue | OptionalValueCommand>;
 
 
@@ -1692,18 +1728,52 @@ function setOpacity(value: string) {
   figma.notify(`Opacity set to ${Math.min(100, Math.max(0, Number(value)))}%`);
 }
 
+// Store the last used offset outside the function to persist between calls
+let lastOffset = { x: 0, y: 0 };
+
 function duplicate() {
   const selection = figma.currentPage.selection;
   
   if (selection.length === 0) {
     throw new Error('No items selected');
   }
+
+  // If this is a subsequent duplication, we can calculate the offset
+  // from the first selected item's position relative to its original
+  if (selection[0].getPluginData('originalPosition')) {
+    const originalX = parseFloat(selection[0].getPluginData('originalPosition').split(',')[0]);
+    const originalY = parseFloat(selection[0].getPluginData('originalPosition').split(',')[1]);
+    
+    // Calculate the offset from the original position
+    lastOffset = {
+      x: selection[0].x - originalX,
+      y: selection[0].y - originalY
+    };
+  }
   
-  const duplicates = selection.map(node => node.clone());
+  const duplicates = selection.map(node => {
+    const clone = node.clone();
+    const parent = node.parent;
+    
+    if (parent) {
+      parent.appendChild(clone);
+      
+      // Apply the stored offset to the new clone
+      clone.x = node.x + lastOffset.x;
+      clone.y = node.y + lastOffset.y;
+      
+      // Store the original position in the new clone
+      clone.setPluginData('originalPosition', `${node.x},${node.y}`);
+    }
+    
+    return clone;
+  });
+  
   figma.currentPage.selection = duplicates;
-  
   figma.notify('Items duplicated');
 }
+
+
 
 // Helper function to get existing border style or create new one
 function getOrCreateBorder(node: SceneNode): Paint[] {
@@ -2299,4 +2369,72 @@ async function selectMasterComponent() {
   } else {
     figma.notify('Selected item is not an instance');
   }
+}
+
+function alignNodes(alignment: 'TOP' | 'RIGHT' | 'LEFT' | 'BOTTOM' | 'VERTICAL_CENTER' | 'HORIZONTAL_CENTER') {
+  const selection = figma.currentPage.selection;
+  
+  if (selection.length < 2) {
+    figma.notify('Please select at least 2 items to align');
+    return;
+  }
+
+  // Filter nodes that have x and y properties
+  const validNodes = selection.filter(node => 'x' in node && 'y' in node);
+
+  if (validNodes.length !== selection.length) {
+    figma.notify('Some selected items cannot be aligned');
+    return;
+  }
+
+  // Get boundary values
+  const positions = validNodes.map(node => ({
+    x: node.x,
+    y: node.y,
+    width: 'width' in node ? node.width : 0,
+    height: 'height' in node ? node.height : 0
+  }));
+
+  const leftmost = Math.min(...positions.map(p => p.x));
+  const rightmost = Math.max(...positions.map(p => p.x + p.width));
+  const topmost = Math.min(...positions.map(p => p.y));
+  const bottommost = Math.max(...positions.map(p => p.y + p.height));
+
+  // Align nodes based on the specified alignment
+  for (const node of validNodes) {
+    switch (alignment) {
+      case 'LEFT':
+        node.x = leftmost;
+        break;
+      case 'RIGHT':
+        if ('width' in node) {
+          node.x = rightmost - node.width;
+        }
+        break;
+      case 'TOP':
+        node.y = topmost;
+        break;
+      case 'BOTTOM':
+        if ('height' in node) {
+          node.y = bottommost - node.height;
+        }
+        break;
+      case 'VERTICAL_CENTER': {
+        const centerY = topmost + (bottommost - topmost) / 2;
+        if ('height' in node) {
+          node.y = centerY - (node.height / 2);
+        }
+        break;
+      }
+      case 'HORIZONTAL_CENTER': {
+        const centerX = leftmost + (rightmost - leftmost) / 2;
+        if ('width' in node) {
+          node.x = centerX - (node.width / 2);
+        }
+        break;
+      }
+    }
+  }
+
+  figma.notify(`Aligned ${validNodes.length} items to ${alignment.toLowerCase().replace('_', ' ')}`);
 }
