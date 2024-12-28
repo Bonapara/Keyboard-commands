@@ -52,28 +52,28 @@ const COMMAND_DEFINITIONS = {
   },
   MoveTop: {
     type: "commandWithValue",
-    alias: ['mt', 'my'],
+    alias: ['mt', '-my'],
     valueFormat: 'number' as const,
     suggestion: " - Move X pixels up",
     functionWithParam: (value: string) => move('TOP', value),
   },
   MoveBottom: {
     type: "commandWithValue",
-    alias: ['mb'],
+    alias: ['mb', 'my'],
     valueFormat: 'number' as const,
     suggestion: " - Move X pixels down",
     functionWithParam: (value: string) => move('BOTTOM', value),
   },
   MoveLeft: {
     type: "commandWithValue",
-      alias: ['ml', 'mx'],
+      alias: ['ml', '-mx'],
     valueFormat: 'number' as const,
     suggestion: " - Move X pixels left",
     functionWithParam: (value: string) => move('LEFT', value),
   },
   MoveRight: {
     type: "commandWithValue",
-    alias: ['mr'],
+    alias: ['mr', 'mx'],
     valueFormat: 'number' as const,
     suggestion: " - Move X pixels right",
     functionWithParam: (value: string) => move('RIGHT', value),
@@ -87,7 +87,7 @@ const COMMAND_DEFINITIONS = {
   },
   PositionRight: {
     type: "commandWithValue",
-    alias: ['por'],
+    alias: ['por', '-x'],
     valueFormat: "number",
     suggestion: " - Position in px from right",
     functionWithParam: (value: string) => position(value, 'right'),
@@ -101,7 +101,7 @@ const COMMAND_DEFINITIONS = {
   },
   PositionBottom: {
     type: "commandWithValue",
-    alias: ['pob'],
+    alias: ['pob', '-y'],
     valueFormat: "number",
     suggestion: " - Position in px from bottom",
     functionWithParam: (value: string) => position(value, 'bottom'),
@@ -784,7 +784,7 @@ function calculateExpression(expression: string): number {
 }
 
 const COMMAND_SPLITTER_REGEX = /[\s,]+/;
-const COMMAND_PART_REGEX = /^[\p{L}]+/u;
+const COMMAND_PART_REGEX = /^-?[\p{L}]+/u;
 
 
 let originalInput = '';
@@ -803,7 +803,7 @@ figma.parameters.on('input', ({ key, query, result }) => {
   
   // If query is empty or ends with space, show all available commands
   if (!query || query.endsWith(' ')) {
-    result.setSuggestions(COMMANDS.map((cmd) => `${cmd.name} (${cmd.alias[0]})`));
+    result.setSuggestions(COMMANDS.map((cmd) => `${cmd.name} (${cmd.alias.join(', ')})`));
     return;
   }
   
