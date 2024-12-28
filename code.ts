@@ -1261,7 +1261,7 @@ function rotate(value: number) {
   for (const node of selection) {
     if ('rotation' in node) {
       // Keep the existing rotation and add the new value
-      // node.rotation = 0;
+      node.rotation = 0;
       const theta = value * (Math.PI/180); // radians
       
       //center coordinates of the node
