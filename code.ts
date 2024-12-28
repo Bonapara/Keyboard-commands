@@ -726,6 +726,8 @@ function findCommand<T extends boolean>(
   exact: T
 ): T extends true ? (Command & { name: CommandName }) | null : Array<Command & { name: CommandName }> {
   const commandPart = part.match(COMMAND_PART_REGEX)?.[0];
+  console.log('Part:', part);
+  console.log('Command part:', commandPart);
   
   if (!commandPart) {
     return (exact ? null : []) as T extends true 
@@ -784,7 +786,8 @@ function calculateExpression(expression: string): number {
 }
 
 const COMMAND_SPLITTER_REGEX = /[\s,]+/;
-const COMMAND_PART_REGEX = /^-?[\p{L}]+/u;
+const COMMAND_PART_REGEX = /^(-(?![\d])|(-)?[\p{L}]+(-[\p{L}]+)*)(?=[\d]|-[\d]|-$|$)/u;
+
 
 
 let originalInput = '';
@@ -863,7 +866,7 @@ figma.parameters.on('input', ({ key, query, result }) => {
       };
     }
     return {
-      name: `${cmd.name} (${cmd.alias})`,
+      name: `${cmd.name} (${cmd.alias.join(', ')})`,
       priority: 3  // Give partial matches lowest priority
     };
   })
