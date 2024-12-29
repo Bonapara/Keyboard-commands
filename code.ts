@@ -783,9 +783,6 @@ function findCommand<T extends boolean>(
     return aliases.some(alias => alias.toLowerCase().includes(cmdLower)) || 
            nameLower.includes(cmdLower);
   };
-
-  console.log('findCommand: COMMANDS.find(matcher): ', COMMANDS.find(matcher));
-  console.log('findCommand: COMMANDS.filter(matcher): ', COMMANDS.filter(matcher));
   
   return (exact 
     ? COMMANDS.find(matcher) || null
@@ -913,7 +910,7 @@ figma.parameters.on('input', ({ key, query, result }) => {
   
   // Process the current (last) command
   const matchedCommand = findCommand(currentPart, true);
-  
+
   const hasNumber = VALUE_FORMAT_REGEX.number.exec(currentPart);
   const hasHex = VALUE_FORMAT_REGEX.hex.exec(currentPart);
   
@@ -962,7 +959,6 @@ figma.parameters.on('input', ({ key, query, result }) => {
 
 figma.on('run', async (parameters) => {
 
-  console.log('Running with parameters: ', parameters);
   try {    
     // If we have original input, use that
     if (originalInput.trim()) {
