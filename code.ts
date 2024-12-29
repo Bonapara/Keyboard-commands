@@ -762,6 +762,8 @@ function findCommand<T extends boolean>(
   exact: T
 ): T extends true ? (Command & { name: CommandName }) | null : Array<Command & { name: CommandName }> {
   const commandPart = part.match(COMMAND_PART_REGEX)?.[0];
+
+  console.log('findCommand: Part: ', part);
   
   if (!commandPart) {
     return (exact ? null : []) as T extends true 
@@ -778,9 +780,12 @@ function findCommand<T extends boolean>(
       return aliases.some(alias => alias.toLowerCase() === cmdLower) || 
              nameLower === cmdLower;
     }
-    return aliases.some(alias => alias.toLowerCase().startsWith(cmdLower)) || 
-           nameLower.startsWith(cmdLower);
+    return aliases.some(alias => alias.toLowerCase().includes(cmdLower)) || 
+           nameLower.includes(cmdLower);
   };
+
+  console.log('findCommand: COMMANDS.find(matcher): ', COMMANDS.find(matcher));
+  console.log('findCommand: COMMANDS.filter(matcher): ', COMMANDS.filter(matcher));
   
   return (exact 
     ? COMMANDS.find(matcher) || null
@@ -819,7 +824,7 @@ function calculateExpression(expression: string): number {
 }
 
 const COMMAND_SPLITTER_REGEX = /[\s,]+/;
-const COMMAND_PART_REGEX = /^(-(?![\d])|(-)?[\p{L}]+(-[\p{L}]+)*)(?=[\d]|-[\d]|-$|$)/u;
+const COMMAND_PART_REGEX = /^(-(?![\d])|(-)?[\p{L}]+(-[\p{L}]+)*?)(?=\s|[\d]|-[\d]|-$|$)/u;
 
 
 
@@ -956,6 +961,8 @@ figma.parameters.on('input', ({ key, query, result }) => {
 });
 
 figma.on('run', async (parameters) => {
+
+  console.log('Running with parameters: ', parameters);
   try {    
     // If we have original input, use that
     if (originalInput.trim()) {
