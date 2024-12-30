@@ -66,7 +66,7 @@ const COMMAND_DEFINITIONS = {
   },
   MoveLeft: {
     type: "commandWithValue",
-      alias: ['ml', '-mx'],
+    alias: ['ml', '-mx'],
     valueFormat: 'number' as const,
     suggestion: " - Move X pixels left",
     functionWithParam: (value: string) => move('LEFT', value),
@@ -238,7 +238,7 @@ const COMMAND_DEFINITIONS = {
   },
   PaddingHorizontal: {
     type: "commandWithValue",
-      alias: ['ph'],
+    alias: ['ph'],
     valueFormat: "number",
     suggestion: " - Enter horizontal padding",
     functionWithParam: (value: string) => setPadding({paddingLeft: value, paddingRight: value}),
@@ -715,7 +715,7 @@ const COMMAND_DEFINITIONS = {
     functionWithoutParam: () => alignNodes('BOTTOM'),
   },
   AlignLeft: {
-      type: "commandWithoutValue",
+    type: "commandWithoutValue",
     alias: ['al'],
     suggestion: " - Align items to left",
     functionWithoutParam: () => alignNodes('LEFT'),
@@ -746,51 +746,62 @@ const COMMANDS: Array<Command & { name: CommandName }> = (Object.keys(COMMAND_DE
   const def = COMMAND_DEFINITIONS[name];
   return { name, ...def };
 })
-.sort((a, b) => {
-  // First sort by alias length
-  if (a.alias[0].length !== b.alias[0].length) {
-    return a.alias[0].length - b.alias[0].length;
-  }
-  
-  // If lengths are equal, sort alphabetically
-  return a.alias[0].toLowerCase().localeCompare(b.alias[0].toLowerCase());
-});
+// .sort((a, b) => {
+//   // First sort by alias length
+//   if (a.alias[0].length !== b.alias[0].length) {
+//     return a.alias[0].length - b.alias[0].length;
+//   }
+
+//   // If lengths are equal, sort alphabetically
+//   return a.alias[0].toLowerCase().localeCompare(b.alias[0].toLowerCase());
+// });
 
 // Unified findCommand function that handles both exact and partial matches
-function findCommand<T extends boolean>(
-  part: string, 
-  exact: T
-): T extends true ? (Command & { name: CommandName }) | null : Array<Command & { name: CommandName }> {
+function findCommand(
+  part: string
+): Array<Command & { name: CommandName }> {
   const commandPart = part.match(COMMAND_PART_REGEX)?.[0];
-
-  console.log('findCommand: Part: ', part);
   
   if (!commandPart) {
-    return (exact ? null : []) as T extends true 
-      ? (Command & { name: CommandName }) | null 
-      : Array<Command & { name: CommandName }>;
+    return [];
   }
   
-  const matcher = (cmd: Command & { name: CommandName }) => {
-    const cmdLower = commandPart.toLowerCase();
+  const cmdLower = commandPart.toLowerCase();
+  
+  // First, check for exact alias matches
+  const exactAliasMatches = COMMANDS.filter(cmd => {
+    const aliases = Array.isArray(cmd.alias) ? cmd.alias : [cmd.alias];
+    return aliases.some(alias => alias.toLowerCase() === cmdLower);
+  });
+  
+  if (exactAliasMatches.length > 0) {
+    return exactAliasMatches;
+  }
+  
+  // Then, split results into "starts with" and "contains"
+  const startsWithMatches: Array<Command & { name: CommandName }> = [];
+  const containsMatches: Array<Command & { name: CommandName }> = [];
+  
+  COMMANDS.forEach(cmd => {
     const nameLower = cmd.name.toLowerCase();
     const aliases = Array.isArray(cmd.alias) ? cmd.alias : [cmd.alias];
     
-    if (exact) {
-      return aliases.some(alias => alias.toLowerCase() === cmdLower) || 
-             nameLower === cmdLower;
+    // Check if name or any alias starts with the search term
+    if (nameLower.startsWith(cmdLower) || 
+    aliases.some(alias => alias.toLowerCase().startsWith(cmdLower))) {
+      startsWithMatches.push(cmd);
     }
-    return aliases.some(alias => alias.toLowerCase().includes(cmdLower)) || 
-           nameLower.includes(cmdLower);
-  };
+    // If not starting with, check if it contains the term
+    else if (nameLower.includes(cmdLower) || 
+    aliases.some(alias => alias.toLowerCase().includes(cmdLower))) {
+      containsMatches.push(cmd);
+    }
+  });
   
-  return (exact 
-    ? COMMANDS.find(matcher) || null
-    : COMMANDS.filter(matcher)
-  ) as T extends true 
-    ? (Command & { name: CommandName }) | null 
-    : Array<Command & { name: CommandName }>;
+  // Combine the results with "starts with" matches first
+  return [...startsWithMatches, ...containsMatches];
 }
+
 
 
 // Update the VALUE_FORMAT_REGEX for numbers
@@ -847,7 +858,7 @@ figma.parameters.on('input', ({ key, query, result }) => {
   
   // Display a summary of already defined commands
   const completeCommands = parts.slice(0, -1).map((part) => {
-    const matchedCommand = findCommand(part, true);
+    const matchedCommand = findCommand(part)[0];
     const hasHex = VALUE_FORMAT_REGEX.hex.exec(part);
     const hasNumber = VALUE_FORMAT_REGEX.number.exec(part);
     
@@ -885,32 +896,10 @@ figma.parameters.on('input', ({ key, query, result }) => {
     }
   });
   
-  // Generate filtered and sorted command suggestions based on current input
-  const suggestions = (findCommand(currentPart, false))
-  .map((cmd) => {
-    if (cmd.alias.some(alias => currentPart.toLowerCase() === alias.toLowerCase())) {
-      return {
-        name: `${currentPart} (${cmd.name})${cmd.suggestion}`,
-        priority: 1  // Give exact alias matches highest priority
-      };
-    }
-    if (currentPart.toLowerCase() === cmd.name.toLowerCase()) {
-      return {
-        name: `${cmd.name}${cmd.suggestion}`,
-        priority: 2  // Give exact name matches second priority
-      };
-    }
-    return {
-      name: `${cmd.name} (${cmd.alias.join(', ')})`,
-      priority: 3  // Give partial matches lowest priority
-    };
-  })
-  .sort((a, b) => a.priority - b.priority)
-  .map(suggestion => ({ name: suggestion.name }));  // Remove priority before setting suggestions
   
   // Process the current (last) command
-  const matchedCommand = findCommand(currentPart, true);
-
+  const matchedCommand = findCommand(currentPart)[0];
+  
   const hasNumber = VALUE_FORMAT_REGEX.number.exec(currentPart);
   const hasHex = VALUE_FORMAT_REGEX.hex.exec(currentPart);
   
@@ -924,41 +913,76 @@ figma.parameters.on('input', ({ key, query, result }) => {
       true
     );
     
+    let suggestions = [];
+    
+    // Handle exact alias matches and partial name matches
+    if (matchedCommand.alias.some(alias => currentPart.toLowerCase() === alias.toLowerCase()) ||
+    matchedCommand.name.toLowerCase().startsWith(currentPart.toLowerCase())) {
+      suggestions.push(`${matchedCommand.name} (${matchedCommand.alias[0]})${matchedCommand.suggestion}`);
+    }
+    
     if (isValidValue && (hasHex || hasNumber)) {
       if (matchedCommand.valueFormat === 'hex' && hasHex) {
         completeCommands.push(`${matchedCommand.name}:${hasHex[0]}`);
+        suggestions[0] = completeCommands.join(' | ');
       }
       else if (matchedCommand.valueFormat === 'number' && hasNumber) {
         try {
           const computedValue = calculateExpression(hasNumber[0]);
           completeCommands.push(`${matchedCommand.name}:${computedValue}`);
+          suggestions[0] = completeCommands.join(' | ');
         } catch {
           completeCommands.push(`${matchedCommand.name}:${hasNumber[0]}`);
+          suggestions[0] = completeCommands.join(' | ');
         }
       }
-      result.setSuggestions([completeCommands.join(' | ')]);
-      return;
-    } else if ('valueFormat' in matchedCommand && matchedCommand.valueFormat === 'hex' && !hasHex) {
-      // Show full suggestion for hex commands without valid hex value
-      result.setSuggestions([`${matchedCommand.name} (${matchedCommand.alias[0]})${matchedCommand.suggestion}`]);
-      return;
-    } else if (completeCommands.length > 0 && matchedCommand && (matchedCommand.type === 'optionalValueCommand' || matchedCommand.type === 'commandWithoutValue')) {
-      // Show combined suggestion for optional value commands
-      result.setSuggestions([`${completeCommands.join(' | ')} | ${matchedCommand.name} (${matchedCommand.alias[0]})${matchedCommand.suggestion}`]);
-      return;
     }
-  }
+    
+    const relatedCommands = COMMANDS
+    .filter(cmd => 
+      cmd.name !== matchedCommand.name && 
+      (cmd.name.toLowerCase().startsWith(currentPart.toLowerCase()) ||
+      cmd.name.toLowerCase().includes(currentPart.toLowerCase()))
+    )
+    .sort((a, b) => 
+      // Prioritize aliases starting with currentPart
+    (Number(b.alias[0].toLowerCase().startsWith(currentPart.toLowerCase())) - 
+    Number(a.alias[0].toLowerCase().startsWith(currentPart.toLowerCase()))) ||
+    // Then prioritize names starting with currentPart
+    (Number(b.name.toLowerCase().startsWith(currentPart.toLowerCase())) - 
+    Number(a.name.toLowerCase().startsWith(currentPart.toLowerCase()))) ||
+    // Then sort by alias length
+    (a.alias[0].length - b.alias[0].length) ||
+    // Finally sort alphabetically by name
+    a.name.localeCompare(b.name)
+  )
+  .map(cmd => `${cmd.name} (${cmd.alias[0]})`);  
   
-  // Set final suggestions, showing "No command found" message if no matches
-  if (suggestions.length === 0) {
-    result.setSuggestions([`No command found for "${currentPart}"`]);
-  } else {
+  
+  suggestions = [...suggestions, ...relatedCommands];
+  
+  console.log('suggestions: ', suggestions);
+  console.log('suggestions length: ', suggestions.length);
+  
+  if (suggestions.length > 0) {
     result.setSuggestions(suggestions);
+    return;
   }
+} else {
+  result.setSuggestions([`No command found for "${currentPart}"`]);
+}
+
+
+// // Set final suggestions, showing "No command found" message if no matches
+// if (suggestions.length === 0) {
+//   result.setSuggestions([`No command found for "${currentPart}"`]);
+// } else {
+//   result.setSuggestions(suggestions);
+// }
 });
 
 figma.on('run', async (parameters) => {
-
+  
   try {    
     // If we have original input, use that
     if (originalInput.trim()) {
@@ -966,7 +990,7 @@ figma.on('run', async (parameters) => {
       const commands = commandString.split(COMMAND_SPLITTER_REGEX).filter(Boolean);
       
       for (const cmd of commands) {
-        if (findCommand(cmd, true)) {
+        if (findCommand(cmd)[0]) {
           console.log('Command found: ', cmd);
           await executeCommand(cmd);
         } else {
@@ -1009,7 +1033,7 @@ async function processCommand(commandName: CommandName, value?: string): Promise
 async function executeCommand(cmd: string): Promise<void> {
   if (!cmd) return;
   
-  const command = findCommand(cmd, true);
+  const command = findCommand(cmd)[0];
   if (!command) {
     return;
   }
@@ -1325,9 +1349,9 @@ function rotate(value: number) {
       
       // Calculate new position using original coordinates
       const newx = Math.cos(theta) * origX + origY * Math.sin(theta) 
-                  - cy * Math.sin(theta) - cx * Math.cos(theta) + cx;
+      - cy * Math.sin(theta) - cx * Math.cos(theta) + cx;
       const newy = -Math.sin(theta) * origX + cx * Math.sin(theta) 
-                  + origY * Math.cos(theta) - cy * Math.cos(theta) + cy;
+      + origY * Math.cos(theta) - cy * Math.cos(theta) + cy;
       
       node.relativeTransform = [
         [Math.cos(theta), Math.sin(theta), newx],
@@ -1740,7 +1764,7 @@ function duplicate() {
   if (selection.length === 0) {
     throw new Error('No items selected');
   }
-
+  
   // If this is a subsequent duplication, we can calculate the offset
   // from the first selected item's position relative to its original
   if (selection[0].getPluginData('originalPosition')) {
@@ -1822,20 +1846,20 @@ function setBorder(side: 'all' | 'left' | 'right' | 'top' | 'bottom', width: str
     
     switch (side) {
       case 'all':
-        node.strokeWeight = Number(width);
-        break;
+      node.strokeWeight = Number(width);
+      break;
       case 'left':
-        node.strokeLeftWeight = Number(width);
-        break;
+      node.strokeLeftWeight = Number(width);
+      break;
       case 'right':
-        node.strokeRightWeight = Number(width);
-        break;
+      node.strokeRightWeight = Number(width);
+      break;
       case 'top':
-        node.strokeTopWeight = Number(width);
-        break;
+      node.strokeTopWeight = Number(width);
+      break;
       case 'bottom':
-        node.strokeBottomWeight = Number(width);
-        break;
+      node.strokeBottomWeight = Number(width);
+      break;
     }
   }
   
@@ -1859,7 +1883,7 @@ function toggleBorder(side: 'all' | 'left' | 'right' | 'top' | 'bottom') {
     // Handle 'all' separately
     if (side === 'all') {
       if (node.strokes.length === 0 || node.strokeWeight === 0)
-      {
+        {
         node.strokes = getOrCreateBorder(node);
         node.strokeWeight = 1;
       } else {
@@ -1871,7 +1895,7 @@ function toggleBorder(side: 'all' | 'left' | 'right' | 'top' | 'bottom') {
     // If no strokes are set, this means no visible stroke. 
     // Set all sides to 0, then apply stroke to the toggled side.
     const noVisibleBorder = (node.strokes.length === 0 || node.strokeWeight === 0);
-
+    
     if (noVisibleBorder) {
       node.strokes = getOrCreateBorder(node);
       node.strokeAlign = 'INSIDE';
@@ -2346,7 +2370,7 @@ async function selectMasterComponent() {
         figma.notify('Master component is in a different file');
         return;
       }
-
+      
       // Find the page containing the master component
       let componentPage = mainComponent.parent;
       while (componentPage && componentPage.type !== 'PAGE') {
@@ -2365,79 +2389,79 @@ async function selectMasterComponent() {
         figma.notify(componentPage.id !== figma.currentPage.id 
           ? `Master component selected (on page "${componentPage.name}")`
           : 'Master component selected');
+        }
+      } catch (error) {
+        figma.notify('Error accessing master component');
       }
-    } catch (error) {
-      figma.notify('Error accessing master component');
+    } else {
+      figma.notify('Selected item is not an instance');
     }
-  } else {
-    figma.notify('Selected item is not an instance');
   }
-}
-
-function alignNodes(alignment: 'TOP' | 'RIGHT' | 'LEFT' | 'BOTTOM' | 'VERTICAL_CENTER' | 'HORIZONTAL_CENTER') {
-  const selection = figma.currentPage.selection;
   
-  if (selection.length < 2) {
-    figma.notify('Please select at least 2 items to align');
-    return;
-  }
-
-  // Filter nodes that have x and y properties
-  const validNodes = selection.filter(node => 'x' in node && 'y' in node);
-
-  if (validNodes.length !== selection.length) {
-    figma.notify('Some selected items cannot be aligned');
-    return;
-  }
-
-  // Get boundary values
-  const positions = validNodes.map(node => ({
-    x: node.x,
-    y: node.y,
-    width: 'width' in node ? node.width : 0,
-    height: 'height' in node ? node.height : 0
-  }));
-
-  const leftmost = Math.min(...positions.map(p => p.x));
-  const rightmost = Math.max(...positions.map(p => p.x + p.width));
-  const topmost = Math.min(...positions.map(p => p.y));
-  const bottommost = Math.max(...positions.map(p => p.y + p.height));
-
-  // Align nodes based on the specified alignment
-  for (const node of validNodes) {
-    switch (alignment) {
-      case 'LEFT':
+  function alignNodes(alignment: 'TOP' | 'RIGHT' | 'LEFT' | 'BOTTOM' | 'VERTICAL_CENTER' | 'HORIZONTAL_CENTER') {
+    const selection = figma.currentPage.selection;
+    
+    if (selection.length < 2) {
+      figma.notify('Please select at least 2 items to align');
+      return;
+    }
+    
+    // Filter nodes that have x and y properties
+    const validNodes = selection.filter(node => 'x' in node && 'y' in node);
+    
+    if (validNodes.length !== selection.length) {
+      figma.notify('Some selected items cannot be aligned');
+      return;
+    }
+    
+    // Get boundary values
+    const positions = validNodes.map(node => ({
+      x: node.x,
+      y: node.y,
+      width: 'width' in node ? node.width : 0,
+      height: 'height' in node ? node.height : 0
+    }));
+    
+    const leftmost = Math.min(...positions.map(p => p.x));
+    const rightmost = Math.max(...positions.map(p => p.x + p.width));
+    const topmost = Math.min(...positions.map(p => p.y));
+    const bottommost = Math.max(...positions.map(p => p.y + p.height));
+    
+    // Align nodes based on the specified alignment
+    for (const node of validNodes) {
+      switch (alignment) {
+        case 'LEFT':
         node.x = leftmost;
         break;
-      case 'RIGHT':
+        case 'RIGHT':
         if ('width' in node) {
           node.x = rightmost - node.width;
         }
         break;
-      case 'TOP':
+        case 'TOP':
         node.y = topmost;
         break;
-      case 'BOTTOM':
+        case 'BOTTOM':
         if ('height' in node) {
           node.y = bottommost - node.height;
         }
         break;
-      case 'VERTICAL_CENTER': {
-        const centerY = topmost + (bottommost - topmost) / 2;
-        if ('height' in node) {
-          node.y = centerY - (node.height / 2);
+        case 'VERTICAL_CENTER': {
+          const centerY = topmost + (bottommost - topmost) / 2;
+          if ('height' in node) {
+            node.y = centerY - (node.height / 2);
+          }
+          break;
         }
-        break;
-      }
-      case 'HORIZONTAL_CENTER': {
-        const centerX = leftmost + (rightmost - leftmost) / 2;
-        if ('width' in node) {
-          node.x = centerX - (node.width / 2);
+        case 'HORIZONTAL_CENTER': {
+          const centerX = leftmost + (rightmost - leftmost) / 2;
+          if ('width' in node) {
+            node.x = centerX - (node.width / 2);
+          }
+          break;
         }
-        break;
       }
     }
+    
+    figma.notify(`Aligned ${validNodes.length} items to ${alignment.toLowerCase().replace('_', ' ')}`);
   }
-
-  figma.notify(`Aligned ${validNodes.length} items to ${alignment.toLowerCase().replace('_', ' ')}`);
-}
