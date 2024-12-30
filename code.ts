@@ -759,8 +759,6 @@ function findCommand(
   }
   
   const cmdLower = commandPart.toLowerCase();
-
-  console.log('findCommand: cmdLower:', cmdLower);
   
   // First, check for exact alias matches
   const exactAliasMatches = COMMANDS.filter(cmd => {
@@ -791,10 +789,6 @@ function findCommand(
       containsMatches.push(cmd);
     }
   });
-
-  console.log('findCommand: startsWithMatches:', startsWithMatches);
-  console.log('findCommand: containsMatches:', containsMatches);
-  
   // Combine the results with "starts with" matches first
   return [...startsWithMatches, ...containsMatches];
 }
@@ -966,6 +960,8 @@ figma.parameters.on('input', ({ key, query, result }) => {
   
   // Process current (last) command
   const matchedCommand = findCommand(currentPart)[0];
+
+  console.log('matchedCommand:', matchedCommand);
   const hasNumber = VALUE_FORMAT_REGEX.number.exec(currentPart);
   const hasHex = VALUE_FORMAT_REGEX.hex.exec(currentPart);
   
@@ -1079,8 +1075,7 @@ async function executeCommand(cmd: string): Promise<void> {
   
   const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
   
-  
-  const loadingNotification = figma.notify(`Executing ${command.name}...`, { timeout: 0 });
+  const loadingNotification = figma.notify(`Executing command(s)...`, { timeout: 0 });
   
   try {
     await delay(1);
