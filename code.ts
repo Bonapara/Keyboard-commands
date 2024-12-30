@@ -115,13 +115,13 @@ const COMMAND_DEFINITIONS = {
   AutoLayout: {
     type: "commandWithoutValue",
     alias: ['a'],
-    suggestion: ' - →',
+    suggestion: ' - Horizontal →',
     functionWithoutParam: () => createAutoLayout('HORIZONTAL'),
   },
   AutoLayoutVertical: {
     type: "commandWithoutValue",
     alias: ['av'],
-    suggestion: " - ↓",
+    suggestion: " - Vertical ↓",
     functionWithoutParam: () => createAutoLayout('VERTICAL'),
   },
   RemoveAutoLayout: {
@@ -179,25 +179,26 @@ const COMMAND_DEFINITIONS = {
     functionWithoutParam: () => layoutSizing('HORIZONTAL', 'HUG'),
   },
   Gap: {
-    type: "commandWithValue",
+    type: "optionalValueCommand",
     alias: ['g'],
     valueFormat: "number",
-    suggestion: " - Gap in px",
+    suggestion: " - Gap in px (No value = Auto)",
     functionWithParam: (value: string) => setPrimaryGap(value),
+    functionWithoutParam: () => setPrimaryGap('AUTO'),
   },
   SpaceBetween: {
-    type: "commandWithValue",
+    type: "commandWithoutValue",
     alias: ['sb'],
-    valueFormat: "number",
     suggestion: " - Auto",
-    functionWithParam: () => setPrimaryGap('AUTO'),
+    functionWithoutParam: () => setPrimaryGap('AUTO'),
   },
   VerticalGap: {
-    type: "commandWithValue",
+    type: "optionalValueCommand",
     alias: ['vg'],
     valueFormat: "number",
-    suggestion: " - Vertical Gap in px",
+    suggestion: " - Vertical Gap in px (No value = Auto)",
     functionWithParam: (value: string) => setCounterGap(value),
+    functionWithoutParam: () => setCounterGap('AUTO'),
   },
   VerticalSpaceBetween: {
     type: "commandWithoutValue",
@@ -758,6 +759,8 @@ function findCommand(
   }
   
   const cmdLower = commandPart.toLowerCase();
+
+  console.log('findCommand: cmdLower:', cmdLower);
   
   // First, check for exact alias matches
   const exactAliasMatches = COMMANDS.filter(cmd => {
@@ -788,6 +791,9 @@ function findCommand(
       containsMatches.push(cmd);
     }
   });
+
+  console.log('findCommand: startsWithMatches:', startsWithMatches);
+  console.log('findCommand: containsMatches:', containsMatches);
   
   // Combine the results with "starts with" matches first
   return [...startsWithMatches, ...containsMatches];
@@ -799,7 +805,7 @@ function findCommand(
 const VALUE_FORMAT_REGEX = {
   // Support parentheses and 'x' for multiplication
   number: /-?\s*\(?(\d+(\.\d+)?(?:\s*[-+*/x]\s*\(?-?\d+(\.\d+)?\)?)*\)?)/, 
-  hex: /#?[0-9a-fA-F]{3,6}\b/,
+  hex: /#[0-9a-fA-F]{0,6}/,
 };
 
 function calculateExpression(expression: string): number {
@@ -823,7 +829,7 @@ function calculateExpression(expression: string): number {
 }
 
 const COMMAND_SPLITTER_REGEX = /[\s,]+/;
-const COMMAND_PART_REGEX = /^(-(?![\d])|(-)?[\p{L}]+(-[\p{L}]+)*?)(?=\s|[\d]|-[\d]|-$|$)/u;
+const COMMAND_PART_REGEX = /^(-(?![\d])|(-)?[\p{L}]+(-[\p{L}]+)*?)(?=\s|[\d]|-[\d]|-$|$|#|:)/u;
 
 let originalInput = '';
 
@@ -847,34 +853,45 @@ function getCommandSuggestions(
     );
   });
   
-return filteredCommands
+  
+  return filteredCommands
   .sort((a, b) => {
+    
+    if (!searchTerm) {
+      // When no search term, sort by alias length first
+      if (a.alias[0].length !== b.alias[0].length) {
+        return a.alias[0].length - b.alias[0].length; // Shorter aliases first
+      }
+      // Within same alias length group, sort alphabetically by command name
+      return a.name.localeCompare(b.name);
+    }
+    
     // First priority: exact matches
     const aExactMatch = a.name.toLowerCase() === searchTerm.toLowerCase();
     const bExactMatch = b.name.toLowerCase() === searchTerm.toLowerCase();
     if (aExactMatch !== bExactMatch) return bExactMatch ? 1 : -1;
-
+    
     // Second priority: starts with matches
     const aStartsWith = a.name.toLowerCase().startsWith(searchTerm.toLowerCase());
     const bStartsWith = b.name.toLowerCase().startsWith(searchTerm.toLowerCase());
     if (aStartsWith !== bStartsWith) return bStartsWith ? 1 : -1;
-
+    
     // Third priority: contains matches
     const aContains = a.name.toLowerCase().includes(searchTerm.toLowerCase());
     const bContains = b.name.toLowerCase().includes(searchTerm.toLowerCase());
     if (aContains !== bContains) return bContains ? 1 : -1;
-
+    
     // Finally sort alphabetically
     return a.name.localeCompare(b.name);
   })
-
-.map((cmd, index) => {
-  const previousCommand = previousCommands[cmd.name];
-  const suggestion = previousCommand 
-  ? ` - already set to '${previousCommand}'`
-  : (includeSuggestion && index === 0) ? cmd.suggestion || '' : '';
-  return `${cmd.name} (${cmd.alias[0]})${suggestion}`;
-});
+  
+  .map((cmd, index) => {
+    const previousCommand = previousCommands[cmd.name];
+    const suggestion = previousCommand 
+    ? ` - already set to '${previousCommand}'`
+    : (includeSuggestion && index === 0) ? cmd.suggestion || '' : '';
+    return `${cmd.name} (${cmd.alias[0]})${suggestion}`;
+  });
 }
 
 // Main code:
@@ -908,6 +925,7 @@ figma.parameters.on('input', ({ key, query, result }) => {
   
   // Display summary of already defined commands
   const completeCommands = parts.slice(0, -1).map((part) => {
+    
     const matchedCommand = findCommand(part)[0];
     const hasHex = VALUE_FORMAT_REGEX.hex.exec(part);
     const hasNumber = VALUE_FORMAT_REGEX.number.exec(part);
@@ -962,9 +980,9 @@ figma.parameters.on('input', ({ key, query, result }) => {
     
     let suggestions = [];
     
-    // Add matched command if it's an exact match
-    if (matchedCommand.alias.some(alias => currentPart.toLowerCase() === alias.toLowerCase()) ||
-    matchedCommand.name.toLowerCase().startsWith(currentPart.toLowerCase())) {
+    // Manage already matched commands
+    if (matchedCommand.name.toLowerCase().includes(currentPart.toLowerCase()) || 
+    matchedCommand.alias.some(alias => alias.toLowerCase().includes(currentPart.toLowerCase()))) {
       const previousCommand = previousCommands[matchedCommand.name];
       const suggestion = previousCommand 
       ? ` - already set to '${previousCommand}'`
@@ -1001,29 +1019,27 @@ figma.parameters.on('input', ({ key, query, result }) => {
   }
 });
 
-
 figma.on('run', async (parameters) => {
   
-  try {    
-    // If we have original input, use that
-    if (originalInput.trim()) {
-      const commandString = originalInput.trim();
-      const commands = commandString.split(COMMAND_SPLITTER_REGEX).filter(Boolean);
+  const commandString = originalInput.trim();
+  const commands = commandString.split(COMMAND_SPLITTER_REGEX).filter(Boolean);
+  
+  try {
+    // If we have original input and command doesn't contain pipe
+    if (parameters.parameters?.command && !parameters.parameters.command.includes('|')) {
       
-      for (const cmd of commands) {
-        if (findCommand(cmd)[0]) {
-          console.log('Command found: ', cmd);
-          await executeCommand(cmd);
-        } else {
-          // If command try with parameters
-          console.log('Command not found: ', cmd);
-          await executeCommand(parameters.parameters?.command || '');
-        }
+      // Execute all commands except the last one
+      for (let i = 0; i < commands.length - 1; i++) {
+        const cmd = commands[i];
+        await executeCommand(cmd);
       }
-    } 
-    // Only use parameters if we don't have any inputs
-    else if (parameters?.parameters?.command) {
+
       await executeCommand(parameters.parameters.command);
+      
+    } else {
+      for (const cmd of commands) {
+        await executeCommand(cmd);
+      }
     }
     
     figma.closePlugin();
@@ -1053,11 +1069,14 @@ async function processCommand(commandName: CommandName, value?: string): Promise
 
 async function executeCommand(cmd: string): Promise<void> {
   if (!cmd) return;
+
+  console.log('executeCommand: cmd:', cmd);
   
   const command = findCommand(cmd)[0];
   if (!command) {
     return;
   }
+  
   const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
   
   
