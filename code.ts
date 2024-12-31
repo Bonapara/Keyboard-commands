@@ -2118,7 +2118,41 @@ function alignItems(
   }
 }
 
-function setAlignment(horizontal: {
+// function setAlignment(horizontal: {
+//   primary: PrimaryAxisAlignment,
+//   counter: CounterAxisAlignment
+// }, vertical: {
+//   primary: PrimaryAxisAlignment,
+//   counter: CounterAxisAlignment
+// }) {
+//   const selection = figma.currentPage.selection;
+  
+//   if (selection.length === 0) {
+//     throw new Error('No items selected');
+//   }
+  
+//   selection.forEach(node => {
+//     if (!isAutoLayoutNode(node)) {
+//       figma.notify('Only auto-layout frames can have axis alignment');
+//       return;
+//     }
+    
+//     if (node.layoutMode === 'NONE') {
+//       figma.notify('Frame must have auto-layout enabled');
+//       return;
+//     }
+    
+//     const isHorizontal = node.layoutMode === 'HORIZONTAL';
+//     const { primary, counter } = isHorizontal ? horizontal : vertical;
+    
+//     alignItems('PRIMARY', primary, node);
+//     alignItems('COUNTER', counter, node);
+    
+//     figma.notify(`Alignment set for ${isHorizontal ? 'horizontal' : 'vertical'} layout`);
+//   });
+// }
+
+async function setAlignment(horizontal: {
   primary: PrimaryAxisAlignment,
   counter: CounterAxisAlignment
 }, vertical: {
@@ -2131,15 +2165,65 @@ function setAlignment(horizontal: {
     throw new Error('No items selected');
   }
   
-  selection.forEach(node => {
+  for (const node of selection) {
+    if (node.type === 'TEXT') {
+      try {
+        // Load all fonts used in the text node
+        const fonts = node.getRangeAllFontNames(0, node.characters.length);
+        await Promise.all(fonts.map(font => figma.loadFontAsync(font)));
+        
+        // Map horizontal alignment
+        let horizontalAlign: 'LEFT' | 'CENTER' | 'RIGHT';
+        switch (horizontal.primary) {
+          case 'MIN':
+            horizontalAlign = 'LEFT';
+            break;
+          case 'CENTER':
+            horizontalAlign = 'CENTER';
+            break;
+          case 'MAX':
+            horizontalAlign = 'RIGHT';
+            break;
+          default:
+            horizontalAlign = 'LEFT';
+        }
+        
+        // Map vertical alignment
+        let verticalAlign: 'TOP' | 'CENTER' | 'BOTTOM';
+        switch (vertical.primary) {
+          case 'MIN':
+            verticalAlign = 'TOP';
+            break;
+          case 'CENTER':
+            verticalAlign = 'CENTER';
+            break;
+          case 'MAX':
+            verticalAlign = 'BOTTOM';
+            break;
+          default:
+            verticalAlign = 'TOP';
+        }
+        
+        // Set both alignments
+        node.textAlignHorizontal = horizontalAlign;
+        node.textAlignVertical = verticalAlign;
+        
+        figma.notify(`Text alignment set to "Align ${horizontalAlign.toLowerCase()}" and "Align ${verticalAlign.toLowerCase()}"`);
+      } catch (err) {
+        figma.notify('Error loading font');
+      }
+      continue;
+    }
+    
+    // Handle AutoLayout frames
     if (!isAutoLayoutNode(node)) {
       figma.notify('Only auto-layout frames can have axis alignment');
-      return;
+      continue;
     }
     
     if (node.layoutMode === 'NONE') {
       figma.notify('Frame must have auto-layout enabled');
-      return;
+      continue;
     }
     
     const isHorizontal = node.layoutMode === 'HORIZONTAL';
@@ -2149,8 +2233,9 @@ function setAlignment(horizontal: {
     alignItems('COUNTER', counter, node);
     
     figma.notify(`Alignment set for ${isHorizontal ? 'horizontal' : 'vertical'} layout`);
-  });
+  }
 }
+
 
 
 
