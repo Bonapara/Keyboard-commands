@@ -153,13 +153,13 @@ const COMMAND_DEFINITIONS = {
   AutoLayout: {
     type: "commandWithoutValue",
     alias: ['a'],
-    suggestion: 'Horizontal →',
+    suggestion: 'Create Horizontal Auto-Layout →',
     functionWithoutParam: () => createAutoLayout('HORIZONTAL'),
   },
   AutoLayoutVertical: {
     type: "commandWithoutValue",
     alias: ['av'],
-    suggestion: "Vertical ↓",
+    suggestion: "Create Vertical Auto-Layout ↓",
     functionWithoutParam: () => createAutoLayout('VERTICAL'),
   },
   RemoveAutoLayout: {
@@ -475,10 +475,10 @@ const COMMAND_DEFINITIONS = {
     functionWithoutParam: () => clipContent(),
     supportedNodes: ['COMPONENT','INSTANCE','FRAME','COMPONENT_SET'],
   },
-  Visible: {
+  Visibility: {
     type: "commandWithoutValue",
     alias: ['v'],
-    suggestion: 'Toggle 👁️',
+    suggestion: 'Toggle Show/Hide 👁️',
     functionWithoutParam: () => toggleVisibility()
   },
   Opacity: {
@@ -580,68 +580,115 @@ const COMMAND_DEFINITIONS = {
     functionWithoutParam: () => setTextAutoResize('NONE'),
     specialConditions: ['IsText'],
   },
+  TextAlignLeft: {
+    type: "commandWithoutValue",
+    alias: ['tal'],
+    suggestion: 'Align Text to Left',
+    functionWithoutParam: () => AlignText({ horizontal: 'LEFT' }),
+    specialConditions: ['IsText'],
+  },
+
+  TextAlignCenter: {
+    type: "commandWithoutValue",
+    alias: ['tac'],
+    suggestion: 'Align Text to Center',
+    functionWithoutParam: () => AlignText({ horizontal: 'CENTER' }),
+    specialConditions: ['IsText'],
+  },
+
+  TextAlignRight: {
+    type: "commandWithoutValue",
+    alias: ['tar'],
+    suggestion: 'Align Text to Right',
+    functionWithoutParam: () => AlignText({ horizontal: 'RIGHT' }),
+    specialConditions: ['IsText'],
+  },
+
+  TextAlignTop: {
+    type: "commandWithoutValue",
+    alias: ['tat'],
+    suggestion: 'Align Text to Top',
+    functionWithoutParam: () => AlignText({ vertical: 'TOP' }),
+    specialConditions: ['IsText'],
+  },
+
+  TextAlignMiddle: {
+    type: "commandWithoutValue",
+    alias: ['tam'],
+    suggestion: 'Align Text to Middle',
+    functionWithoutParam: () => AlignText({ vertical: 'CENTER' }),
+    specialConditions: ['IsText'],
+  },
+
+  TextAlignBottom: {
+    type: "commandWithoutValue",
+    alias: ['tab'],
+    suggestion: 'Align Text to Bottom',
+    functionWithoutParam: () => AlignText({ vertical: 'BOTTOM' }),
+    specialConditions: ['IsText'],
+  },
   AlignTopLeft: {
     type: "commandWithoutValue",
     alias: ['atl','alt'],
-    suggestion: '↖',
-    functionWithoutParam: () => setAlignment({ primary: 'MIN', counter: 'MIN' },{ primary: 'MIN', counter: 'MIN' }),
-    specialConditions: ['IsAutoLayout','IsText'],
+    suggestion: 'Autolayout Children to ↖',
+    functionWithoutParam: () => setAutoLayoutAlignment({ primary: 'MIN', counter: 'MIN' },{ primary: 'MIN', counter: 'MIN' }),
+    specialConditions: ['IsAutoLayout'],
   },
   AlignTopCenter: {
     type: "commandWithoutValue",
     alias: ['atc','act'],
-    suggestion: '↑',
-    functionWithoutParam: () => setAlignment({ primary: 'CENTER', counter: 'MIN' },{ primary: 'MIN', counter: 'CENTER' }),
-    specialConditions: ['IsAutoLayout','IsText'],
+    suggestion: 'Autolayout Children to ↑',
+    functionWithoutParam: () => setAutoLayoutAlignment({ primary: 'CENTER', counter: 'MIN' },{ primary: 'MIN', counter: 'CENTER' }),
+    specialConditions: ['IsAutoLayout'],
   },
   AlignTopRight: {
     type: "commandWithoutValue",
     alias: ['atr','art'],
-    suggestion: '↗',
-    functionWithoutParam: () => setAlignment({ primary: 'MAX', counter: 'MIN' },{ primary: 'MIN', counter: 'MAX' }),
-    specialConditions: ['IsAutoLayout','IsText'],
+    suggestion: 'Autolayout Children to ↗',
+    functionWithoutParam: () => setAutoLayoutAlignment({ primary: 'MAX', counter: 'MIN' },{ primary: 'MIN', counter: 'MAX' }),
+    specialConditions: ['IsAutoLayout'],
   },
   AlignCenterLeft: {
     type: "commandWithoutValue",
     alias: ['acl','alc'],
-    suggestion: '←',
-    functionWithoutParam: () => setAlignment({ primary: 'MIN', counter: 'CENTER' },{ primary: 'CENTER', counter: 'MIN' }),
-    specialConditions: ['IsAutoLayout','IsText'],
+    suggestion: 'Autolayout Children to ←',
+    functionWithoutParam: () => setAutoLayoutAlignment({ primary: 'MIN', counter: 'CENTER' },{ primary: 'CENTER', counter: 'MIN' }),
+    specialConditions: ['IsAutoLayout'],
   },
   AlignCenterCenter: {
     type: "commandWithoutValue",
     alias: ['acc'],
-    suggestion: '・',
-    functionWithoutParam: () => setAlignment({ primary: 'CENTER', counter: 'CENTER' },{ primary: 'CENTER', counter: 'CENTER' }),
-    specialConditions: ['IsAutoLayout','IsText'],
+    suggestion: 'Autolayout Children to・',
+    functionWithoutParam: () => setAutoLayoutAlignment({ primary: 'CENTER', counter: 'CENTER' },{ primary: 'CENTER', counter: 'CENTER' }),
+    specialConditions: ['IsAutoLayout'],
   },
   AlignCenterRight: {
     type: "commandWithoutValue",
     alias: ['acr','arc'],
-    suggestion: '→',
-    functionWithoutParam: () => setAlignment({ primary: 'MAX', counter: 'CENTER' },{ primary: 'CENTER', counter: 'MAX' }),
-    specialConditions: ['IsAutoLayout','IsText'],
+    suggestion: 'Autolayout Children to →',
+    functionWithoutParam: () => setAutoLayoutAlignment({ primary: 'MAX', counter: 'CENTER' },{ primary: 'CENTER', counter: 'MAX' }),
+    specialConditions: ['IsAutoLayout'],
   },
   AlignBottomLeft: {
     type: "commandWithoutValue",
     alias: ['abl','alb'],
-    suggestion: '↙',
-    functionWithoutParam: () => setAlignment({ primary: 'MIN', counter: 'MAX' },{ primary: 'MAX', counter: 'MIN' }),
-    specialConditions: ['IsAutoLayout','IsText'],
+    suggestion: 'Autolayout Children to ↙',
+    functionWithoutParam: () => setAutoLayoutAlignment({ primary: 'MIN', counter: 'MAX' },{ primary: 'MAX', counter: 'MIN' }),
+    specialConditions: ['IsAutoLayout'],
   },
   AlignBottomRight: {
     type: "commandWithoutValue",
     alias: ['abr','arb'],
-    suggestion: '↘',
-    functionWithoutParam: () => setAlignment({ primary: 'MAX', counter: 'MAX' },{ primary: 'MAX', counter: 'MAX' }),
-    specialConditions: ['IsAutoLayout','IsText'],
+    suggestion: 'Autolayout Children to ↘',
+    functionWithoutParam: () => setAutoLayoutAlignment({ primary: 'MAX', counter: 'MAX' },{ primary: 'MAX', counter: 'MAX' }),
+    specialConditions: ['IsAutoLayout'],
   },
   AlignBottomCenter: {
     type: "commandWithoutValue",
     alias: ['abc','acb'],
-    suggestion: '↓',
-    functionWithoutParam: () => setAlignment({ primary: 'CENTER', counter: 'MAX' },{ primary: 'MAX', counter: 'CENTER' }),
-    specialConditions: ['IsAutoLayout','IsText'],
+    suggestion: 'Autolayout Children to ↓',
+    functionWithoutParam: () => setAutoLayoutAlignment({ primary: 'CENTER', counter: 'MAX' },{ primary: 'MAX', counter: 'CENTER' }),
+    specialConditions: ['IsAutoLayout'],
   },
   MaxHeight: {
     type: "optionalValueCommand",
@@ -829,41 +876,41 @@ const COMMAND_DEFINITIONS = {
   AlignTop: {
     type: "commandWithoutValue",
     alias: ['at'],
-    suggestion: "Align items to top",
+    suggestion: "Align item(s) to top",
     functionWithoutParam: () => alignNodes('TOP'),
     specialConditions: ['IsNotInAutoLayout'],
   },
   AlignBottom: {
     type: "commandWithoutValue",
     alias: ['ab'],
-    suggestion: "Align items to bottom",
+    suggestion: "Align item(s) to bottom",
     functionWithoutParam: () => alignNodes('BOTTOM'),
     specialConditions: ['IsNotInAutoLayout'],
   },
   AlignLeft: {
     type: "commandWithoutValue",
     alias: ['al'],
-    suggestion: "Align items to left",
+    suggestion: "Align item(s) to left",
     functionWithoutParam: () => alignNodes('LEFT'),
     specialConditions: ['IsNotInAutoLayout'],
   },
   AlignRight: {
     type: "commandWithoutValue",
     alias: ['ar'],
-    suggestion: "Align items to right",
+    suggestion: "Align item(s) to right",
     functionWithoutParam: () => alignNodes('RIGHT'),
     specialConditions: ['IsNotInAutoLayout'],
   },
   AlignVerticalCenter: {
     type: "commandWithoutValue",
     alias: ['avc'],
-    suggestion: "Align items to vertical center",
+    suggestion: "Align item(s) to vertical center",
     functionWithoutParam: () => alignNodes('VERTICAL_CENTER'),
   },
   AlignHorizontalCenter: {
     type: "commandWithoutValue",
     alias: ['ahc'],
-    suggestion: "Align items to horizontal center",
+    suggestion: "Align item(s) to horizontal center",
     functionWithoutParam: () => alignNodes('HORIZONTAL_CENTER'),
   },
 } satisfies Record<string, CommandWithValue | CommandWithoutValue | OptionalValueCommand>;
@@ -2363,7 +2410,8 @@ function alignItems(
   }
 }
 
-async function setAlignment(horizontal: {
+// Function for AutoLayout alignment
+async function setAutoLayoutAlignment(horizontal: {
   primary: PrimaryAxisAlignment,
   counter: CounterAxisAlignment
 }, vertical: {
@@ -2377,56 +2425,6 @@ async function setAlignment(horizontal: {
   }
   
   for (const node of selection) {
-    if (node.type === 'TEXT') {
-      try {
-        // Load all fonts used in the text node
-        const fonts = node.getRangeAllFontNames(0, node.characters.length);
-        await Promise.all(fonts.map(font => figma.loadFontAsync(font)));
-        
-        // Map horizontal alignment
-        let horizontalAlign: 'LEFT' | 'CENTER' | 'RIGHT';
-        switch (horizontal.primary) {
-          case 'MIN':
-          horizontalAlign = 'LEFT';
-          break;
-          case 'CENTER':
-          horizontalAlign = 'CENTER';
-          break;
-          case 'MAX':
-          horizontalAlign = 'RIGHT';
-          break;
-          default:
-          horizontalAlign = 'LEFT';
-        }
-        
-        // Map vertical alignment
-        let verticalAlign: 'TOP' | 'CENTER' | 'BOTTOM';
-        switch (vertical.primary) {
-          case 'MIN':
-          verticalAlign = 'TOP';
-          break;
-          case 'CENTER':
-          verticalAlign = 'CENTER';
-          break;
-          case 'MAX':
-          verticalAlign = 'BOTTOM';
-          break;
-          default:
-          verticalAlign = 'TOP';
-        }
-        
-        // Set both alignments
-        node.textAlignHorizontal = horizontalAlign;
-        node.textAlignVertical = verticalAlign;
-        
-        figma.notify(`Text alignment set to "Align ${horizontalAlign.toLowerCase()}" and "Align ${verticalAlign.toLowerCase()}"`);
-      } catch (err) {
-        figma.notify('Error loading font');
-      }
-      continue;
-    }
-    
-    // Handle AutoLayout frames
     if (!isAutoLayoutNode(node)) {
       figma.notify('Only auto-layout frames can have axis alignment');
       continue;
@@ -2447,7 +2445,52 @@ async function setAlignment(horizontal: {
   }
 }
 
-
+// Function for Text alignment with separate horizontal and vertical control
+async function AlignText(options: {
+  horizontal?: 'LEFT' | 'CENTER' | 'RIGHT',
+  vertical?: 'TOP' | 'CENTER' | 'BOTTOM'
+}) {
+  const selection = figma.currentPage.selection;
+  
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+  
+  for (const node of selection) {
+    if (node.type === 'TEXT') {
+      try {
+        // Load all fonts used in the text node
+        const fonts = node.getRangeAllFontNames(0, node.characters.length);
+        await Promise.all(fonts.map(font => figma.loadFontAsync(font)));
+        
+        // Set horizontal alignment if specified
+        if (options.horizontal) {
+          node.textAlignHorizontal = options.horizontal;
+        }
+        
+        // Set vertical alignment if specified
+        if (options.vertical) {
+          node.textAlignVertical = options.vertical;
+        }
+        
+        // Prepare notification message
+        const alignments = [];
+        if (options.horizontal) {
+          alignments.push(`horizontal: ${options.horizontal.toLowerCase()}`);
+        }
+        if (options.vertical) {
+          alignments.push(`vertical: ${options.vertical.toLowerCase()}`);
+        }
+        
+        figma.notify(`Text alignment updated (${alignments.join(', ')})`);
+      } catch (err) {
+        figma.notify('Error loading font');
+      }
+    } else {
+      figma.notify('Selected node is not a text layer');
+    }
+  }
+}
 
 
 interface DimensionOptions {
