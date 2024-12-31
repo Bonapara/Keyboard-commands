@@ -1,8 +1,9 @@
+// ==========================
+// Type Definitions & Globals
+// ==========================
 type SupportedNodeType = SceneNode['type'];
 type SpecialCondition = 'IsAutoLayout' | 'IsInAutolayout' | 'IsAutolayoutWrap' | 'IsVisible' | 'IsText';
 
-
-// Type definitions
 type ValueFormat = 'number' | 'hex';
 
 type CommandWithValue = {
@@ -36,9 +37,16 @@ type OptionalValueCommand = {
 };
 
 type CommandName = keyof typeof COMMAND_DEFINITIONS;
-type Command = { name: CommandName, type: "commandWithValue" | "commandWithoutValue" | "optionalValueCommand"} & (CommandWithValue | CommandWithoutValue | OptionalValueCommand);
+type Command = {
+  name: CommandName,
+  type: "commandWithValue" | "commandWithoutValue" | "optionalValueCommand"
+} & (CommandWithValue | CommandWithoutValue | OptionalValueCommand);
 
-// Example commands using the simplified types
+let originalInput = '';
+
+// ==================================
+// Command Definitions (unchanged)
+// ==================================
 const COMMAND_DEFINITIONS = {
   Width: {
     type: "commandWithValue",
@@ -329,7 +337,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: 'Enter rotation angle in degrees',
     functionWithoutParam: () => rotate(0),
-    functionWithParam: (value: string) => {rotate(parseInt(value));},
+    functionWithParam: (value: string) => { rotate(parseInt(value)); },
     supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','HIGHLIGHT','INSTANCE','LINE','POLYGON','RECTANGLE','SECTION','SHAPE_WITH_TEXT','STAMP','STAR','STICKY','TABLE','TEXT','VECTOR','WASHI_TAPE'],
   },
   Scale: {
@@ -390,7 +398,12 @@ const COMMAND_DEFINITIONS = {
     alias: ['r'],
     valueFormat: 'number' as const,
     suggestion: 'All corners radius',
-    functionWithParam: (value: string) => setRadius({topLeftRadius: value, topRightRadius: value, bottomRightRadius: value, bottomLeftRadius: value}),
+    functionWithParam: (value: string) => setRadius({
+      topLeftRadius: value,
+      topRightRadius: value,
+      bottomRightRadius: value,
+      bottomLeftRadius: value
+    }),
     supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','HIGHLIGHT','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
   },
   RadiusLeft: {
@@ -398,7 +411,10 @@ const COMMAND_DEFINITIONS = {
     alias: ['rl'],
     valueFormat: 'number' as const,
     suggestion: 'Left side radius',
-    functionWithParam: (value: string) => setRadius({topLeftRadius: value, bottomLeftRadius: value}),
+    functionWithParam: (value: string) => setRadius({
+      topLeftRadius: value,
+      bottomLeftRadius: value
+    }),
     supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','HIGHLIGHT','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
   },
   RadiusTop: {
@@ -406,7 +422,10 @@ const COMMAND_DEFINITIONS = {
     alias: ['rt'],
     valueFormat: 'number' as const,
     suggestion: 'Top side radius',
-    functionWithParam: (value: string) => setRadius({topLeftRadius: value, topRightRadius: value}),
+    functionWithParam: (value: string) => setRadius({
+      topLeftRadius: value,
+      topRightRadius: value
+    }),
     supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','HIGHLIGHT','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
   },
   RadiusRight: {
@@ -414,7 +433,10 @@ const COMMAND_DEFINITIONS = {
     alias: ['rr'],
     valueFormat: 'number' as const,
     suggestion: 'Right side radius',
-    functionWithParam: (value: string) => setRadius({topRightRadius: value, bottomRightRadius: value}),
+    functionWithParam: (value: string) => setRadius({
+      topRightRadius: value,
+      bottomRightRadius: value
+    }),
     supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','HIGHLIGHT','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
   },
   RadiusBottom: {
@@ -422,7 +444,10 @@ const COMMAND_DEFINITIONS = {
     alias: ['rb'],
     valueFormat: 'number' as const,
     suggestion: 'Bottom side radius',
-    functionWithParam: (value: string) => setRadius({bottomLeftRadius: value, bottomRightRadius: value}), 
+    functionWithParam: (value: string) => setRadius({
+      bottomLeftRadius: value,
+      bottomRightRadius: value
+    }),
     supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','HIGHLIGHT','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
   },
   ClipContent: {
@@ -516,7 +541,6 @@ const COMMAND_DEFINITIONS = {
     suggestion: '🌗',
     functionWithoutParam: () => toggleTheme()
   },
-  
   AlignTopLeft: {
     type: "commandWithoutValue",
     alias: ['atl','alt'],
@@ -672,35 +696,30 @@ const COMMAND_DEFINITIONS = {
     suggestion: 'Set horizontal constraint to left',
     functionWithoutParam: () => setConstraints('HORIZONTAL', 'MIN'),
   },
-  
   ConstraintCenterHorizontal: {
     type: "commandWithoutValue",
     alias: ['cch'],
     suggestion: 'Set horizontal constraint to center',
     functionWithoutParam: () => setConstraints('HORIZONTAL', 'CENTER'),
   },
-  
   ConstraintRight: {
     type: "commandWithoutValue",
     alias: ['cr'],
     suggestion: 'Set horizontal constraint to right',
     functionWithoutParam: () => setConstraints('HORIZONTAL', 'MAX'),
   },
-  
   ConstraintLeftAndRight: {
     type: "commandWithoutValue",
     alias: ['clr'],
     suggestion: 'Set horizontal constraint to left + right',
     functionWithoutParam: () => setConstraints('HORIZONTAL', 'STRETCH'),
   },
-  
   ConstraintScaleHorizontal: {
     type: "commandWithoutValue",
     alias: ['csh'],
     suggestion: 'Set horizontal constraint to scale',
     functionWithoutParam: () => setConstraints('HORIZONTAL', 'SCALE'),
   },
-  
   // Vertical Constraints
   ConstraintTop: {
     type: "commandWithoutValue",
@@ -708,34 +727,30 @@ const COMMAND_DEFINITIONS = {
     suggestion: 'Set vertical constraint to top',
     functionWithoutParam: () => setConstraints('VERTICAL', 'MIN'),
   },
-  
   ConstraintCenterVertical: {
     type: "commandWithoutValue",
     alias: ['ccv'],
     suggestion: 'Set vertical constraint to center',
     functionWithoutParam: () => setConstraints('VERTICAL', 'CENTER'),
   },
-  
   ConstraintBottom: {
     type: "commandWithoutValue",
     alias: ['cb'],
     suggestion: 'Set vertical constraint to bottom',
     functionWithoutParam: () => setConstraints('VERTICAL', 'MAX'),
   },
-  
   ConstraintTopAndBottom: {
     type: "commandWithoutValue",
     alias: ['ctb'],
     suggestion: 'Set vertical constraint to top + bottom',
     functionWithoutParam: () => setConstraints('VERTICAL', 'STRETCH'),
   },
-  
   ConstraintScaleVertical: {
     type: "commandWithoutValue",
     alias: ['csv'],
     suggestion: 'Set vertical constraint to scale',
     functionWithoutParam: () => setConstraints('VERTICAL', 'SCALE'),
-  },  
+  },
   CornerSmoothing: {
     type: "commandWithValue",
     alias: ['cs'],
@@ -787,12 +802,16 @@ const COMMAND_DEFINITIONS = {
   },
 } satisfies Record<string, CommandWithValue | CommandWithoutValue | OptionalValueCommand>;
 
-
+// Create an array from COMMAND_DEFINITIONS
 const COMMANDS: Array<Command & { name: CommandName }> = (Object.keys(COMMAND_DEFINITIONS) as CommandName[])
-.map((name) => {
-  const def = COMMAND_DEFINITIONS[name];
-  return { name, ...def };
-})
+  .map((name) => {
+    const def = COMMAND_DEFINITIONS[name];
+    return { name, ...def };
+  });
+
+// ===============
+// Helper functions
+// ===============
 
 function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[]): boolean {
   if (!conditions || conditions.length === 0) return true;
@@ -800,34 +819,23 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
   return conditions.some(condition => {
     switch (condition) {
       case 'IsAutoLayout':
-      return 'layoutMode' in node && node.layoutMode !== 'NONE';
-      
+        return 'layoutMode' in node && node.layoutMode !== 'NONE';
       case 'IsInAutolayout':
-      return node.parent && 'layoutMode' in node.parent && 
-      node.parent.layoutMode !== 'NONE';
-      
+        return node.parent && 'layoutMode' in node.parent && node.parent.layoutMode !== 'NONE';
       case 'IsAutolayoutWrap':
-      return 'layoutMode' in node && 
-      node.layoutMode !== 'NONE' && 
-      'layoutWrap' in node && 
-      node.layoutWrap === 'WRAP';
-      
+        return 'layoutMode' in node && node.layoutMode !== 'NONE' && 'layoutWrap' in node && node.layoutWrap === 'WRAP';
       case 'IsVisible':
-      return node.visible;
-      
+        return node.visible;
       case 'IsText':
-      return node.type === 'TEXT';
-      
+        return node.type === 'TEXT';
       default:
-      return false;
+        return false;
     }
   });
 }
 
-// Unified findCommand function that handles both exact and partial matches
-function findCommand(
-  part: string
-): Array<Command & { name: CommandName }> {
+// Unified findCommand function
+function findCommand(part: string): Array<Command & { name: CommandName }> {
   const commandPart = part.match(COMMAND_PART_REGEX)?.[0];
   
   if (!commandPart) {
@@ -857,8 +865,7 @@ function findCommand(
   // First, check for exact alias matches
   const exactAliasMatches = COMMANDS.filter(cmd => {
     const aliases = Array.isArray(cmd.alias) ? cmd.alias : [cmd.alias];
-    return aliases.some(alias => alias.toLowerCase() === cmdLower) && 
-    supportsCurrentSelection(cmd);
+    return aliases.some(alias => alias.toLowerCase() === cmdLower) && supportsCurrentSelection(cmd);
   });
   
   if (exactAliasMatches.length > 0) {
@@ -878,12 +885,12 @@ function findCommand(
     
     // Check if name or any alias starts with the search term
     if (nameLower.startsWith(cmdLower) || 
-    aliases.some(alias => alias.toLowerCase().startsWith(cmdLower))) {
+        aliases.some(alias => alias.toLowerCase().startsWith(cmdLower))) {
       startsWithMatches.push(cmd);
     }
     // If not starting with, check if it contains the term
-    else if (nameLower.includes(cmdLower) || 
-    aliases.some(alias => alias.toLowerCase().includes(cmdLower))) {
+    else if (nameLower.includes(cmdLower) ||
+             aliases.some(alias => alias.toLowerCase().includes(cmdLower))) {
       containsMatches.push(cmd);
     }
   });
@@ -892,21 +899,22 @@ function findCommand(
   return [...startsWithMatches, ...containsMatches];
 }
 
+const COMMAND_SPLITTER_REGEX = /[\s,]+/;
+const COMMAND_PART_REGEX = /^(-(?![\d])|(-)?[\p{L}]+(-[\p{L}]+)*?)(?=\s|[\d]|-[\d]|-$|$|#|:)/u;
 
-// Update the VALUE_FORMAT_REGEX for numbers
+// Updated number regex to allow parentheses and 'x' as multiplication
 const VALUE_FORMAT_REGEX = {
-  // Support parentheses and 'x' for multiplication
-  number: /-?\s*\(?(\d+(\.\d+)?(?:\s*[-+*/x]\s*\(?-?\d+(\.\d+)?\)?)*\)?)/, 
+  number: /-?\s*\(?(\d+(\.\d+)?(?:\s*[-+*/x]\s*\(?-?\d+(\.\d+)?\)?)*\)?)/,
   hex: /#[0-9a-fA-F]{0,6}/,
 };
 
 function calculateExpression(expression: string): number {
   // Remove spaces and normalize 'x' to '*'
   const sanitizedExp = expression
-  .replace(/\s+/g, '')
-  .replace(/x/gi, '*');
+    .replace(/\s+/g, '')
+    .replace(/x/gi, '*');
   
-  // Validate the expression contains only numbers, allowed operators, and parentheses
+  // Validate the expression
   if (!/^-?\(?\d+(\.\d+)?(?:[-+*/]\(?-?\d+(\.\d+)?\)?)*\)?$/.test(sanitizedExp)) {
     throw new Error('Invalid calculation format');
   }
@@ -920,11 +928,9 @@ function calculateExpression(expression: string): number {
   }
 }
 
-const COMMAND_SPLITTER_REGEX = /[\s,]+/;
-const COMMAND_PART_REGEX = /^(-(?![\d])|(-)?[\p{L}]+(-[\p{L}]+)*?)(?=\s|[\d]|-[\d]|-$|$|#|:)/u;
-
-let originalInput = '';
-
+// ================
+// Suggestion Helper
+// ================
 function getCommandSuggestions(
   commands: Array<Command & { name: CommandName }>, 
   searchTerm: string = '', 
@@ -932,7 +938,6 @@ function getCommandSuggestions(
   includeSuggestion: boolean = false,
   previousCommands: Record<string, string> = {}
 ) {
-  
   const selection = figma.currentPage.selection;
   
   const filteredCommands = commands.filter(cmd => {
@@ -941,16 +946,15 @@ function getCommandSuggestions(
     
     if (cmd.specialConditions && selection.length > 0) {
       return selection.every(node => checkSpecialConditions(node, cmd.specialConditions!));
-    }  
+    }
     
-    // Check node type requirements
     if (cmd.supportedNodes && selection.length > 0) {
       // For single selection, check if the node type is supported
       if (selection.length === 1) {
         const nodeType = selection[0].type;
         return cmd.supportedNodes.indexOf(nodeType) !== -1;
       }
-      // For multiple selection, check if all selected nodes are supported
+      // For multiple selection, check if all are supported
       return selection.every(node => 
         cmd.supportedNodes!.indexOf(node.type) !== -1
       );
@@ -958,268 +962,281 @@ function getCommandSuggestions(
     
     if (!searchTerm) return true;
     
-    return cmd.name.toLowerCase().startsWith(searchTerm.toLowerCase()) ||
-    cmd.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    cmd.alias.some(alias => 
-      alias.toLowerCase().startsWith(searchTerm.toLowerCase()) ||
-      alias.toLowerCase().includes(searchTerm.toLowerCase())
+    return (
+      cmd.name.toLowerCase().startsWith(searchTerm.toLowerCase()) ||
+      cmd.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      cmd.alias.some(alias => 
+        alias.toLowerCase().startsWith(searchTerm.toLowerCase()) ||
+        alias.toLowerCase().includes(searchTerm.toLowerCase())
+      )
     );
   });
-  
   
   return filteredCommands
-  .sort((a, b) => {
-    
-    if (!searchTerm) {
-      // When no search term, sort by alias length first
-      if (a.alias[0].length !== b.alias[0].length) {
-        return a.alias[0].length - b.alias[0].length; // Shorter aliases first
+    .sort((a, b) => {
+      if (!searchTerm) {
+        // When no search term, sort by alias length first
+        if (a.alias[0].length !== b.alias[0].length) {
+          return a.alias[0].length - b.alias[0].length; // shorter aliases first
+        }
+        return a.name.localeCompare(b.name);
       }
-      // Within same alias length group, sort alphabetically by command name
+      
+      // exact matches first
+      const aExactMatch = a.name.toLowerCase() === searchTerm.toLowerCase();
+      const bExactMatch = b.name.toLowerCase() === searchTerm.toLowerCase();
+      if (aExactMatch !== bExactMatch) return bExactMatch ? 1 : -1;
+      
+      // then "starts with"
+      const aStarts = a.name.toLowerCase().startsWith(searchTerm.toLowerCase());
+      const bStarts = b.name.toLowerCase().startsWith(searchTerm.toLowerCase());
+      if (aStarts !== bStarts) return bStarts ? 1 : -1;
+      
+      // then "contains"
+      const aContains = a.name.toLowerCase().includes(searchTerm.toLowerCase());
+      const bContains = b.name.toLowerCase().includes(searchTerm.toLowerCase());
+      if (aContains !== bContains) return bContains ? 1 : -1;
+      
       return a.name.localeCompare(b.name);
-    }
-    
-    // First priority: exact matches
-    const aExactMatch = a.name.toLowerCase() === searchTerm.toLowerCase();
-    const bExactMatch = b.name.toLowerCase() === searchTerm.toLowerCase();
-    if (aExactMatch !== bExactMatch) return bExactMatch ? 1 : -1;
-    
-    // Second priority: starts with matches
-    const aStartsWith = a.name.toLowerCase().startsWith(searchTerm.toLowerCase());
-    const bStartsWith = b.name.toLowerCase().startsWith(searchTerm.toLowerCase());
-    if (aStartsWith !== bStartsWith) return bStartsWith ? 1 : -1;
-    
-    // Third priority: contains matches
-    const aContains = a.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const bContains = b.name.toLowerCase().includes(searchTerm.toLowerCase());
-    if (aContains !== bContains) return bContains ? 1 : -1;
-    
-    // Finally sort alphabetically
-    return a.name.localeCompare(b.name);
-  })
-  
-  .map((cmd, index) => {
-    const previousCommand = previousCommands[cmd.name];
-    const suggestion = previousCommand !== undefined  // Check if command exists in previousCommands
-    ? cmd.type === 'commandWithoutValue' 
-    ? 'ℹ️ already set'
-    : `ℹ️ already set to '${previousCommand}'`
-    : (includeSuggestion && index === 0) ? cmd.suggestion || '' : '';
-    
-    const startingSeparator = suggestion ? ' -- ' : '';
-    return `${cmd.alias.join(', ')} · ${cmd.name}${startingSeparator}${suggestion}`;
-  });
+    })
+    .map((cmd, index) => {
+      const previousCommand = previousCommands[cmd.name];
+      const suggestion = previousCommand !== undefined
+        ? cmd.type === 'commandWithoutValue'
+          ? 'ℹ️ already set'
+          : `ℹ️ already set to '${previousCommand}'`
+        : (includeSuggestion && index === 0 ? cmd.suggestion || '' : '');
+      
+      const startingSeparator = suggestion ? ' -- ' : '';
+      return `${cmd.alias.join(', ')} · ${cmd.name}${startingSeparator}${suggestion}`;
+    });
 }
 
-// Main code:
-figma.parameters.on('input', ({ key, query, result }) => {
-  if (key !== 'command') return;
-  originalInput = query;
+// ================
+// New Setup Logic
+// ================
+
+// Keep track of the current input handler so we can remove it
+let currentInputHandler: ((event: ParameterInputEvent) => void) | null = null;
+
+function setupInputHandler() {
+  // If there's an existing handler, remove it
+  if (currentInputHandler) {
+    figma.parameters.off('input', currentInputHandler);
+  }
   
-  const parts = query.split(' ');
-  const currentPart = parts[parts.length - 1];
-  
-  // Track previous commands
-  const previousCommands: Record<string, string> = {};
-  parts.slice(0, -1).forEach(part => {
-    const matchedCommand = findCommand(part)[0];
-    if (matchedCommand) {
-      if (matchedCommand.type === 'commandWithoutValue') {
-        previousCommands[matchedCommand.name] = '';  // Track with empty string for commandWithoutValue
-      } else {
-        const hasHex = VALUE_FORMAT_REGEX.hex.exec(part);
-        const hasNumber = VALUE_FORMAT_REGEX.number.exec(part);
-        
-        if (hasHex && matchedCommand.valueFormat === 'hex') {
-          previousCommands[matchedCommand.name] = hasHex[0]; // Hex values already include '#'
-        } else if (hasNumber) {
-          try {
-            const computedValue = calculateExpression(hasNumber[0]);
-            previousCommands[matchedCommand.name] = computedValue.toString();
-          } catch {
-            previousCommands[matchedCommand.name] = hasNumber[0];
+  // Define a new handler
+  currentInputHandler = ({ key, query, result }) => {
+    if (key !== 'command') return;
+    originalInput = query;
+    
+    const parts = query.split(' ');
+    const currentPart = parts[parts.length - 1];
+    
+    // Track previous commands
+    const previousCommands: Record<string, string> = {};
+    parts.slice(0, -1).forEach(part => {
+      const matchedCommand = findCommand(part)[0];
+      if (matchedCommand) {
+        if (matchedCommand.type === 'commandWithoutValue') {
+          previousCommands[matchedCommand.name] = '';
+        } else {
+          const hasHex = VALUE_FORMAT_REGEX.hex.exec(part);
+          const hasNumber = VALUE_FORMAT_REGEX.number.exec(part);
+          if (hasHex && matchedCommand.valueFormat === 'hex') {
+            previousCommands[matchedCommand.name] = hasHex[0];
+          } else if (hasNumber) {
+            try {
+              const computedValue = calculateExpression(hasNumber[0]);
+              previousCommands[matchedCommand.name] = computedValue.toString();
+            } catch {
+              previousCommands[matchedCommand.name] = hasNumber[0];
+            }
           }
         }
       }
+    });
+    
+    // If query is empty or ends with space, show all commands
+    if (!query || query.endsWith(' ')) {
+      result.setSuggestions(getCommandSuggestions(COMMANDS, '', undefined, true, previousCommands));
+      return;
     }
-  });  
-  
-  
-  // If query is empty or ends with space, show all commands
-  if (!query || query.endsWith(' ')) {
-    result.setSuggestions(getCommandSuggestions(COMMANDS, '', undefined, true, previousCommands));
-    return;
-  }  
-  
-  // Display summary of already defined commands
-  const completeCommands = parts.slice(0, -1).map((part) => {
     
-    const matchedCommand = findCommand(part)[0];
-    const hasHex = VALUE_FORMAT_REGEX.hex.exec(part);
-    const hasNumber = VALUE_FORMAT_REGEX.number.exec(part);
-    
-    if (matchedCommand) {
-      if (matchedCommand.type === 'commandWithValue') {
-        if (hasHex) return `${matchedCommand.name}:${hasHex[0]}`;
-        if (hasNumber) {
-          try {
-            const computedValue = calculateExpression(hasNumber[0]);
-            return `${matchedCommand.name}:${computedValue}`;
-          } catch {
-            return `${matchedCommand.name}:${hasNumber[0]}`;
+    // Summarize previously defined commands (not used below except for display)
+    const completeCommands = parts.slice(0, -1).map((part) => {
+      const matchedCommand = findCommand(part)[0];
+      const hasHex = VALUE_FORMAT_REGEX.hex.exec(part);
+      const hasNumber = VALUE_FORMAT_REGEX.number.exec(part);
+      
+      if (matchedCommand) {
+        if (matchedCommand.type === 'commandWithValue') {
+          if (hasHex) return `${matchedCommand.name}:${hasHex[0]}`;
+          if (hasNumber) {
+            try {
+              const computedValue = calculateExpression(hasNumber[0]);
+              return `${matchedCommand.name}:${computedValue}`;
+            } catch {
+              return `${matchedCommand.name}:${hasNumber[0]}`;
+            }
           }
-        }
-      }
-      else if (matchedCommand.type === 'optionalValueCommand') {
-        if (hasHex) {
-          return `${matchedCommand.name}:${hasHex[0]}`;
-        } else if (hasNumber) {
-          try {
-            const computedValue = calculateExpression(hasNumber[0]);
-            return `${matchedCommand.name}:${computedValue}`;
-          } catch {
-            return `${matchedCommand.name}:${hasNumber[0]}`;
+        } else if (matchedCommand.type === 'optionalValueCommand') {
+          if (hasHex) {
+            return `${matchedCommand.name}:${hasHex[0]}`;
+          } else if (hasNumber) {
+            try {
+              const computedValue = calculateExpression(hasNumber[0]);
+              return `${matchedCommand.name}:${computedValue}`;
+            } catch {
+              return `${matchedCommand.name}:${hasNumber[0]}`;
+            }
+          } else {
+            return `${matchedCommand.name}`;
           }
         } else {
-          return `${matchedCommand.name}`;
+          return matchedCommand.name;
+        }
+      } else {
+        return "Not Found";
+      }
+    });
+    
+    // Process current (last) command
+    const matchedCommand = findCommand(currentPart)[0];
+    const hasNumber = VALUE_FORMAT_REGEX.number.exec(currentPart);
+    const hasHex = VALUE_FORMAT_REGEX.hex.exec(currentPart);
+    
+    if (matchedCommand) {
+      const isValidValue =
+        (matchedCommand.type === "commandWithValue" || matchedCommand.type === "optionalValueCommand") &&
+        'valueFormat' in matchedCommand && (
+          matchedCommand.valueFormat === 'hex' ? hasHex :
+          matchedCommand.valueFormat === 'number' ? hasNumber :
+          true
+        );
+      
+      let suggestions: string[] = [];
+      
+      // Manage already matched commands
+      if (
+        matchedCommand.name.toLowerCase().includes(currentPart.toLowerCase()) ||
+        matchedCommand.alias.some(alias => alias.toLowerCase().includes(currentPart.toLowerCase()))
+      ) {
+        const previousCommand = previousCommands[matchedCommand.name];
+        const suggestion = previousCommand 
+          ? `ℹ️ already set to '${previousCommand}'`
+          : matchedCommand.suggestion;
+        suggestions.push(`${matchedCommand.alias.join(', ')} · ${matchedCommand.name} -- ${suggestion}`);
+      }
+      
+      // Handle valid values
+      if (isValidValue && (hasHex || hasNumber)) {
+        if (matchedCommand.valueFormat === 'hex' && hasHex) {
+          completeCommands.push(`${matchedCommand.name}:${hasHex[0]}`);
+          suggestions[0] = completeCommands.join(' | ');
+        } else if (matchedCommand.valueFormat === 'number' && hasNumber) {
+          try {
+            const computedValue = calculateExpression(hasNumber[0]);
+            completeCommands.push(`${matchedCommand.name}:${computedValue}`);
+            suggestions[0] = completeCommands.join(' | ');
+          } catch {
+            completeCommands.push(`${matchedCommand.name}:${hasNumber[0]}`);
+            suggestions[0] = completeCommands.join(' | ');
+          }
         }
       }
-      else {
-        return matchedCommand.name;
-      }
-    } else {
-      return "Not Found";
-    }
-  });
-  
-  // Process current (last) command
-  const matchedCommand = findCommand(currentPart)[0];
-  
-  const hasNumber = VALUE_FORMAT_REGEX.number.exec(currentPart);
-  const hasHex = VALUE_FORMAT_REGEX.hex.exec(currentPart);
-  
-  if (matchedCommand) {
-    const isValidValue = 
-    (matchedCommand.type === "commandWithValue" || matchedCommand.type === "optionalValueCommand") && 
-    'valueFormat' in matchedCommand && (
-      matchedCommand.valueFormat === 'hex' ? hasHex :
-      matchedCommand.valueFormat === 'number' ? hasNumber :
-      true
-    );
-    
-    let suggestions = [];
-    
-    // Manage already matched commands
-    if (matchedCommand.name.toLowerCase().includes(currentPart.toLowerCase()) || 
-    matchedCommand.alias.some(alias => alias.toLowerCase().includes(currentPart.toLowerCase()))) {
-      const previousCommand = previousCommands[matchedCommand.name];
-      const suggestion = previousCommand 
-      ? `ℹ️ already set to '${previousCommand}'`
-      : matchedCommand.suggestion;
-      suggestions.push(`${matchedCommand.alias.join(', ')} · ${matchedCommand.name} -- ${suggestion}`);
-    }
-    
-    
-    // Handle valid values
-    if (isValidValue && (hasHex || hasNumber)) {
-      if (matchedCommand.valueFormat === 'hex' && hasHex) {
-        completeCommands.push(`${matchedCommand.name}:${hasHex[0]}`);
+      
+      if (matchedCommand.type === 'commandWithoutValue') {
+        completeCommands.push(`${matchedCommand.name}`);
         suggestions[0] = completeCommands.join(' | ');
       }
-      else if (matchedCommand.valueFormat === 'number' && hasNumber) {
-        try {
-          const computedValue = calculateExpression(hasNumber[0]);
-          completeCommands.push(`${matchedCommand.name}:${computedValue}`);
-          suggestions[0] = completeCommands.join(' | ');
-        } catch {
-          completeCommands.push(`${matchedCommand.name}:${hasNumber[0]}`);
-          suggestions[0] = completeCommands.join(' | ');
+      
+      // Add related suggestions
+      const relatedSuggestions = getCommandSuggestions(COMMANDS, currentPart, matchedCommand, false, previousCommands);
+      suggestions = [...suggestions, ...relatedSuggestions];
+      
+      result.setSuggestions(suggestions);
+    } else {
+      // first try to see if a command by that name exists at all
+      const allMatchingCommands = COMMANDS.filter(cmd => {
+        const nameLower = cmd.name.toLowerCase();
+        const cmdLower = currentPart.toLowerCase();
+        return (
+          nameLower.includes(cmdLower) ||
+          cmd.alias.some(alias => alias.toLowerCase().includes(cmdLower))
+        );
+      });
+      
+      // If no command by that name
+      if (allMatchingCommands.length === 0) {
+        result.setSuggestions([`No command found for "${currentPart}"`]);
+      } else {
+        // If commands exist but none are valid for current selection
+        const availableCommands = allMatchingCommands.filter(cmd => {
+          const selection = figma.currentPage.selection;
+          
+          const supportsNodeTypes = !cmd.supportedNodes || selection.length === 0 ||
+            selection.every(node => cmd.supportedNodes!.indexOf(node.type) !== -1);
+          
+          const meetsSpecialConditions = !cmd.specialConditions || selection.length === 0 ||
+            selection.every(node => checkSpecialConditions(node, cmd.specialConditions!));
+          
+          return supportsNodeTypes && meetsSpecialConditions;
+        });
+        
+        if (availableCommands.length === 0) {
+          const suggestions = allMatchingCommands.map(cmd => `'${cmd.name}' not available on selection`);
+          result.setSuggestions(suggestions);
+        } else {
+          result.setSuggestions([`No command found for "${currentPart}"`]);
         }
       }
     }
-    
-    if (matchedCommand.type === 'commandWithoutValue') {
-      completeCommands.push(`${matchedCommand.name}`);
-      suggestions[0] = completeCommands.join(' | ');
-    }
-    
-    // Add related suggestions
-    const relatedSuggestions = getCommandSuggestions(COMMANDS, currentPart, matchedCommand, false, previousCommands);
-    suggestions = [...suggestions, ...relatedSuggestions];
-    
-    result.setSuggestions(suggestions);
-  } else {
-    // First try to find the command without filtering by selection
-    const allMatchingCommands = COMMANDS.filter(cmd => {
-      const nameLower = cmd.name.toLowerCase();
-      const cmdLower = currentPart.toLowerCase();
-      return nameLower.includes(cmdLower) || 
-             cmd.alias.some(alias => alias.toLowerCase().includes(cmdLower));
-    });
+  };
   
-    // If no command exists with this name at all
-    if (allMatchingCommands.length === 0) {
-      result.setSuggestions([`No command found for "${currentPart}"`]);
-    } else {
-      // If commands exist but none are available for the current selection
-      const availableCommands = allMatchingCommands.filter(cmd => {
-        const selection = figma.currentPage.selection;
-        
-        // Check node type support
-        const supportsNodeTypes = !cmd.supportedNodes || selection.length === 0 || 
-          selection.every(node => cmd.supportedNodes!.indexOf(node.type) !== -1);
-  
-        // Check special conditions
-        const meetsSpecialConditions = !cmd.specialConditions || selection.length === 0 ||
-          selection.every(node => checkSpecialConditions(node, cmd.specialConditions!));
-  
-        return supportsNodeTypes && meetsSpecialConditions;
-      });
-  
-      if (availableCommands.length === 0) {
-        // Show all unavailable commands with their proper names
-        const suggestions = allMatchingCommands.map(cmd => 
-          `'${cmd.name}' not available on selection`
-        );
-        result.setSuggestions(suggestions);
-      } else {
-        result.setSuggestions([`No command found for "${currentPart}"`]);
-      }
-    }
-  }  
+  // Register the new handler
+  figma.parameters.on('input', currentInputHandler);
+}
+
+// Set up the initial input handler
+setupInputHandler();
+
+// Whenever the selection changes, re-run setup so the suggestions always match
+figma.on('selectionchange', () => {
+  setupInputHandler();
 });
 
+// ===================
+// figma.on('run') etc
+// ===================
 figma.on('run', async (parameters) => {
-  
   const commandString = originalInput.trim();
   const commands = commandString.split(COMMAND_SPLITTER_REGEX).filter(Boolean);
   
   try {
     // If we have original input and command doesn't contain pipe
     if (parameters.parameters?.command && !parameters.parameters.command.includes('|')) {
-      
       // Execute all commands except the last one
       for (let i = 0; i < commands.length - 1; i++) {
         const cmd = commands[i];
         await executeCommand(cmd);
       }
-      
       await executeCommand(parameters.parameters.command);
-      
     } else {
       for (const cmd of commands) {
         await executeCommand(cmd);
       }
     }
-    
     figma.closePlugin();
-    
   } catch (error) {
     figma.notify(error instanceof Error ? error.message : 'An unknown error occurred');
     figma.closePlugin();
   }
 });
 
+// =================
+// Command Execution
+// =================
 async function processCommand(commandName: CommandName, value?: string): Promise<void> {
   const command = COMMAND_DEFINITIONS[commandName];
   if (!command) return;
@@ -1246,7 +1263,6 @@ async function executeCommand(cmd: string): Promise<void> {
   }
   
   const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-  
   const loadingNotification = figma.notify(`Executing command(s)...`, { timeout: 0 });
   
   try {
@@ -1258,8 +1274,7 @@ async function executeCommand(cmd: string): Promise<void> {
       if (command.type === 'commandWithValue') {
         if (value) {
           await processCommand(command.name, value);
-        }
-        else {
+        } else {
           figma.notify(`No value provided for ${command.name}`);
         }
       } else if (command.type === 'optionalValueCommand') {
@@ -1276,8 +1291,6 @@ async function executeCommand(cmd: string): Promise<void> {
   }
 }
 
-// Update the input handler to use generic value detection
-// Update the extractValue function
 function extractValue(text: string, format: ValueFormat): string | null {
   const match = text.match(VALUE_FORMAT_REGEX[format]);
   if (!match) return null;
@@ -1290,7 +1303,6 @@ function extractValue(text: string, format: ValueFormat): string | null {
   if (format === 'number') {
     const expression = match[0];
     try {
-      // Calculate the result if it's an expression
       const result = calculateExpression(expression);
       return result.toString();
     } catch {
@@ -1301,6 +1313,10 @@ function extractValue(text: string, format: ValueFormat): string | null {
   return match[0];
 }
 
+// ================================
+// Functions
+// ================================
+ 
 // Functions
 
 function resize(value: string, resizeType: 'width' | 'height') {
