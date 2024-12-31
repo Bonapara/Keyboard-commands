@@ -976,7 +976,6 @@ figma.parameters.on('input', ({ key, query, result }) => {
   // Process current (last) command
   const matchedCommand = findCommand(currentPart)[0];
   
-  console.log('matchedCommand:', matchedCommand);
   const hasNumber = VALUE_FORMAT_REGEX.number.exec(currentPart);
   const hasHex = VALUE_FORMAT_REGEX.hex.exec(currentPart);
   
@@ -1085,9 +1084,7 @@ async function processCommand(commandName: CommandName, value?: string): Promise
 
 async function executeCommand(cmd: string): Promise<void> {
   if (!cmd) return;
-  
-  console.log('executeCommand: cmd:', cmd);
-  
+    
   const command = findCommand(cmd)[0];
   if (!command) {
     return;
