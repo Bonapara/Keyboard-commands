@@ -2,7 +2,7 @@
 // Type Definitions & Globals
 // ==========================
 type SupportedNodeType = SceneNode['type'];
-type SpecialCondition = 'IsAutoLayout' | 'IsInAutolayout' | 'IsAutolayoutWrap' | 'IsVisible' | 'IsText';
+type SpecialCondition = 'IsAutoLayout' | 'IsInAutoLayout' | 'IsAutoLayoutWrap' | 'IsVisible' | 'IsText' | 'IsNotInAutoLayout';
 
 type ValueFormat = 'number' | 'hex';
 
@@ -78,6 +78,7 @@ const COMMAND_DEFINITIONS = {
     suggestion: "Move X pixels up",
     functionWithParam: (value: string) => move('TOP', value),
     supportedNodes: ['BOOLEAN_OPERATION','CODE_BLOCK','COMPONENT','COMPONENT_SET','CONNECTOR','ELLIPSE','EMBED','FRAME','GROUP','HIGHLIGHT','INSTANCE','LINE','LINK_UNFURL','MEDIA','POLYGON','RECTANGLE','SECTION','SHAPE_WITH_TEXT','SLICE','STAMP','STAR','STICKY','TABLE','TEXT','VECTOR','WASHI_TAPE','WIDGET'],
+    specialConditions: ['IsNotInAutoLayout'],
   },
   MoveBottom: {
     type: "commandWithValue",
@@ -86,6 +87,7 @@ const COMMAND_DEFINITIONS = {
     suggestion: "Move X pixels down",
     functionWithParam: (value: string) => move('BOTTOM', value),
     supportedNodes: ['BOOLEAN_OPERATION','CODE_BLOCK','COMPONENT','COMPONENT_SET','CONNECTOR','ELLIPSE','EMBED','FRAME','GROUP','HIGHLIGHT','INSTANCE','LINE','LINK_UNFURL','MEDIA','POLYGON','RECTANGLE','SECTION','SHAPE_WITH_TEXT','SLICE','STAMP','STAR','STICKY','TABLE','TEXT','VECTOR','WASHI_TAPE','WIDGET'],
+    specialConditions: ['IsNotInAutoLayout'],
   },
   MoveLeft: {
     type: "commandWithValue",
@@ -94,6 +96,7 @@ const COMMAND_DEFINITIONS = {
     suggestion: "Move X pixels left",
     functionWithParam: (value: string) => move('LEFT', value),
     supportedNodes: ['BOOLEAN_OPERATION','CODE_BLOCK','COMPONENT','COMPONENT_SET','CONNECTOR','ELLIPSE','EMBED','FRAME','GROUP','HIGHLIGHT','INSTANCE','LINE','LINK_UNFURL','MEDIA','POLYGON','RECTANGLE','SECTION','SHAPE_WITH_TEXT','SLICE','STAMP','STAR','STICKY','TABLE','TEXT','VECTOR','WASHI_TAPE','WIDGET'],
+    specialConditions: ['IsNotInAutoLayout'],
   },
   MoveRight: {
     type: "commandWithValue",
@@ -102,6 +105,7 @@ const COMMAND_DEFINITIONS = {
     suggestion: "Move X pixels right",
     functionWithParam: (value: string) => move('RIGHT', value),
     supportedNodes: ['BOOLEAN_OPERATION','CODE_BLOCK','COMPONENT','COMPONENT_SET','CONNECTOR','ELLIPSE','EMBED','FRAME','GROUP','HIGHLIGHT','INSTANCE','LINE','LINK_UNFURL','MEDIA','POLYGON','RECTANGLE','SECTION','SHAPE_WITH_TEXT','SLICE','STAMP','STAR','STICKY','TABLE','TEXT','VECTOR','WASHI_TAPE','WIDGET'],
+    specialConditions: ['IsNotInAutoLayout'],
   },
   PositionLeft: {
     type: "commandWithValue",
@@ -110,6 +114,7 @@ const COMMAND_DEFINITIONS = {
     suggestion: "Position in px from left",
     functionWithParam: (value: string) => position(value, 'left'),
     supportedNodes: ['BOOLEAN_OPERATION','CODE_BLOCK','COMPONENT','COMPONENT_SET','CONNECTOR','ELLIPSE','EMBED','FRAME','GROUP','HIGHLIGHT','INSTANCE','LINE','LINK_UNFURL','MEDIA','POLYGON','RECTANGLE','SECTION','SHAPE_WITH_TEXT','SLICE','STAMP','STAR','STICKY','TABLE','TEXT','VECTOR','WASHI_TAPE','WIDGET'],
+    specialConditions: ['IsNotInAutoLayout'],
   },
   PositionRight: {
     type: "commandWithValue",
@@ -118,6 +123,7 @@ const COMMAND_DEFINITIONS = {
     suggestion: "Position in px from right",
     functionWithParam: (value: string) => position(value, 'right'),
     supportedNodes: ['BOOLEAN_OPERATION','CODE_BLOCK','COMPONENT','COMPONENT_SET','CONNECTOR','ELLIPSE','EMBED','FRAME','GROUP','HIGHLIGHT','INSTANCE','LINE','LINK_UNFURL','MEDIA','POLYGON','RECTANGLE','SECTION','SHAPE_WITH_TEXT','SLICE','STAMP','STAR','STICKY','TABLE','TEXT','VECTOR','WASHI_TAPE','WIDGET'],
+    specialConditions: ['IsNotInAutoLayout'],
   },
   PositionTop: {
     type: "commandWithValue",
@@ -126,6 +132,7 @@ const COMMAND_DEFINITIONS = {
     suggestion: "Position in px from top",
     functionWithParam: (value: string) => position(value, 'top'),
     supportedNodes: ['BOOLEAN_OPERATION','CODE_BLOCK','COMPONENT','COMPONENT_SET','CONNECTOR','ELLIPSE','EMBED','FRAME','GROUP','HIGHLIGHT','INSTANCE','LINE','LINK_UNFURL','MEDIA','POLYGON','RECTANGLE','SECTION','SHAPE_WITH_TEXT','SLICE','STAMP','STAR','STICKY','TABLE','TEXT','VECTOR','WASHI_TAPE','WIDGET'],
+    specialConditions: ['IsNotInAutoLayout'],
   },
   PositionBottom: {
     type: "commandWithValue",
@@ -134,6 +141,7 @@ const COMMAND_DEFINITIONS = {
     suggestion: "Position in px from bottom",
     functionWithParam: (value: string) => position(value, 'bottom'),
     supportedNodes: ['BOOLEAN_OPERATION','CODE_BLOCK','COMPONENT','COMPONENT_SET','CONNECTOR','ELLIPSE','EMBED','FRAME','GROUP','HIGHLIGHT','INSTANCE','LINE','LINK_UNFURL','MEDIA','POLYGON','RECTANGLE','SECTION','SHAPE_WITH_TEXT','SLICE','STAMP','STAR','STICKY','TABLE','TEXT','VECTOR','WASHI_TAPE','WIDGET'],
+    specialConditions: ['IsNotInAutoLayout'],
   },
   Delete: {
     type: "commandWithoutValue",
@@ -190,24 +198,28 @@ const COMMAND_DEFINITIONS = {
     alias: ['vf'],
     suggestion: "↕",
     functionWithoutParam: () => layoutSizing('VERTICAL', 'FILL'),
+    specialConditions: ['IsInAutoLayout', 'IsAutoLayout'],
   },
   VerticalHug: {
     type: "commandWithoutValue",
     alias: ['vh'],
     suggestion: "↓↑",
     functionWithoutParam: () => layoutSizing('VERTICAL', 'HUG'),
+    specialConditions: ['IsInAutoLayout', 'IsAutoLayout'],
   },
   HorizontalFill: {
     type: "commandWithoutValue",
     alias: ['hf'],
     suggestion: "↔",
     functionWithoutParam: () => layoutSizing('HORIZONTAL', 'FILL'),
+    specialConditions: ['IsInAutoLayout', 'IsAutoLayout'],
   },
   HorizontalHug: {
     type: "commandWithoutValue",
     alias: ['hh'],
     suggestion: "→←",
     functionWithoutParam: () => layoutSizing('HORIZONTAL', 'HUG'),
+    specialConditions: ['IsInAutoLayout', 'IsAutoLayout'],
   },
   Gap: {
     type: "optionalValueCommand",
@@ -216,12 +228,14 @@ const COMMAND_DEFINITIONS = {
     suggestion: "Gap in px (No value = Auto)",
     functionWithParam: (value: string) => setPrimaryGap(value),
     functionWithoutParam: () => setPrimaryGap('AUTO'),
+    specialConditions: ['IsAutoLayout'],
   },
   SpaceBetween: {
     type: "commandWithoutValue",
     alias: ['sb'],
     suggestion: "Auto",
     functionWithoutParam: () => setPrimaryGap('AUTO'),
+    specialConditions: ['IsAutoLayout'],
   },
   VerticalGap: {
     type: "optionalValueCommand",
@@ -230,12 +244,14 @@ const COMMAND_DEFINITIONS = {
     suggestion: "Vertical Gap in px (No value = Auto)",
     functionWithParam: (value: string) => setCounterGap(value),
     functionWithoutParam: () => setCounterGap('AUTO'),
+    specialConditions: ['IsAutoLayoutWrap'],
   },
   VerticalSpaceBetween: {
     type: "commandWithoutValue",
     alias: ['vsb'],
     suggestion: "Auto",
     functionWithoutParam: () => setCounterGap('AUTO'),
+    specialConditions: ['IsAutoLayoutWrap'],
   },
   LayoutHorizontal: {
     type: "commandWithoutValue",
@@ -243,6 +259,7 @@ const COMMAND_DEFINITIONS = {
     suggestion: "→",
     functionWithoutParam: () => setLayout('HORIZONTAL'),
     supportedNodes: ['COMPONENT','COMPONENT_SET','FRAME','INSTANCE'],
+    specialConditions: ['IsAutoLayout'],
   },
   LayoutVertical: {
     type: "commandWithoutValue",
@@ -250,6 +267,7 @@ const COMMAND_DEFINITIONS = {
     suggestion: "↓",
     functionWithoutParam: () => setLayout('VERTICAL'),
     supportedNodes: ['COMPONENT','COMPONENT_SET','FRAME','INSTANCE'],
+    specialConditions: ['IsAutoLayout'],
   },
   LayoutWrap: {
     type: "commandWithoutValue",
@@ -264,7 +282,7 @@ const COMMAND_DEFINITIONS = {
     suggestion: "ignore auto-layout (toggle)",
     functionWithoutParam: () => absolutePosition(),
     supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','GROUP','HIGHLIGHT','INSTANCE','LINE','POLYGON','RECTANGLE','SLICE','STAMP','STAR','TEXT','VECTOR','WASHI_TAPE'],
-    specialConditions: ['IsInAutolayout']
+    specialConditions: ['IsInAutoLayout']
   },
   Padding: {
     type: "commandWithValue",
@@ -453,14 +471,14 @@ const COMMAND_DEFINITIONS = {
   ClipContent: {
     type: "commandWithoutValue",
     alias: ['c'],
-    suggestion: '📎',
+    suggestion: ' Toggle 🎞️',
     functionWithoutParam: () => clipContent(),
     supportedNodes: ['COMPONENT','INSTANCE','FRAME','COMPONENT_SET'],
   },
   Visible: {
     type: "commandWithoutValue",
     alias: ['v'],
-    suggestion: '👁️',
+    suggestion: 'Toggle 👁️',
     functionWithoutParam: () => toggleVisibility()
   },
   Opacity: {
@@ -538,62 +556,92 @@ const COMMAND_DEFINITIONS = {
   ToggleTheme: {
     type: "commandWithoutValue",
     alias: ['t'],
-    suggestion: '🌗',
+    suggestion: 'Toggle🌗',
     functionWithoutParam: () => toggleTheme()
+  },
+  AutoWidth: {
+    type: "commandWithoutValue",
+    alias: ['aw'],
+    suggestion: 'Hug Text Width and Height',
+    functionWithoutParam: () => setTextAutoResize('WIDTH_AND_HEIGHT'),
+    specialConditions: ['IsText'],
+  },
+  AutoHeight: {
+    type: "commandWithoutValue",
+    alias: ['ah'],
+    suggestion: 'Hug Text Height',
+    functionWithoutParam: () => setTextAutoResize('HEIGHT'),
+    specialConditions: ['IsText'],
+  },
+  FixedSize: {
+    type: "commandWithoutValue",
+    alias: ['fs'],
+    suggestion: 'Fixed Text Size',
+    functionWithoutParam: () => setTextAutoResize('NONE'),
+    specialConditions: ['IsText'],
   },
   AlignTopLeft: {
     type: "commandWithoutValue",
     alias: ['atl','alt'],
     suggestion: '↖',
     functionWithoutParam: () => setAlignment({ primary: 'MIN', counter: 'MIN' },{ primary: 'MIN', counter: 'MIN' }),
+    specialConditions: ['IsAutoLayout','IsText'],
   },
   AlignTopCenter: {
     type: "commandWithoutValue",
     alias: ['atc','act'],
     suggestion: '↑',
     functionWithoutParam: () => setAlignment({ primary: 'CENTER', counter: 'MIN' },{ primary: 'MIN', counter: 'CENTER' }),
+    specialConditions: ['IsAutoLayout','IsText'],
   },
   AlignTopRight: {
     type: "commandWithoutValue",
     alias: ['atr','art'],
     suggestion: '↗',
     functionWithoutParam: () => setAlignment({ primary: 'MAX', counter: 'MIN' },{ primary: 'MIN', counter: 'MAX' }),
+    specialConditions: ['IsAutoLayout','IsText'],
   },
   AlignCenterLeft: {
     type: "commandWithoutValue",
     alias: ['acl','alc'],
     suggestion: '←',
     functionWithoutParam: () => setAlignment({ primary: 'MIN', counter: 'CENTER' },{ primary: 'CENTER', counter: 'MIN' }),
+    specialConditions: ['IsAutoLayout','IsText'],
   },
   AlignCenterCenter: {
     type: "commandWithoutValue",
     alias: ['acc'],
     suggestion: '・',
     functionWithoutParam: () => setAlignment({ primary: 'CENTER', counter: 'CENTER' },{ primary: 'CENTER', counter: 'CENTER' }),
+    specialConditions: ['IsAutoLayout','IsText'],
   },
   AlignCenterRight: {
     type: "commandWithoutValue",
     alias: ['acr','arc'],
     suggestion: '→',
     functionWithoutParam: () => setAlignment({ primary: 'MAX', counter: 'CENTER' },{ primary: 'CENTER', counter: 'MAX' }),
+    specialConditions: ['IsAutoLayout','IsText'],
   },
   AlignBottomLeft: {
     type: "commandWithoutValue",
     alias: ['abl','alb'],
     suggestion: '↙',
     functionWithoutParam: () => setAlignment({ primary: 'MIN', counter: 'MAX' },{ primary: 'MAX', counter: 'MIN' }),
+    specialConditions: ['IsAutoLayout','IsText'],
   },
   AlignBottomRight: {
     type: "commandWithoutValue",
     alias: ['abr','arb'],
     suggestion: '↘',
     functionWithoutParam: () => setAlignment({ primary: 'MAX', counter: 'MAX' },{ primary: 'MAX', counter: 'MAX' }),
+    specialConditions: ['IsAutoLayout','IsText'],
   },
   AlignBottomCenter: {
     type: "commandWithoutValue",
     alias: ['abc','acb'],
     suggestion: '↓',
     functionWithoutParam: () => setAlignment({ primary: 'CENTER', counter: 'MAX' },{ primary: 'MAX', counter: 'CENTER' }),
+    specialConditions: ['IsAutoLayout','IsText'],
   },
   MaxHeight: {
     type: "optionalValueCommand",
@@ -602,6 +650,7 @@ const COMMAND_DEFINITIONS = {
     suggestion: '↕ in px (No value = toggle)',
     functionWithParam: (value: string) => maxDimension({value:value, type: 'max', direction: 'height', null: false}),
     functionWithoutParam: () => maxDimension({type: 'max', direction: 'height', null: true}),
+    specialConditions: ['IsInAutoLayout','IsAutoLayout'],
   },
   MaxWidth: {
     type: "optionalValueCommand",
@@ -610,6 +659,7 @@ const COMMAND_DEFINITIONS = {
     suggestion: '↔ in px (No value = toggle)',
     functionWithParam: (value: string) => maxDimension({value:value, type: 'max', direction: 'width', null: false}),
     functionWithoutParam: () => maxDimension({type: 'max', direction: 'width', null: true}),
+    specialConditions: ['IsInAutoLayout','IsAutoLayout'],
   },
   MinHeight: {
     type: "optionalValueCommand",
@@ -618,6 +668,7 @@ const COMMAND_DEFINITIONS = {
     suggestion: '↓↑ in px (No value = toggle)',
     functionWithParam: (value: string) => maxDimension({value:value, type: 'min', direction: 'height', null: false}),
     functionWithoutParam: () => maxDimension({type: 'min', direction: 'height', null: true}),
+    specialConditions: ['IsInAutoLayout','IsAutoLayout'],
   },
   MinWidth: {
     type: "optionalValueCommand",
@@ -626,6 +677,7 @@ const COMMAND_DEFINITIONS = {
     suggestion: '→← in px (No value = toggle)',
     functionWithParam: (value: string) => maxDimension({value:value, type: 'min', direction: 'width', null: false}),
     functionWithoutParam: () => maxDimension({type: 'min', direction: 'width', null: true}),
+    specialConditions: ['IsInAutoLayout','IsAutoLayout'],
   },
   RemoveEffect: {
     type: "commandWithoutValue",
@@ -695,30 +747,35 @@ const COMMAND_DEFINITIONS = {
     alias: ['cl'],
     suggestion: 'Set horizontal constraint to left',
     functionWithoutParam: () => setConstraints('HORIZONTAL', 'MIN'),
+    specialConditions: ['IsNotInAutoLayout'],
   },
   ConstraintCenterHorizontal: {
     type: "commandWithoutValue",
     alias: ['cch'],
     suggestion: 'Set horizontal constraint to center',
     functionWithoutParam: () => setConstraints('HORIZONTAL', 'CENTER'),
+    specialConditions: ['IsNotInAutoLayout'],
   },
   ConstraintRight: {
     type: "commandWithoutValue",
     alias: ['cr'],
     suggestion: 'Set horizontal constraint to right',
     functionWithoutParam: () => setConstraints('HORIZONTAL', 'MAX'),
+    specialConditions: ['IsNotInAutoLayout'],
   },
   ConstraintLeftAndRight: {
     type: "commandWithoutValue",
     alias: ['clr'],
     suggestion: 'Set horizontal constraint to left + right',
     functionWithoutParam: () => setConstraints('HORIZONTAL', 'STRETCH'),
+    specialConditions: ['IsNotInAutoLayout'],
   },
   ConstraintScaleHorizontal: {
     type: "commandWithoutValue",
     alias: ['csh'],
     suggestion: 'Set horizontal constraint to scale',
     functionWithoutParam: () => setConstraints('HORIZONTAL', 'SCALE'),
+    specialConditions: ['IsNotInAutoLayout'],
   },
   // Vertical Constraints
   ConstraintTop: {
@@ -726,30 +783,35 @@ const COMMAND_DEFINITIONS = {
     alias: ['ct'],
     suggestion: 'Set vertical constraint to top',
     functionWithoutParam: () => setConstraints('VERTICAL', 'MIN'),
+    specialConditions: ['IsNotInAutoLayout'],
   },
   ConstraintCenterVertical: {
     type: "commandWithoutValue",
     alias: ['ccv'],
     suggestion: 'Set vertical constraint to center',
     functionWithoutParam: () => setConstraints('VERTICAL', 'CENTER'),
+    specialConditions: ['IsNotInAutoLayout'],
   },
   ConstraintBottom: {
     type: "commandWithoutValue",
     alias: ['cb'],
     suggestion: 'Set vertical constraint to bottom',
     functionWithoutParam: () => setConstraints('VERTICAL', 'MAX'),
+    specialConditions: ['IsNotInAutoLayout'],
   },
   ConstraintTopAndBottom: {
     type: "commandWithoutValue",
     alias: ['ctb'],
     suggestion: 'Set vertical constraint to top + bottom',
     functionWithoutParam: () => setConstraints('VERTICAL', 'STRETCH'),
+    specialConditions: ['IsNotInAutoLayout'],
   },
   ConstraintScaleVertical: {
     type: "commandWithoutValue",
     alias: ['csv'],
     suggestion: 'Set vertical constraint to scale',
     functionWithoutParam: () => setConstraints('VERTICAL', 'SCALE'),
+    specialConditions: ['IsNotInAutoLayout'],
   },
   CornerSmoothing: {
     type: "commandWithValue",
@@ -769,24 +831,28 @@ const COMMAND_DEFINITIONS = {
     alias: ['at'],
     suggestion: "Align items to top",
     functionWithoutParam: () => alignNodes('TOP'),
+    specialConditions: ['IsNotInAutoLayout'],
   },
   AlignBottom: {
     type: "commandWithoutValue",
     alias: ['ab'],
     suggestion: "Align items to bottom",
     functionWithoutParam: () => alignNodes('BOTTOM'),
+    specialConditions: ['IsNotInAutoLayout'],
   },
   AlignLeft: {
     type: "commandWithoutValue",
     alias: ['al'],
     suggestion: "Align items to left",
     functionWithoutParam: () => alignNodes('LEFT'),
+    specialConditions: ['IsNotInAutoLayout'],
   },
   AlignRight: {
     type: "commandWithoutValue",
     alias: ['ar'],
     suggestion: "Align items to right",
     functionWithoutParam: () => alignNodes('RIGHT'),
+    specialConditions: ['IsNotInAutoLayout'],
   },
   AlignVerticalCenter: {
     type: "commandWithoutValue",
@@ -820,9 +886,11 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
     switch (condition) {
       case 'IsAutoLayout':
         return 'layoutMode' in node && node.layoutMode !== 'NONE';
-      case 'IsInAutolayout':
+      case 'IsInAutoLayout':
         return node.parent && 'layoutMode' in node.parent && node.parent.layoutMode !== 'NONE';
-      case 'IsAutolayoutWrap':
+      case 'IsNotInAutoLayout':
+        return node.parent && 'layoutMode' in node.parent && node.parent.layoutMode === 'NONE';
+      case 'IsAutoLayoutWrap':
         return 'layoutMode' in node && node.layoutMode !== 'NONE' && 'layoutWrap' in node && node.layoutWrap === 'WRAP';
       case 'IsVisible':
         return node.visible;
@@ -1001,6 +1069,7 @@ function getCommandSuggestions(
     })
     .map((cmd, index) => {
       const previousCommand = previousCommands[cmd.name];
+      
       const suggestion = previousCommand !== undefined
         ? cmd.type === 'commandWithoutValue'
           ? 'ℹ️ already set'
@@ -1147,7 +1216,12 @@ function setupInputHandler() {
       }
       
       if (matchedCommand.type === 'commandWithoutValue') {
-        completeCommands.push(`${matchedCommand.name}`);
+        // Modified logic here: Show suggestion in summary only if it's the first command
+        if (completeCommands.length === 0 && matchedCommand.suggestion) {
+          completeCommands.push(`${matchedCommand.name} -- ${matchedCommand.suggestion}`);
+        } else {
+          completeCommands.push(`${matchedCommand.name}`);
+        }
         suggestions[0] = completeCommands.join(' | ');
       }
       
@@ -2675,8 +2749,8 @@ async function selectMasterComponent() {
   function alignNodes(alignment: 'TOP' | 'RIGHT' | 'LEFT' | 'BOTTOM' | 'VERTICAL_CENTER' | 'HORIZONTAL_CENTER') {
     const selection = figma.currentPage.selection;
     
-    if (selection.length < 2) {
-      figma.notify('Please select at least 2 items to align');
+    if (selection.length === 0) {
+      figma.notify('Please select at least 1 item to align');
       return;
     }
     
@@ -2687,8 +2761,53 @@ async function selectMasterComponent() {
       figma.notify('Some selected items cannot be aligned');
       return;
     }
+  
+    if (validNodes.length === 1) {
+      // Single node alignment relative to parent
+      const node = validNodes[0];
+      const parent = node.parent;
+  
+      if (!parent || !('width' in parent) || !('height' in parent)) {
+        figma.notify('Cannot align: parent container not found or invalid');
+        return;
+      }
+  
+      switch (alignment) {
+        case 'LEFT':
+          node.x = 0;
+          break;
+        case 'RIGHT':
+          if ('width' in node) {
+            node.x = parent.width - node.width;
+          }
+          break;
+        case 'TOP':
+          node.y = 0;
+          break;
+        case 'BOTTOM':
+          if ('height' in node) {
+            node.y = parent.height - node.height;
+          }
+          break;
+        case 'VERTICAL_CENTER': {
+          if ('height' in node) {
+            node.y = (parent.height - node.height) / 2;
+          }
+          break;
+        }
+        case 'HORIZONTAL_CENTER': {
+          if ('width' in node) {
+            node.x = (parent.width - node.width) / 2;
+          }
+          break;
+        }
+      }
+  
+      figma.notify(`Aligned node to ${alignment.toLowerCase().replace('_', ' ')} of parent`);
+      return;
+    }
     
-    // Get boundary values
+    // Multiple node alignment logic (unchanged)
     const positions = validNodes.map(node => ({
       x: node.x,
       y: node.y,
@@ -2701,25 +2820,24 @@ async function selectMasterComponent() {
     const topmost = Math.min(...positions.map(p => p.y));
     const bottommost = Math.max(...positions.map(p => p.y + p.height));
     
-    // Align nodes based on the specified alignment
     for (const node of validNodes) {
       switch (alignment) {
         case 'LEFT':
-        node.x = leftmost;
-        break;
+          node.x = leftmost;
+          break;
         case 'RIGHT':
-        if ('width' in node) {
-          node.x = rightmost - node.width;
-        }
-        break;
+          if ('width' in node) {
+            node.x = rightmost - node.width;
+          }
+          break;
         case 'TOP':
-        node.y = topmost;
-        break;
+          node.y = topmost;
+          break;
         case 'BOTTOM':
-        if ('height' in node) {
-          node.y = bottommost - node.height;
-        }
-        break;
+          if ('height' in node) {
+            node.y = bottommost - node.height;
+          }
+          break;
         case 'VERTICAL_CENTER': {
           const centerY = topmost + (bottommost - topmost) / 2;
           if ('height' in node) {
@@ -2738,4 +2856,22 @@ async function selectMasterComponent() {
     }
     
     figma.notify(`Aligned ${validNodes.length} items to ${alignment.toLowerCase().replace('_', ' ')}`);
+  }
+  
+  function setTextAutoResize(resizeType: 'NONE' | 'WIDTH_AND_HEIGHT' | 'HEIGHT') {
+    const selection = figma.currentPage.selection;
+    if (selection.length === 0) {
+      throw new Error('No items selected');
+    }
+  
+    for (const node of selection) {
+      if (node.type === 'TEXT') {
+        // Ensure the font is loaded before setting textAutoResize
+        if (node.fontName !== figma.mixed) {
+          figma.loadFontAsync(node.fontName).then(() => {
+            node.textAutoResize = resizeType;
+          });
+        }
+      }
+    }
   }
