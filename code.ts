@@ -2118,40 +2118,6 @@ function alignItems(
   }
 }
 
-// function setAlignment(horizontal: {
-//   primary: PrimaryAxisAlignment,
-//   counter: CounterAxisAlignment
-// }, vertical: {
-//   primary: PrimaryAxisAlignment,
-//   counter: CounterAxisAlignment
-// }) {
-//   const selection = figma.currentPage.selection;
-  
-//   if (selection.length === 0) {
-//     throw new Error('No items selected');
-//   }
-  
-//   selection.forEach(node => {
-//     if (!isAutoLayoutNode(node)) {
-//       figma.notify('Only auto-layout frames can have axis alignment');
-//       return;
-//     }
-    
-//     if (node.layoutMode === 'NONE') {
-//       figma.notify('Frame must have auto-layout enabled');
-//       return;
-//     }
-    
-//     const isHorizontal = node.layoutMode === 'HORIZONTAL';
-//     const { primary, counter } = isHorizontal ? horizontal : vertical;
-    
-//     alignItems('PRIMARY', primary, node);
-//     alignItems('COUNTER', counter, node);
-    
-//     figma.notify(`Alignment set for ${isHorizontal ? 'horizontal' : 'vertical'} layout`);
-//   });
-// }
-
 async function setAlignment(horizontal: {
   primary: PrimaryAxisAlignment,
   counter: CounterAxisAlignment
