@@ -884,7 +884,7 @@ function getCommandSuggestions(
     const suggestion = previousCommand 
     ? ` - already set to '${previousCommand}'`
     : (includeSuggestion && index === 0) ? cmd.suggestion || '' : '';
-    return `${cmd.name} (${cmd.alias[0]})${suggestion}`;
+    return `${cmd.alias[0]} · ${cmd.name} ${suggestion}`;
   });
 }
 
@@ -983,7 +983,7 @@ figma.parameters.on('input', ({ key, query, result }) => {
       const suggestion = previousCommand 
       ? ` - already set to '${previousCommand}'`
       : matchedCommand.suggestion;
-      suggestions.push(`${matchedCommand.name} (${matchedCommand.alias[0]})${suggestion}`);
+      suggestions.push(`${matchedCommand.alias[0]} · ${matchedCommand.name} ${suggestion}`);
     }
     
     
@@ -1003,6 +1003,11 @@ figma.parameters.on('input', ({ key, query, result }) => {
           suggestions[0] = completeCommands.join(' | ');
         }
       }
+    }
+
+    if (matchedCommand.type === 'commandWithoutValue') {
+        completeCommands.push(`${matchedCommand.name}`);
+        suggestions[0] = completeCommands.join(' | ');
     }
     
     // Add related suggestions
