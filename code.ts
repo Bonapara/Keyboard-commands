@@ -1,3 +1,7 @@
+type SupportedNodeType = SceneNode['type'];
+type SpecialCondition = 'IsAutoLayout' | 'IsInAutolayout' | 'IsAutolayoutWrap' | 'IsVisible' | 'IsText';
+
+
 // Type definitions
 type ValueFormat = 'number' | 'hex';
 
@@ -7,13 +11,17 @@ type CommandWithValue = {
   valueFormat: ValueFormat;
   functionWithParam: (value: string) => void;
   suggestion: string;
+  supportedNodes?: SupportedNodeType[];
+  specialConditions?: SpecialCondition[];
 };
 
 type CommandWithoutValue = {
   type: "commandWithoutValue";
   alias: Array<string>;
   functionWithoutParam: () => void;
-  suggestion: string;
+  suggestion: string;  
+  supportedNodes?: SupportedNodeType[];
+  specialConditions?: SpecialCondition[];
 };
 
 type OptionalValueCommand = {
@@ -23,6 +31,8 @@ type OptionalValueCommand = {
   suggestion: string;
   functionWithoutParam: () => void;
   functionWithParam: (value: string) => void;
+  supportedNodes?: SupportedNodeType[];
+  specialConditions?: SpecialCondition[];
 };
 
 type CommandName = keyof typeof COMMAND_DEFINITIONS;
@@ -36,6 +46,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: 'Enter width in pixels',
     functionWithParam: (value: string) => resize(value, 'width'),
+    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','GROUP','HIGHLIGHT','INSTANCE','LINE','POLYGON','RECTANGLE','SLICE','STAMP','STAR','TEXT','VECTOR','WASHI_TAPE'],
   },
   Height: {
     type: "commandWithValue",
@@ -43,12 +54,14 @@ const COMMAND_DEFINITIONS = {
     valueFormat: "number",
     suggestion: "Enter height in pixels",
     functionWithParam: (value: string) => resize(value, 'height'),
+    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','GROUP','HIGHLIGHT','INSTANCE','LINE','POLYGON','RECTANGLE','SLICE','STAMP','STAR','TEXT','VECTOR','WASHI_TAPE'],
   },
   GoToMainComponent: {
     type: "commandWithoutValue",
     alias: ['m'],
     suggestion: "use ⌘Z to come back",
     functionWithoutParam: () => selectMasterComponent(),
+    supportedNodes: ['INSTANCE'],
   },
   MoveTop: {
     type: "commandWithValue",
@@ -56,6 +69,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: "Move X pixels up",
     functionWithParam: (value: string) => move('TOP', value),
+    supportedNodes: ['BOOLEAN_OPERATION','CODE_BLOCK','COMPONENT','COMPONENT_SET','CONNECTOR','ELLIPSE','EMBED','FRAME','GROUP','HIGHLIGHT','INSTANCE','LINE','LINK_UNFURL','MEDIA','POLYGON','RECTANGLE','SECTION','SHAPE_WITH_TEXT','SLICE','STAMP','STAR','STICKY','TABLE','TEXT','VECTOR','WASHI_TAPE','WIDGET'],
   },
   MoveBottom: {
     type: "commandWithValue",
@@ -63,6 +77,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: "Move X pixels down",
     functionWithParam: (value: string) => move('BOTTOM', value),
+    supportedNodes: ['BOOLEAN_OPERATION','CODE_BLOCK','COMPONENT','COMPONENT_SET','CONNECTOR','ELLIPSE','EMBED','FRAME','GROUP','HIGHLIGHT','INSTANCE','LINE','LINK_UNFURL','MEDIA','POLYGON','RECTANGLE','SECTION','SHAPE_WITH_TEXT','SLICE','STAMP','STAR','STICKY','TABLE','TEXT','VECTOR','WASHI_TAPE','WIDGET'],
   },
   MoveLeft: {
     type: "commandWithValue",
@@ -70,6 +85,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: "Move X pixels left",
     functionWithParam: (value: string) => move('LEFT', value),
+    supportedNodes: ['BOOLEAN_OPERATION','CODE_BLOCK','COMPONENT','COMPONENT_SET','CONNECTOR','ELLIPSE','EMBED','FRAME','GROUP','HIGHLIGHT','INSTANCE','LINE','LINK_UNFURL','MEDIA','POLYGON','RECTANGLE','SECTION','SHAPE_WITH_TEXT','SLICE','STAMP','STAR','STICKY','TABLE','TEXT','VECTOR','WASHI_TAPE','WIDGET'],
   },
   MoveRight: {
     type: "commandWithValue",
@@ -77,6 +93,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: "Move X pixels right",
     functionWithParam: (value: string) => move('RIGHT', value),
+    supportedNodes: ['BOOLEAN_OPERATION','CODE_BLOCK','COMPONENT','COMPONENT_SET','CONNECTOR','ELLIPSE','EMBED','FRAME','GROUP','HIGHLIGHT','INSTANCE','LINE','LINK_UNFURL','MEDIA','POLYGON','RECTANGLE','SECTION','SHAPE_WITH_TEXT','SLICE','STAMP','STAR','STICKY','TABLE','TEXT','VECTOR','WASHI_TAPE','WIDGET'],
   },
   PositionLeft: {
     type: "commandWithValue",
@@ -84,6 +101,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: "number",
     suggestion: "Position in px from left",
     functionWithParam: (value: string) => position(value, 'left'),
+    supportedNodes: ['BOOLEAN_OPERATION','CODE_BLOCK','COMPONENT','COMPONENT_SET','CONNECTOR','ELLIPSE','EMBED','FRAME','GROUP','HIGHLIGHT','INSTANCE','LINE','LINK_UNFURL','MEDIA','POLYGON','RECTANGLE','SECTION','SHAPE_WITH_TEXT','SLICE','STAMP','STAR','STICKY','TABLE','TEXT','VECTOR','WASHI_TAPE','WIDGET'],
   },
   PositionRight: {
     type: "commandWithValue",
@@ -91,6 +109,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: "number",
     suggestion: "Position in px from right",
     functionWithParam: (value: string) => position(value, 'right'),
+    supportedNodes: ['BOOLEAN_OPERATION','CODE_BLOCK','COMPONENT','COMPONENT_SET','CONNECTOR','ELLIPSE','EMBED','FRAME','GROUP','HIGHLIGHT','INSTANCE','LINE','LINK_UNFURL','MEDIA','POLYGON','RECTANGLE','SECTION','SHAPE_WITH_TEXT','SLICE','STAMP','STAR','STICKY','TABLE','TEXT','VECTOR','WASHI_TAPE','WIDGET'],
   },
   PositionTop: {
     type: "commandWithValue",
@@ -98,6 +117,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: "number",
     suggestion: "Position in px from top",
     functionWithParam: (value: string) => position(value, 'top'),
+    supportedNodes: ['BOOLEAN_OPERATION','CODE_BLOCK','COMPONENT','COMPONENT_SET','CONNECTOR','ELLIPSE','EMBED','FRAME','GROUP','HIGHLIGHT','INSTANCE','LINE','LINK_UNFURL','MEDIA','POLYGON','RECTANGLE','SECTION','SHAPE_WITH_TEXT','SLICE','STAMP','STAR','STICKY','TABLE','TEXT','VECTOR','WASHI_TAPE','WIDGET'],
   },
   PositionBottom: {
     type: "commandWithValue",
@@ -105,12 +125,14 @@ const COMMAND_DEFINITIONS = {
     valueFormat: "number",
     suggestion: "Position in px from bottom",
     functionWithParam: (value: string) => position(value, 'bottom'),
+    supportedNodes: ['BOOLEAN_OPERATION','CODE_BLOCK','COMPONENT','COMPONENT_SET','CONNECTOR','ELLIPSE','EMBED','FRAME','GROUP','HIGHLIGHT','INSTANCE','LINE','LINK_UNFURL','MEDIA','POLYGON','RECTANGLE','SECTION','SHAPE_WITH_TEXT','SLICE','STAMP','STAR','STICKY','TABLE','TEXT','VECTOR','WASHI_TAPE','WIDGET'],
   },
   Delete: {
     type: "commandWithoutValue",
     alias: ['de'],
     suggestion: '🗑️',
-    functionWithoutParam: () => deleteSelection()
+    functionWithoutParam: () => deleteSelection(),
+    supportedNodes: ["BOOLEAN_OPERATION","CODE_BLOCK","COMPONENT","COMPONENT_SET","CONNECTOR","ELLIPSE","EMBED","FRAME","GROUP","HIGHLIGHT","INSTANCE","LINE","LINK_UNFURL","MEDIA","POLYGON","RECTANGLE","SECTION","SHAPE_WITH_TEXT","SLICE","STAMP","STAR","STICKY","TABLE","TEXT","VECTOR","WASHI_TAPE","WIDGET"],
   },
   AutoLayout: {
     type: "commandWithoutValue",
@@ -128,7 +150,8 @@ const COMMAND_DEFINITIONS = {
     type: "commandWithoutValue",
     alias: ['ra'],
     suggestion: '📐🗑️',
-    functionWithoutParam: () => setLayout('NONE')
+    functionWithoutParam: () => setLayout('NONE'),
+    supportedNodes: ['COMPONENT','COMPONENT_SET','FRAME','INSTANCE'],
   },
   FlipHorizontal: {
     type: "commandWithoutValue",
@@ -211,24 +234,29 @@ const COMMAND_DEFINITIONS = {
     alias: ['lh'],
     suggestion: "→",
     functionWithoutParam: () => setLayout('HORIZONTAL'),
+    supportedNodes: ['COMPONENT','COMPONENT_SET','FRAME','INSTANCE'],
   },
   LayoutVertical: {
     type: "commandWithoutValue",
     alias: ['lv'],
     suggestion: "↓",
     functionWithoutParam: () => setLayout('VERTICAL'),
+    supportedNodes: ['COMPONENT','COMPONENT_SET','FRAME','INSTANCE'],
   },
   LayoutWrap: {
     type: "commandWithoutValue",
     alias: ['lw'],
     suggestion: "↩️",
     functionWithoutParam: () => setLayout('WRAP'),
+    supportedNodes: ['COMPONENT','COMPONENT_SET','FRAME','INSTANCE'],
   },
   AbsolutePosition: {
     type: "commandWithoutValue",
     alias: ['ap'],
     suggestion: "ignore auto-layout (toggle)",
     functionWithoutParam: () => absolutePosition(),
+    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','GROUP','HIGHLIGHT','INSTANCE','LINE','POLYGON','RECTANGLE','SLICE','STAMP','STAR','TEXT','VECTOR','WASHI_TAPE'],
+    specialConditions: ['IsInAutolayout']
   },
   Padding: {
     type: "commandWithValue",
@@ -236,6 +264,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: "number",
     suggestion: "Enter padding for all sides",
     functionWithParam: (value: string) => setPadding({paddingLeft: value, paddingRight: value, paddingTop: value, paddingBottom: value}),
+    supportedNodes: ['COMPONENT','COMPONENT_SET','FRAME','INSTANCE'],
   },
   PaddingHorizontal: {
     type: "commandWithValue",
@@ -243,6 +272,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: "number",
     suggestion: "Enter horizontal padding",
     functionWithParam: (value: string) => setPadding({paddingLeft: value, paddingRight: value}),
+    supportedNodes: ['COMPONENT','COMPONENT_SET','FRAME','INSTANCE'],
   },
   PaddingVertical: {
     type: "commandWithValue",
@@ -250,6 +280,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: "number",
     suggestion: "Enter vertical padding",
     functionWithParam: (value: string) => setPadding({paddingTop: value, paddingBottom: value}),
+    supportedNodes: ['COMPONENT','COMPONENT_SET','FRAME','INSTANCE'],
   },
   PaddingLeft: {
     type: "commandWithValue",
@@ -257,6 +288,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: "number",
     suggestion: "Enter left padding",
     functionWithParam: (value: string) => setPadding({paddingLeft: value}),
+    supportedNodes: ['COMPONENT','COMPONENT_SET','FRAME','INSTANCE'],
   },
   PaddingTop: {
     type: "commandWithValue",
@@ -264,6 +296,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: "number",
     suggestion: "Enter top padding",
     functionWithParam: (value: string) => setPadding({paddingTop: value}),
+    supportedNodes: ['COMPONENT','COMPONENT_SET','FRAME','INSTANCE'],
   },
   PaddingRight: {
     type: "commandWithValue",
@@ -271,6 +304,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: "number",
     suggestion: "Enter right padding",
     functionWithParam: (value: string) => setPadding({paddingRight: value}),
+    supportedNodes: ['COMPONENT','COMPONENT_SET','FRAME','INSTANCE'],
   },
   PaddingBottom: {
     type: "commandWithValue",
@@ -278,6 +312,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: "number",
     suggestion: "Enter bottom padding",
     functionWithParam: (value: string) => setPadding({paddingBottom: value}),
+    supportedNodes: ['COMPONENT','COMPONENT_SET','FRAME','INSTANCE'],
   },
   Fill: {
     type: "optionalValueCommand",
@@ -286,6 +321,7 @@ const COMMAND_DEFINITIONS = {
     suggestion: 'Enter #HEX color (No value = toggle)',
     functionWithoutParam: () => toggleFill(),
     functionWithParam: (value: string) => setFill(value),
+    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','HIGHLIGHT','INSTANCE','LINE','POLYGON','RECTANGLE','SECTION','SHAPE_WITH_TEXT','STAMP','STAR','STICKY','TABLE','TEXT','VECTOR','WASHI_TAPE'],
   },
   Rotate: {
     type: "optionalValueCommand",
@@ -293,8 +329,8 @@ const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: 'Enter rotation angle in degrees',
     functionWithoutParam: () => rotate(0),
-    functionWithParam: (value: string) => {rotate(parseInt(value));
-    }
+    functionWithParam: (value: string) => {rotate(parseInt(value));},
+    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','HIGHLIGHT','INSTANCE','LINE','POLYGON','RECTANGLE','SECTION','SHAPE_WITH_TEXT','STAMP','STAR','STICKY','TABLE','TEXT','VECTOR','WASHI_TAPE'],
   },
   Scale: {
     type: "commandWithValue",
@@ -323,6 +359,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: 'Top left radius',
     functionWithParam: (value: string) => setRadius({topLeftRadius: value}),
+    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','HIGHLIGHT','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
   },
   RadiusTopRight: {
     type: "commandWithValue",
@@ -330,6 +367,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: 'Top right radius',
     functionWithParam: (value: string) => setRadius({topRightRadius: value}),
+    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','HIGHLIGHT','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
   },
   RadiusBottomRight: {
     type: "commandWithValue",
@@ -337,6 +375,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: 'Bottom right radius',
     functionWithParam: (value: string) => setRadius({bottomRightRadius: value}),
+    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','HIGHLIGHT','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
   },
   RadiusBottomLeft: {
     type: "commandWithValue",
@@ -344,6 +383,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: 'Bottom left radius',
     functionWithParam: (value: string) => setRadius({bottomLeftRadius: value}),
+    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','HIGHLIGHT','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
   },
   RadiusAll: {
     type: "commandWithValue",
@@ -351,6 +391,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: 'All corners radius',
     functionWithParam: (value: string) => setRadius({topLeftRadius: value, topRightRadius: value, bottomRightRadius: value, bottomLeftRadius: value}),
+    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','HIGHLIGHT','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
   },
   RadiusLeft: {
     type: "commandWithValue",
@@ -358,6 +399,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: 'Left side radius',
     functionWithParam: (value: string) => setRadius({topLeftRadius: value, bottomLeftRadius: value}),
+    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','HIGHLIGHT','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
   },
   RadiusTop: {
     type: "commandWithValue",
@@ -365,6 +407,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: 'Top side radius',
     functionWithParam: (value: string) => setRadius({topLeftRadius: value, topRightRadius: value}),
+    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','HIGHLIGHT','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
   },
   RadiusRight: {
     type: "commandWithValue",
@@ -372,6 +415,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: 'Right side radius',
     functionWithParam: (value: string) => setRadius({topRightRadius: value, bottomRightRadius: value}),
+    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','HIGHLIGHT','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
   },
   RadiusBottom: {
     type: "commandWithValue",
@@ -379,12 +423,14 @@ const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: 'Bottom side radius',
     functionWithParam: (value: string) => setRadius({bottomLeftRadius: value, bottomRightRadius: value}), 
+    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','HIGHLIGHT','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
   },
   ClipContent: {
     type: "commandWithoutValue",
-    alias: ['cc'],
+    alias: ['c'],
     suggestion: '📎',
-    functionWithoutParam: () => clipContent()
+    functionWithoutParam: () => clipContent(),
+    supportedNodes: ['COMPONENT','INSTANCE','FRAME','COMPONENT_SET'],
   },
   Visible: {
     type: "commandWithoutValue",
@@ -748,6 +794,36 @@ const COMMANDS: Array<Command & { name: CommandName }> = (Object.keys(COMMAND_DE
   return { name, ...def };
 })
 
+function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[]): boolean {
+  if (!conditions || conditions.length === 0) return true;
+  
+  return conditions.some(condition => {
+    switch (condition) {
+      case 'IsAutoLayout':
+      return 'layoutMode' in node && node.layoutMode !== 'NONE';
+      
+      case 'IsInAutolayout':
+      return node.parent && 'layoutMode' in node.parent && 
+      node.parent.layoutMode !== 'NONE';
+      
+      case 'IsAutolayoutWrap':
+      return 'layoutMode' in node && 
+      node.layoutMode !== 'NONE' && 
+      'layoutWrap' in node && 
+      node.layoutWrap === 'WRAP';
+      
+      case 'IsVisible':
+      return node.visible;
+      
+      case 'IsText':
+      return node.type === 'TEXT';
+      
+      default:
+      return false;
+    }
+  });
+}
+
 // Unified findCommand function that handles both exact and partial matches
 function findCommand(
   part: string
@@ -759,11 +835,30 @@ function findCommand(
   }
   
   const cmdLower = commandPart.toLowerCase();
+  const selection = figma.currentPage.selection;
+  
+  // Helper function to check if command supports current selection
+  const supportsCurrentSelection = (cmd: Command) => {
+    if (!cmd.supportedNodes && !cmd.specialConditions) return true;
+    if (selection.length === 0) return true;
+    
+    // Check both supportedNodes and specialConditions
+    const supportsNodeTypes = !cmd.supportedNodes || selection.every(node => 
+      cmd.supportedNodes!.indexOf(node.type) !== -1
+    );
+    
+    const meetsSpecialConditions = !cmd.specialConditions || selection.every(node =>
+      checkSpecialConditions(node, cmd.specialConditions!)
+    );
+    
+    return supportsNodeTypes && meetsSpecialConditions;
+  };
   
   // First, check for exact alias matches
   const exactAliasMatches = COMMANDS.filter(cmd => {
     const aliases = Array.isArray(cmd.alias) ? cmd.alias : [cmd.alias];
-    return aliases.some(alias => alias.toLowerCase() === cmdLower);
+    return aliases.some(alias => alias.toLowerCase() === cmdLower) && 
+    supportsCurrentSelection(cmd);
   });
   
   if (exactAliasMatches.length > 0) {
@@ -775,6 +870,9 @@ function findCommand(
   const containsMatches: Array<Command & { name: CommandName }> = [];
   
   COMMANDS.forEach(cmd => {
+    // First check if command supports current selection
+    if (!supportsCurrentSelection(cmd)) return;
+    
     const nameLower = cmd.name.toLowerCase();
     const aliases = Array.isArray(cmd.alias) ? cmd.alias : [cmd.alias];
     
@@ -789,10 +887,10 @@ function findCommand(
       containsMatches.push(cmd);
     }
   });
+  
   // Combine the results with "starts with" matches first
   return [...startsWithMatches, ...containsMatches];
 }
-
 
 
 // Update the VALUE_FORMAT_REGEX for numbers
@@ -834,8 +932,29 @@ function getCommandSuggestions(
   includeSuggestion: boolean = false,
   previousCommands: Record<string, string> = {}
 ) {
+  
+  const selection = figma.currentPage.selection;
+  
   const filteredCommands = commands.filter(cmd => {
+    // Exclude specified command
     if (excludeCommand && cmd.name === excludeCommand.name) return false;
+    
+    if (cmd.specialConditions && selection.length > 0) {
+      return selection.every(node => checkSpecialConditions(node, cmd.specialConditions!));
+    }  
+    
+    // Check node type requirements
+    if (cmd.supportedNodes && selection.length > 0) {
+      // For single selection, check if the node type is supported
+      if (selection.length === 1) {
+        const nodeType = selection[0].type;
+        return cmd.supportedNodes.indexOf(nodeType) !== -1;
+      }
+      // For multiple selection, check if all selected nodes are supported
+      return selection.every(node => 
+        cmd.supportedNodes!.indexOf(node.type) !== -1
+      );
+    }
     
     if (!searchTerm) return true;
     
@@ -1030,8 +1149,44 @@ figma.parameters.on('input', ({ key, query, result }) => {
     
     result.setSuggestions(suggestions);
   } else {
-    result.setSuggestions([`No command found for "${currentPart}"`]);
-  }
+    // First try to find the command without filtering by selection
+    const allMatchingCommands = COMMANDS.filter(cmd => {
+      const nameLower = cmd.name.toLowerCase();
+      const cmdLower = currentPart.toLowerCase();
+      return nameLower.includes(cmdLower) || 
+             cmd.alias.some(alias => alias.toLowerCase().includes(cmdLower));
+    });
+  
+    // If no command exists with this name at all
+    if (allMatchingCommands.length === 0) {
+      result.setSuggestions([`No command found for "${currentPart}"`]);
+    } else {
+      // If commands exist but none are available for the current selection
+      const availableCommands = allMatchingCommands.filter(cmd => {
+        const selection = figma.currentPage.selection;
+        
+        // Check node type support
+        const supportsNodeTypes = !cmd.supportedNodes || selection.length === 0 || 
+          selection.every(node => cmd.supportedNodes!.indexOf(node.type) !== -1);
+  
+        // Check special conditions
+        const meetsSpecialConditions = !cmd.specialConditions || selection.length === 0 ||
+          selection.every(node => checkSpecialConditions(node, cmd.specialConditions!));
+  
+        return supportsNodeTypes && meetsSpecialConditions;
+      });
+  
+      if (availableCommands.length === 0) {
+        // Show all unavailable commands with their proper names
+        const suggestions = allMatchingCommands.map(cmd => 
+          `'${cmd.name}' not available on selection`
+        );
+        result.setSuggestions(suggestions);
+      } else {
+        result.setSuggestions([`No command found for "${currentPart}"`]);
+      }
+    }
+  }  
 });
 
 figma.on('run', async (parameters) => {
@@ -1084,7 +1239,7 @@ async function processCommand(commandName: CommandName, value?: string): Promise
 
 async function executeCommand(cmd: string): Promise<void> {
   if (!cmd) return;
-    
+  
   const command = findCommand(cmd)[0];
   if (!command) {
     return;
@@ -2142,32 +2297,32 @@ async function setAlignment(horizontal: {
         let horizontalAlign: 'LEFT' | 'CENTER' | 'RIGHT';
         switch (horizontal.primary) {
           case 'MIN':
-            horizontalAlign = 'LEFT';
-            break;
+          horizontalAlign = 'LEFT';
+          break;
           case 'CENTER':
-            horizontalAlign = 'CENTER';
-            break;
+          horizontalAlign = 'CENTER';
+          break;
           case 'MAX':
-            horizontalAlign = 'RIGHT';
-            break;
+          horizontalAlign = 'RIGHT';
+          break;
           default:
-            horizontalAlign = 'LEFT';
+          horizontalAlign = 'LEFT';
         }
         
         // Map vertical alignment
         let verticalAlign: 'TOP' | 'CENTER' | 'BOTTOM';
         switch (vertical.primary) {
           case 'MIN':
-            verticalAlign = 'TOP';
-            break;
+          verticalAlign = 'TOP';
+          break;
           case 'CENTER':
-            verticalAlign = 'CENTER';
-            break;
+          verticalAlign = 'CENTER';
+          break;
           case 'MAX':
-            verticalAlign = 'BOTTOM';
-            break;
+          verticalAlign = 'BOTTOM';
+          break;
           default:
-            verticalAlign = 'TOP';
+          verticalAlign = 'TOP';
         }
         
         // Set both alignments
