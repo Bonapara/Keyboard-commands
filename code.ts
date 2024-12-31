@@ -881,9 +881,12 @@ function getCommandSuggestions(
   
   .map((cmd, index) => {
     const previousCommand = previousCommands[cmd.name];
-    const suggestion = previousCommand 
-      ? `ℹ️ already set to '${previousCommand}'`
-      : (includeSuggestion && index === 0) ? cmd.suggestion || '' : '';
+    const suggestion = previousCommand !== undefined  // Check if command exists in previousCommands
+    ? cmd.type === 'commandWithoutValue' 
+    ? 'ℹ️ already set'
+    : `ℹ️ already set to '${previousCommand}'`
+    : (includeSuggestion && index === 0) ? cmd.suggestion || '' : '';
+    
     const startingSeparator = suggestion ? ' -- ' : '';
     return `${cmd.alias.join(', ')} · ${cmd.name}${startingSeparator}${suggestion}`;
   });
@@ -901,16 +904,27 @@ figma.parameters.on('input', ({ key, query, result }) => {
   const previousCommands: Record<string, string> = {};
   parts.slice(0, -1).forEach(part => {
     const matchedCommand = findCommand(part)[0];
-    const hasNumber = VALUE_FORMAT_REGEX.number.exec(part);
-    if (matchedCommand && hasNumber) {
-      try {
-        const computedValue = calculateExpression(hasNumber[0]);
-        previousCommands[matchedCommand.name] = computedValue.toString();
-      } catch {
-        previousCommands[matchedCommand.name] = hasNumber[0];
+    if (matchedCommand) {
+      if (matchedCommand.type === 'commandWithoutValue') {
+        previousCommands[matchedCommand.name] = '';  // Track with empty string for commandWithoutValue
+      } else {
+        const hasHex = VALUE_FORMAT_REGEX.hex.exec(part);
+        const hasNumber = VALUE_FORMAT_REGEX.number.exec(part);
+        
+        if (hasHex && matchedCommand.valueFormat === 'hex') {
+          previousCommands[matchedCommand.name] = hasHex[0]; // Hex values already include '#'
+        } else if (hasNumber) {
+          try {
+            const computedValue = calculateExpression(hasNumber[0]);
+            previousCommands[matchedCommand.name] = computedValue.toString();
+          } catch {
+            previousCommands[matchedCommand.name] = hasNumber[0];
+          }
+        }
       }
     }
-  });
+  });  
+  
   
   // If query is empty or ends with space, show all commands
   if (!query || query.endsWith(' ')) {
@@ -961,7 +975,7 @@ figma.parameters.on('input', ({ key, query, result }) => {
   
   // Process current (last) command
   const matchedCommand = findCommand(currentPart)[0];
-
+  
   console.log('matchedCommand:', matchedCommand);
   const hasNumber = VALUE_FORMAT_REGEX.number.exec(currentPart);
   const hasHex = VALUE_FORMAT_REGEX.hex.exec(currentPart);
@@ -1005,10 +1019,10 @@ figma.parameters.on('input', ({ key, query, result }) => {
         }
       }
     }
-
+    
     if (matchedCommand.type === 'commandWithoutValue') {
-        completeCommands.push(`${matchedCommand.name}`);
-        suggestions[0] = completeCommands.join(' | ');
+      completeCommands.push(`${matchedCommand.name}`);
+      suggestions[0] = completeCommands.join(' | ');
     }
     
     // Add related suggestions
@@ -1035,7 +1049,7 @@ figma.on('run', async (parameters) => {
         const cmd = commands[i];
         await executeCommand(cmd);
       }
-
+      
       await executeCommand(parameters.parameters.command);
       
     } else {
@@ -1071,7 +1085,7 @@ async function processCommand(commandName: CommandName, value?: string): Promise
 
 async function executeCommand(cmd: string): Promise<void> {
   if (!cmd) return;
-
+  
   console.log('executeCommand: cmd:', cmd);
   
   const command = findCommand(cmd)[0];
