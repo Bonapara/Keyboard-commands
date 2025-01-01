@@ -568,6 +568,13 @@ const COMMAND_DEFINITIONS = {
     functionWithParam: (value: string) => textTruncation(value),
     supportedNodes: ['TEXT'],
   },
+  VerticalTrim: {
+    type: "commandWithoutValue",
+    alias: ['vt'],
+    suggestion: 'Toggle Vertical Trim',
+    functionWithoutParam: () => toggleVerticalTrim(),
+    supportedNodes: ['TEXT'],
+  },
   TextAutoWidth: {
     type: "commandWithoutValue",
     alias: ['taw'],
@@ -3259,3 +3266,26 @@ function setTextListOptions(listType: 'ORDERED' | 'UNORDERED' | 'NONE') {
     }
   }
 }
+
+function toggleVerticalTrim() {
+  const selection = figma.currentPage.selection;
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+
+  for (const node of selection) {
+    if (node.type === 'TEXT') {
+      if (node.fontName !== figma.mixed) {
+        figma.loadFontAsync(node.fontName).then(() => {
+          // Toggle between CAP_HEIGHT and NONE
+          node.leadingTrim = (node.leadingTrim === figma.mixed || 
+                            !node.leadingTrim || 
+                            node.leadingTrim === 'CAP_HEIGHT')
+            ? 'NONE'
+            : 'CAP_HEIGHT';
+        });
+      }
+    }
+  }
+}
+
