@@ -233,7 +233,7 @@ const COMMAND_DEFINITIONS = {
   SpaceBetween: {
     type: "commandWithoutValue",
     alias: ['sb'],
-    suggestion: "Auto",
+    suggestion: "Set Gap Between Objects to 'Auto'",
     functionWithoutParam: () => setPrimaryGap('AUTO'),
     specialConditions: ['IsAutoLayout'],
   },
@@ -471,7 +471,7 @@ const COMMAND_DEFINITIONS = {
   ClipContent: {
     type: "commandWithoutValue",
     alias: ['c'],
-    suggestion: ' Toggle 🎞️',
+    suggestion: ' ☑️ Toggle Clip Content',
     functionWithoutParam: () => clipContent(),
     supportedNodes: ['COMPONENT','INSTANCE','FRAME','COMPONENT_SET'],
   },
@@ -492,7 +492,7 @@ const COMMAND_DEFINITIONS = {
   Duplicate: {
     type: "commandWithoutValue",
     alias: ['d'],
-    suggestion: '🔄',
+    suggestion: '✂️ Duplicate Element',
     functionWithoutParam: () => duplicate()
   },
   Stroke: {
@@ -559,23 +559,32 @@ const COMMAND_DEFINITIONS = {
     suggestion: 'Toggle🌗',
     functionWithoutParam: () => toggleTheme()
   },
-  AutoWidth: {
+  TextTruncation: {
+    type: "optionalValueCommand",
+    alias: ['tt'],
+    valueFormat: 'number' as const,
+    suggestion: 'Enter max lines (No value = toggle truncation)',
+    functionWithoutParam: () => textTruncation(),
+    functionWithParam: (value: string) => textTruncation(value),
+    supportedNodes: ['TEXT'],
+  },
+  TextAutoWidth: {
     type: "commandWithoutValue",
-    alias: ['aw'],
+    alias: ['taw'],
     suggestion: 'Hug Text Width and Height',
     functionWithoutParam: () => setTextAutoResize('WIDTH_AND_HEIGHT'),
     specialConditions: ['IsText'],
   },
-  AutoHeight: {
+  TextAutoHeight: {
     type: "commandWithoutValue",
-    alias: ['ah'],
+    alias: ['tah'],
     suggestion: 'Hug Text Height',
     functionWithoutParam: () => setTextAutoResize('HEIGHT'),
     specialConditions: ['IsText'],
   },
-  FixedSize: {
+  TextFixedSize: {
     type: "commandWithoutValue",
-    alias: ['fs'],
+    alias: ['tfs'],
     suggestion: 'Fixed Text Size',
     functionWithoutParam: () => setTextAutoResize('NONE'),
     specialConditions: ['IsText'],
@@ -603,6 +612,13 @@ const COMMAND_DEFINITIONS = {
     functionWithoutParam: () => AlignText({ horizontal: 'RIGHT' }),
     specialConditions: ['IsText'],
   },
+  JustifyText: {
+    type: "commandWithoutValue",
+    alias: ['taj'],
+    suggestion: 'Justify Text',
+    functionWithoutParam: () => AlignText({ horizontal: 'JUSTIFIED' }),
+    specialConditions: ['IsText'],
+  },
 
   TextAlignTop: {
     type: "commandWithoutValue",
@@ -627,66 +643,212 @@ const COMMAND_DEFINITIONS = {
     functionWithoutParam: () => AlignText({ vertical: 'BOTTOM' }),
     specialConditions: ['IsText'],
   },
+  
+// Font Size Command
+FontSize: {
+  type: "commandWithValue",
+  alias: ['fs'],
+  valueFormat: 'number' as const,
+  suggestion: 'Enter font size in px',
+  functionWithParam: (value: string) => setFontSize(value),
+  supportedNodes: ['TEXT'],
+},
+
+// Font Weight Command
+FontWeight: {
+  type: "commandWithValue",
+  alias: ['fw'],
+  valueFormat: 'number' as const,
+  suggestion: 'Enter font weight (100-900)',
+  functionWithParam: (value: string) => setFontWeight(value),
+  supportedNodes: ['TEXT'],
+},
+
+// Letter Spacing Command
+LetterSpacing: {
+  type: "commandWithValue",
+  alias: ['ls'],
+  valueFormat: 'number' as const,
+  suggestion: 'Enter letter spacing in px',
+  functionWithParam: (value: string) => setLetterSpacing(value),
+  supportedNodes: ['TEXT'],
+},
+
+// Line Height Command
+LineHeight: {
+  type: "optionalValueCommand",
+  alias: ['lh'],
+  valueFormat: 'number' as const,
+  suggestion: 'Enter line height in px (No value = Auto)',
+  functionWithParam: (value: string) => setLineHeight(value),
+  functionWithoutParam: () => setLineHeight('AUTO'),
+  supportedNodes: ['TEXT'],
+},
+
+
+// Original Text Case
+TextCaseOriginal: {
+  type: "commandWithoutValue",
+  alias: ['tco'],
+  suggestion: 'Reset Text to Original Case',
+  functionWithoutParam: () => setTextCase('ORIGINAL'),
+  supportedNodes: ['TEXT'],
+},
+
+// Uppercase Text
+TextCaseUppercase: {
+  type: "commandWithoutValue",
+  alias: ['tcu'],
+  suggestion: 'Convert Text to UPPERCASE',
+  functionWithoutParam: () => setTextCase('UPPER'),
+  supportedNodes: ['TEXT'],
+},
+
+// Lowercase Text
+TextCaseLowercase: {
+  type: "commandWithoutValue",
+  alias: ['tcl'],
+  suggestion: 'Convert Text to lowercase',
+  functionWithoutParam: () => setTextCase('LOWER'),
+  supportedNodes: ['TEXT'],
+},
+
+// Title Case Text
+TextCaseTitle: {
+  type: "commandWithoutValue",
+  alias: ['tct'],
+  suggestion: 'Convert Text to Title Case',
+  functionWithoutParam: () => setTextCase('TITLE'),
+  supportedNodes: ['TEXT'],
+},
+
+// Small Caps Text
+TextCaseSmallCaps: {
+  type: "commandWithoutValue",
+  alias: ['tcs'],
+  suggestion: 'Convert Text to Small Caps',
+  functionWithoutParam: () => setTextCase('SMALL_CAPS'),
+  supportedNodes: ['TEXT'],
+},
+
+// Small Caps Forced Text
+TextCaseSmallCapsForced: {
+  type: "commandWithoutValue",
+  alias: ['tcscf'],
+  suggestion: 'Convert Text to Forced Small Caps',
+  functionWithoutParam: () => setTextCase('SMALL_CAPS_FORCED'),
+  supportedNodes: ['TEXT'],
+},
+
+// Text Decoration Commands
+RemoveTextDecoration: {
+  type: "commandWithoutValue",
+  alias: ['rtd'],
+  suggestion: 'Remove Text Decoration',
+  functionWithoutParam: () => toggleTextDecoration('NONE'),
+  supportedNodes: ['TEXT'],
+},
+TextUnderline: {
+  type: "commandWithoutValue",
+  alias: ['tu'],
+  suggestion: 'Add/Remove Underline',
+  functionWithoutParam: () => toggleTextDecoration('UNDERLINE'),
+  supportedNodes: ['TEXT'],
+},
+
+TextStrikethrough: {
+  type: "commandWithoutValue",
+  alias: ['ts'],
+  suggestion: 'Add/Remove Strikethrough',
+  functionWithoutParam: () => toggleTextDecoration('STRIKETHROUGH'),
+  supportedNodes: ['TEXT'],
+},
+
+// List Type Commands
+TextOrderedList: {
+  type: "commandWithoutValue",
+  alias: ['tol'],
+  suggestion: 'Convert to Ordered List',
+  functionWithoutParam: () => setTextListOptions('ORDERED'),
+  supportedNodes: ['TEXT'],
+},
+
+TextUnorderedList: {
+  type: "commandWithoutValue",
+  alias: ['tul'],
+  suggestion: 'Convert to Unordered List',
+  functionWithoutParam: () => setTextListOptions('UNORDERED'),
+  supportedNodes: ['TEXT'],
+},
+
+TextRemoveList: {
+  type: "commandWithoutValue",
+  alias: ['trl'],
+  suggestion: 'Remove List Formatting',
+  functionWithoutParam: () => setTextListOptions('NONE'),
+  supportedNodes: ['TEXT'],
+},
+
   AlignTopLeft: {
     type: "commandWithoutValue",
     alias: ['atl','alt'],
-    suggestion: 'Autolayout Children to ↖',
+    suggestion: 'Autolayout Align Top Left ↖',
     functionWithoutParam: () => setAutoLayoutAlignment({ primary: 'MIN', counter: 'MIN' },{ primary: 'MIN', counter: 'MIN' }),
     specialConditions: ['IsAutoLayout'],
   },
   AlignTopCenter: {
     type: "commandWithoutValue",
     alias: ['atc','act'],
-    suggestion: 'Autolayout Children to ↑',
+    suggestion: 'Autolayout Align Top Center ↑',
     functionWithoutParam: () => setAutoLayoutAlignment({ primary: 'CENTER', counter: 'MIN' },{ primary: 'MIN', counter: 'CENTER' }),
     specialConditions: ['IsAutoLayout'],
   },
   AlignTopRight: {
     type: "commandWithoutValue",
     alias: ['atr','art'],
-    suggestion: 'Autolayout Children to ↗',
+    suggestion: 'Autolayout Align Top Right ↗',
     functionWithoutParam: () => setAutoLayoutAlignment({ primary: 'MAX', counter: 'MIN' },{ primary: 'MIN', counter: 'MAX' }),
     specialConditions: ['IsAutoLayout'],
   },
   AlignCenterLeft: {
     type: "commandWithoutValue",
     alias: ['acl','alc'],
-    suggestion: 'Autolayout Children to ←',
+    suggestion: 'Autolayout Align Center Left ←',
     functionWithoutParam: () => setAutoLayoutAlignment({ primary: 'MIN', counter: 'CENTER' },{ primary: 'CENTER', counter: 'MIN' }),
     specialConditions: ['IsAutoLayout'],
   },
   AlignCenterCenter: {
     type: "commandWithoutValue",
     alias: ['acc'],
-    suggestion: 'Autolayout Children to・',
+    suggestion: 'Autolayout Align Center Center ・',
     functionWithoutParam: () => setAutoLayoutAlignment({ primary: 'CENTER', counter: 'CENTER' },{ primary: 'CENTER', counter: 'CENTER' }),
     specialConditions: ['IsAutoLayout'],
   },
   AlignCenterRight: {
     type: "commandWithoutValue",
     alias: ['acr','arc'],
-    suggestion: 'Autolayout Children to →',
+    suggestion: 'Autolayout Align Center Right →',
     functionWithoutParam: () => setAutoLayoutAlignment({ primary: 'MAX', counter: 'CENTER' },{ primary: 'CENTER', counter: 'MAX' }),
     specialConditions: ['IsAutoLayout'],
   },
   AlignBottomLeft: {
     type: "commandWithoutValue",
     alias: ['abl','alb'],
-    suggestion: 'Autolayout Children to ↙',
+    suggestion: 'Autolayout Align Bottom Left ↙',
     functionWithoutParam: () => setAutoLayoutAlignment({ primary: 'MIN', counter: 'MAX' },{ primary: 'MAX', counter: 'MIN' }),
     specialConditions: ['IsAutoLayout'],
   },
   AlignBottomRight: {
     type: "commandWithoutValue",
     alias: ['abr','arb'],
-    suggestion: 'Autolayout Children to ↘',
+    suggestion: 'Autolayout Align Bottom Right ↘',
     functionWithoutParam: () => setAutoLayoutAlignment({ primary: 'MAX', counter: 'MAX' },{ primary: 'MAX', counter: 'MAX' }),
     specialConditions: ['IsAutoLayout'],
   },
   AlignBottomCenter: {
     type: "commandWithoutValue",
     alias: ['abc','acb'],
-    suggestion: 'Autolayout Children to ↓',
+    suggestion: 'Autolayout Align Bottom Center ↓',
     functionWithoutParam: () => setAutoLayoutAlignment({ primary: 'CENTER', counter: 'MAX' },{ primary: 'MAX', counter: 'CENTER' }),
     specialConditions: ['IsAutoLayout'],
   },
@@ -2447,7 +2609,7 @@ async function setAutoLayoutAlignment(horizontal: {
 
 // Function for Text alignment with separate horizontal and vertical control
 async function AlignText(options: {
-  horizontal?: 'LEFT' | 'CENTER' | 'RIGHT',
+  horizontal?: 'LEFT' | 'CENTER' | 'RIGHT' | 'JUSTIFIED',
   vertical?: 'TOP' | 'CENTER' | 'BOTTOM'
 }) {
   const selection = figma.currentPage.selection;
@@ -2918,3 +3080,182 @@ async function selectMasterComponent() {
       }
     }
   }
+
+function textTruncation(maxLines?: string) {
+  const selection = figma.currentPage.selection;
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+
+  for (const node of selection) {
+    if (node.type === 'TEXT') {
+      if (node.fontName !== figma.mixed) {
+        figma.loadFontAsync(node.fontName).then(() => {
+          if (maxLines === undefined) {
+            // Toggle mode
+            const newTruncation = node.textTruncation === 'DISABLED' ? 'ENDING' : 'DISABLED';
+            node.textTruncation = newTruncation;
+          } else {
+            // Set mode with max lines
+            const lines = parseInt(maxLines);
+            if (isNaN(lines) || lines < 1) {
+              throw new Error('Please provide a valid number greater than or equal to 1');
+            }
+            node.textTruncation = 'ENDING';
+            node.maxLines = lines;
+          }
+        });
+      }
+    }
+  }
+}
+
+
+function setFontSize(size: string) {
+  const selection = figma.currentPage.selection;
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+
+  const fontSize = parseInt(size);
+  if (isNaN(fontSize) || fontSize < 1) {
+    throw new Error('Please provide a valid font size greater than 0');
+  }
+
+  for (const node of selection) {
+    if (node.type === 'TEXT') {
+      if (node.fontName !== figma.mixed) {
+        figma.loadFontAsync(node.fontName).then(() => {
+          node.fontSize = fontSize;
+        });
+      }
+    }
+  }
+}
+
+function setFontWeight(weight: string) {
+  const selection = figma.currentPage.selection;
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+
+  const fontWeight = parseInt(weight);
+  if (isNaN(fontWeight) || fontWeight < 100 || fontWeight > 900 || fontWeight % 100 !== 0) {
+    throw new Error('Please provide a valid font weight (100-900 in steps of 100)');
+  }
+
+  for (const node of selection) {
+    if (node.type === 'TEXT' && node.fontName !== figma.mixed) {
+      const currentFont = node.fontName as FontName;
+      const newFontName = {
+        family: currentFont.family,
+        style: fontWeight.toString()
+      };
+      
+      figma.loadFontAsync(newFontName).then(() => {
+        node.fontName = newFontName;
+      });
+    }
+  }
+}
+
+function setLetterSpacing(spacing: string) {
+  const selection = figma.currentPage.selection;
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+
+  const letterSpacing = parseFloat(spacing);
+  if (isNaN(letterSpacing)) {
+    throw new Error('Please provide a valid number for letter spacing');
+  }
+
+  for (const node of selection) {
+    if (node.type === 'TEXT') {
+      if (node.fontName !== figma.mixed) {
+        figma.loadFontAsync(node.fontName).then(() => {
+          node.letterSpacing = { value: letterSpacing, unit: 'PIXELS' };
+        });
+      }
+    }
+  }
+}
+
+function setLineHeight(height: string) {
+  const selection = figma.currentPage.selection;
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+
+  for (const node of selection) {
+    if (node.type === 'TEXT') {
+      if (node.fontName !== figma.mixed) {
+        figma.loadFontAsync(node.fontName).then(() => {
+          if (height === 'AUTO') {
+            node.lineHeight = { unit: 'AUTO' };
+          } else {
+            const lineHeight = parseFloat(height);
+            if (isNaN(lineHeight) || lineHeight < 0) {
+              throw new Error('Please provide a valid number for line height');
+            }
+            node.lineHeight = { value: lineHeight, unit: 'PIXELS' };
+          }
+        });
+      }
+    }
+  }
+}
+
+
+function setTextCase(textCase: TextCase) {
+  const selection = figma.currentPage.selection;
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+
+  for (const node of selection) {
+    if (node.type === 'TEXT') {
+      if (node.fontName !== figma.mixed) {
+        figma.loadFontAsync(node.fontName).then(() => {
+          node.textCase = textCase;
+        });
+      }
+    }
+  }
+}
+
+function toggleTextDecoration(decoration: TextDecoration) {
+  const selection = figma.currentPage.selection;
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+
+  for (const node of selection) {
+    if (node.type === 'TEXT') {
+      if (node.fontName !== figma.mixed) {
+        figma.loadFontAsync(node.fontName).then(() => {
+          node.textDecoration = node.textDecoration === decoration ? 'NONE' : decoration;
+        });
+      }
+    }
+  }
+}
+
+function setTextListOptions(listType: 'ORDERED' | 'UNORDERED' | 'NONE') {
+  const selection = figma.currentPage.selection;
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+
+  for (const node of selection) {
+    if (node.type === 'TEXT') {
+      if (node.fontName !== figma.mixed) {
+        figma.loadFontAsync(node.fontName).then(() => {
+          // Select all text in the node
+          const length = node.characters.length;
+          node.setRangeListOptions(0, length, { type: listType });
+        });
+      }
+    }
+  }
+}
