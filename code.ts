@@ -1507,7 +1507,7 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
         }
         
         // Add related suggestions
-        const relatedSuggestions = getCommandSuggestions(COMMANDS, currentPart, matchedCommand, true, previousCommands);
+        const relatedSuggestions = getCommandSuggestions(COMMANDS, currentPart, matchedCommand, false, previousCommands);
         suggestions = [...suggestions, ...relatedSuggestions];
         
         result.setSuggestions(suggestions);
