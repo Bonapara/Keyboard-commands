@@ -165,7 +165,7 @@ const COMMAND_DEFINITIONS = {
   RemoveAutoLayout: {
     type: "commandWithoutValue",
     alias: ['ra'],
-    suggestion: '📐🗑️',
+    suggestion: '🗑️📐',
     functionWithoutParam: () => setLayout('NONE'),
     supportedNodes: ['COMPONENT','COMPONENT_SET','FRAME','INSTANCE'],
   },
@@ -770,7 +770,7 @@ const COMMAND_DEFINITIONS = {
   RemoveTextDecoration: {
     type: "commandWithoutValue",
     alias: ['rtd'],
-    suggestion: 'Remove Text Decoration',
+    suggestion: 'Remove Text Decoration 🗑️',
     functionWithoutParam: () => toggleTextDecoration('NONE'),
     supportedNodes: ['TEXT'],
   },
@@ -810,7 +810,7 @@ const COMMAND_DEFINITIONS = {
   TextRemoveList: {
     type: "commandWithoutValue",
     alias: ['trl'],
-    suggestion: 'Remove List Formatting',
+    suggestion: 'Remove List Formatting 🗑️',
     functionWithoutParam: () => setTextListOptions('NONE'),
     supportedNodes: ['TEXT'],
   },
@@ -917,7 +917,7 @@ const COMMAND_DEFINITIONS = {
   RemoveEffect: {
     type: "commandWithoutValue",
     alias: ['re'],
-    suggestion: '📎',
+    suggestion: '🗑️✨',
     functionWithoutParam: () => removeEffect()
   },
   ExportSVG: {
