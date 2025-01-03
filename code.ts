@@ -1255,7 +1255,7 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
   // ================
   // Suggestion Helper
   // ================
-
+  
   function getCommandSuggestions(
     commands: Array<Command & { name: CommandName }>,
     searchTerm: string = '',
@@ -1264,25 +1264,25 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
     previousCommands: Record<string, string> = {}
   ) {
     const selection = figma.currentPage.selection;
-  
+    
     const filteredCommands = commands.filter(cmd => {
       // Exclude the specific command (so it doesn't show up as a "related" suggestion to itself)
       if (excludeCommand && cmd.name === excludeCommand.name) return false;
-  
+      
       // Check specialConditions (e.g. IsAutoLayout, etc.)
       if (cmd.specialConditions && selection.length > 0) {
         if (!selection.every(node => checkSpecialConditions(node, cmd.specialConditions!))) {
           return false;
         }
       }
-  
+      
       // Check supportedNodes if selection exists
       if (cmd.supportedNodes && selection.length > 0) {
         if (!selection.every(node => cmd.supportedNodes!.indexOf(node.type) !== -1)) {
           return false;
         }
       }      
-  
+      
       // If the user typed nothing (searchTerm is empty):
       // - For the initial top-level suggestions, we return all commands.
       // - For "related" suggestions (excludeCommand is set), we don't return everything
@@ -1290,7 +1290,7 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
       if (!searchTerm) {
         return !excludeCommand; // Return true if no excludeCommand, false if we are in "related" mode
       }
-  
+      
       // Otherwise, normal search filtering
       const lowerSearch = searchTerm.toLowerCase();
       return (
@@ -1302,7 +1302,7 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
         )
       );
     });
-  
+    
     // Sort results
     const sortedCommands = filteredCommands.sort((a, b) => {
       // If no search term (and we're showing top-level suggestions),
@@ -1313,47 +1313,47 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
         }
         return a.name.localeCompare(b.name);
       }
-  
+      
       // With a search term, do an exact-match-first, then "starts with," then "contains"
       const lowerSearch = searchTerm.toLowerCase();
       const aLower = a.name.toLowerCase();
       const bLower = b.name.toLowerCase();
-  
+      
       // Exact match first
       const aExact = aLower === lowerSearch;
       const bExact = bLower === lowerSearch;
       if (aExact !== bExact) return bExact ? 1 : -1;
-  
+      
       // "Starts with" next
       const aStarts = aLower.startsWith(lowerSearch);
       const bStarts = bLower.startsWith(lowerSearch);
       if (aStarts !== bStarts) return bStarts ? 1 : -1;
-  
+      
       // "Contains" afterwards
       const aContains = aLower.includes(lowerSearch);
       const bContains = bLower.includes(lowerSearch);
       if (aContains !== bContains) return bContains ? 1 : -1;
-  
+      
       // Finally, alphabetical
       return a.name.localeCompare(b.name);
     });
-  
+    
     // Build suggestion strings
     return sortedCommands.map((cmd, index) => {
       const previousValue = previousCommands[cmd.name];
       let infoText = '';
-  
+      
       if (previousValue !== undefined) {
         // If we previously set this command
         infoText =
-          cmd.type === 'commandWithoutValue'
-            ? 'ℹ️ already set'
-            : `ℹ️ already set to '${previousValue}'`;
+        cmd.type === 'commandWithoutValue'
+        ? 'ℹ️ already set'
+        : `ℹ️ already set to '${previousValue}'`;
       } else if (includeSuggestion && index === 0) {
         // If this is the top suggestion, show the command's built-in suggestion (if any)
         infoText = cmd.suggestion || '';
       }
-  
+      
       const separator = infoText ? ' -- ' : '';
       return `${cmd.alias.join(', ')} · ${cmd.name}${separator}${infoText}`;
     });
@@ -1414,40 +1414,47 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
       // Summarize previously defined commands (not used below except for display)
       const completeCommands = parts.slice(0, -1).map((part) => {
         const matchedCommand = findCommand(part)[0];
-        const hasHex = VALUE_FORMAT_REGEX.hex.exec(part);
-        const hasNumber = VALUE_FORMAT_REGEX.number.exec(part);
-        
-        if (matchedCommand) {
-          if (matchedCommand.type === 'commandWithValue') {
-            if (hasHex) return `${matchedCommand.name}:${hasHex[0]}`;
-            if (hasNumber) {
-              try {
-                const computedValue = calculateExpression(hasNumber[0]);
-                return `${matchedCommand.name}:${computedValue}`;
-              } catch {
-                return `${matchedCommand.name}:${hasNumber[0]}`;
-              }
-            }
-          } else if (matchedCommand.type === 'optionalValueCommand') {
-            if (hasHex) {
-              return `${matchedCommand.name}:${hasHex[0]}`;
-            } else if (hasNumber) {
-              try {
-                const computedValue = calculateExpression(hasNumber[0]);
-                return `${matchedCommand.name}:${computedValue}`;
-              } catch {
-                return `${matchedCommand.name}:${hasNumber[0]}`;
-              }
-            } else {
-              return `${matchedCommand.name}`;
-            }
-          } else {
-            return matchedCommand.name;
-          }
-        } else {
+        if (!matchedCommand) {
           return "Not Found";
         }
+        
+        const { name, type } = matchedCommand;
+        
+        // Process hex or number value if present
+        const processValue = (): string | null => {
+          const hasHex = VALUE_FORMAT_REGEX.hex.exec(part);
+          if (hasHex) {
+            return hasHex[0];
+          }
+          
+          const hasNumber = VALUE_FORMAT_REGEX.number.exec(part);
+          if (hasNumber) {
+            try {
+              return calculateExpression(hasNumber[0]);
+            } catch {
+              return hasNumber[0];
+            }
+          }
+          
+          return null;
+        };
+        
+        // Format command with optional value
+        const formatCommand = (value: string | null): string => {
+          return value ? `${name}:${value}` : name;
+        };
+        
+        const value = processValue();
+        
+        if (type === 'commandWithValue') {
+          return value ? formatCommand(value) : undefined;
+        } else if (type === 'optionalValueCommand') {
+          return formatCommand(value);
+        } else {
+          return name;
+        }
       });
+      
       
       // Process current (last) command
       const matchedCommand = findCommand(currentPart)[0];
