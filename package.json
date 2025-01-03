@@ -13,7 +13,7 @@
   "license": "bonapara",
   "devDependencies": {
     "@figma/eslint-plugin-figma-plugins": "*",
-    "@figma/plugin-typings": "*",
+    "@figma/plugin-typings": "^1.106.0",
     "@typescript-eslint/eslint-plugin": "^6.12.0",
     "@typescript-eslint/parser": "^6.12.0",
     "eslint": "^8.54.0",
@@ -27,10 +27,15 @@
     ],
     "parser": "@typescript-eslint/parser",
     "parserOptions": {
-      "project": ["./tsconfig.json", "./ui-tsconfig.json"]
+      "project": [
+        "./tsconfig.json",
+        "./ui-tsconfig.json"
+      ]
     },
     "root": true,
-    "ignorePatterns": ["dist/*"],
+    "ignorePatterns": [
+      "dist/*"
+    ],
     "rules": {
       "@typescript-eslint/no-unused-vars": [
         "error",

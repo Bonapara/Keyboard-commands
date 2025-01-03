@@ -2,7 +2,7 @@
 // Type Definitions & Globals
 // ==========================
 type SupportedNodeType = SceneNode['type'];
-type SpecialCondition = 'IsAutoLayout' | 'IsInAutoLayout' | 'IsAbsoluteInAutoLayout' | 'IsAutoLayoutWrap' | 'IsVisible' | 'IsText' | 'TextStyleApplied' | 'NoTextStyleApplied' | 'IsNotInAutoLayout';
+type SpecialCondition = 'IsAutoLayout' | 'IsInAutoLayout' | 'IsAbsoluteInAutoLayout' | 'IsAutoLayoutWrap' | 'IsVisible' | 'TextStyleApplied' | 'NoTextStyleApplied' | 'IsNotInAutoLayout';
 
 type ValueFormat = 'number' | 'hex';
 
@@ -54,7 +54,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: 'Enter width in pixels',
     functionWithParam: (value: string) => resize(value, 'width'),
-    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','GROUP','HIGHLIGHT','INSTANCE','LINE','POLYGON','RECTANGLE','SLICE','STAMP','STAR','TEXT','VECTOR','WASHI_TAPE'],
+    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','GROUP','INSTANCE','LINE','POLYGON','RECTANGLE','SLICE','STAR','TEXT','VECTOR'],
   },
   Height: {
     type: "commandWithValue",
@@ -62,7 +62,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: "number",
     suggestion: "Enter height in pixels",
     functionWithParam: (value: string) => resize(value, 'height'),
-    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','GROUP','HIGHLIGHT','INSTANCE','LINE','POLYGON','RECTANGLE','SLICE','STAMP','STAR','TEXT','VECTOR','WASHI_TAPE'],
+    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','GROUP','INSTANCE','LINE','POLYGON','RECTANGLE','SLICE','STAR','TEXT','VECTOR'],
   },
   GoToMainComponent: {
     type: "commandWithoutValue",
@@ -77,7 +77,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: "Move X pixels up",
     functionWithParam: (value: string) => move('TOP', value),
-    supportedNodes: ['BOOLEAN_OPERATION','CODE_BLOCK','COMPONENT','COMPONENT_SET','CONNECTOR','ELLIPSE','EMBED','FRAME','GROUP','HIGHLIGHT','INSTANCE','LINE','LINK_UNFURL','MEDIA','POLYGON','RECTANGLE','SECTION','SHAPE_WITH_TEXT','SLICE','STAMP','STAR','STICKY','TABLE','TEXT','VECTOR','WASHI_TAPE','WIDGET'],
+    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','GROUP','INSTANCE','LINE','POLYGON','RECTANGLE','SECTION','SLICE','STAR','TEXT','VECTOR'],
     specialConditions: ['IsNotInAutoLayout', 'IsAbsoluteInAutoLayout'],
   },
   MoveBottom: {
@@ -86,7 +86,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: "Move X pixels down",
     functionWithParam: (value: string) => move('BOTTOM', value),
-    supportedNodes: ['BOOLEAN_OPERATION','CODE_BLOCK','COMPONENT','COMPONENT_SET','CONNECTOR','ELLIPSE','EMBED','FRAME','GROUP','HIGHLIGHT','INSTANCE','LINE','LINK_UNFURL','MEDIA','POLYGON','RECTANGLE','SECTION','SHAPE_WITH_TEXT','SLICE','STAMP','STAR','STICKY','TABLE','TEXT','VECTOR','WASHI_TAPE','WIDGET'],
+    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','GROUP','INSTANCE','LINE','POLYGON','RECTANGLE','SECTION','SLICE','STAR','TEXT','VECTOR'],
     specialConditions: ['IsNotInAutoLayout', 'IsAbsoluteInAutoLayout'],
   },
   MoveLeft: {
@@ -95,7 +95,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: "Move X pixels left",
     functionWithParam: (value: string) => move('LEFT', value),
-    supportedNodes: ['BOOLEAN_OPERATION','CODE_BLOCK','COMPONENT','COMPONENT_SET','CONNECTOR','ELLIPSE','EMBED','FRAME','GROUP','HIGHLIGHT','INSTANCE','LINE','LINK_UNFURL','MEDIA','POLYGON','RECTANGLE','SECTION','SHAPE_WITH_TEXT','SLICE','STAMP','STAR','STICKY','TABLE','TEXT','VECTOR','WASHI_TAPE','WIDGET'],
+    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','GROUP','INSTANCE','LINE','POLYGON','RECTANGLE','SECTION','SLICE','STAR','TEXT','VECTOR'],
     specialConditions: ['IsNotInAutoLayout', 'IsAbsoluteInAutoLayout'],
   },
   MoveRight: {
@@ -104,7 +104,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: "Move X pixels right",
     functionWithParam: (value: string) => move('RIGHT', value),
-    supportedNodes: ['BOOLEAN_OPERATION','CODE_BLOCK','COMPONENT','COMPONENT_SET','CONNECTOR','ELLIPSE','EMBED','FRAME','GROUP','HIGHLIGHT','INSTANCE','LINE','LINK_UNFURL','MEDIA','POLYGON','RECTANGLE','SECTION','SHAPE_WITH_TEXT','SLICE','STAMP','STAR','STICKY','TABLE','TEXT','VECTOR','WASHI_TAPE','WIDGET'],
+    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','GROUP','INSTANCE','LINE','POLYGON','RECTANGLE','SECTION','SLICE','STAR','TEXT','VECTOR'],
     specialConditions: ['IsNotInAutoLayout', 'IsAbsoluteInAutoLayout'],
   },
   PositionLeft: {
@@ -113,7 +113,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: "number",
     suggestion: "Position in px from left",
     functionWithParam: (value: string) => position(value, 'left'),
-    supportedNodes: ['BOOLEAN_OPERATION','CODE_BLOCK','COMPONENT','COMPONENT_SET','CONNECTOR','ELLIPSE','EMBED','FRAME','GROUP','HIGHLIGHT','INSTANCE','LINE','LINK_UNFURL','MEDIA','POLYGON','RECTANGLE','SECTION','SHAPE_WITH_TEXT','SLICE','STAMP','STAR','STICKY','TABLE','TEXT','VECTOR','WASHI_TAPE','WIDGET'],
+    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','GROUP','INSTANCE','LINE','POLYGON','RECTANGLE','SECTION','SLICE','STAR','TEXT','VECTOR'],
     specialConditions: ['IsNotInAutoLayout', 'IsAbsoluteInAutoLayout'],
   },
   PositionRight: {
@@ -122,7 +122,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: "number",
     suggestion: "Position in px from right",
     functionWithParam: (value: string) => position(value, 'right'),
-    supportedNodes: ['BOOLEAN_OPERATION','CODE_BLOCK','COMPONENT','COMPONENT_SET','CONNECTOR','ELLIPSE','EMBED','FRAME','GROUP','HIGHLIGHT','INSTANCE','LINE','LINK_UNFURL','MEDIA','POLYGON','RECTANGLE','SECTION','SHAPE_WITH_TEXT','SLICE','STAMP','STAR','STICKY','TABLE','TEXT','VECTOR','WASHI_TAPE','WIDGET'],
+    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','GROUP','INSTANCE','LINE','POLYGON','RECTANGLE','SECTION','SLICE','STAR','TEXT','VECTOR'],
     specialConditions: ['IsNotInAutoLayout', 'IsAbsoluteInAutoLayout'],
   },
   PositionTop: {
@@ -131,7 +131,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: "number",
     suggestion: "Position in px from top",
     functionWithParam: (value: string) => position(value, 'top'),
-    supportedNodes: ['BOOLEAN_OPERATION','CODE_BLOCK','COMPONENT','COMPONENT_SET','CONNECTOR','ELLIPSE','EMBED','FRAME','GROUP','HIGHLIGHT','INSTANCE','LINE','LINK_UNFURL','MEDIA','POLYGON','RECTANGLE','SECTION','SHAPE_WITH_TEXT','SLICE','STAMP','STAR','STICKY','TABLE','TEXT','VECTOR','WASHI_TAPE','WIDGET'],
+    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','GROUP','INSTANCE','LINE','POLYGON','RECTANGLE','SECTION','SLICE','STAR','TEXT','VECTOR'],
     specialConditions: ['IsNotInAutoLayout', 'IsAbsoluteInAutoLayout'],
   },
   PositionBottom: {
@@ -140,7 +140,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: "number",
     suggestion: "Position in px from bottom",
     functionWithParam: (value: string) => position(value, 'bottom'),
-    supportedNodes: ['BOOLEAN_OPERATION','CODE_BLOCK','COMPONENT','COMPONENT_SET','CONNECTOR','ELLIPSE','EMBED','FRAME','GROUP','HIGHLIGHT','INSTANCE','LINE','LINK_UNFURL','MEDIA','POLYGON','RECTANGLE','SECTION','SHAPE_WITH_TEXT','SLICE','STAMP','STAR','STICKY','TABLE','TEXT','VECTOR','WASHI_TAPE','WIDGET'],
+    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','GROUP','INSTANCE','LINE','POLYGON','RECTANGLE','SECTION','SLICE','STAR','TEXT','VECTOR'],
     specialConditions: ['IsNotInAutoLayout','IsAbsoluteInAutoLayout'],
   },
   Delete: {
@@ -148,7 +148,7 @@ const COMMAND_DEFINITIONS = {
     alias: ['de'],
     suggestion: '🗑️',
     functionWithoutParam: () => deleteSelection(),
-    supportedNodes: ["BOOLEAN_OPERATION","CODE_BLOCK","COMPONENT","COMPONENT_SET","CONNECTOR","ELLIPSE","EMBED","FRAME","GROUP","HIGHLIGHT","INSTANCE","LINE","LINK_UNFURL","MEDIA","POLYGON","RECTANGLE","SECTION","SHAPE_WITH_TEXT","SLICE","STAMP","STAR","STICKY","TABLE","TEXT","VECTOR","WASHI_TAPE","WIDGET"],
+    supportedNodes: ["BOOLEAN_OPERATION","COMPONENT","COMPONENT_SET","ELLIPSE","FRAME","GROUP","INSTANCE","LINE","POLYGON","RECTANGLE","SECTION","SLICE","STAR","TEXT","VECTOR"],
   },
   AutoLayout: {
     type: "commandWithoutValue",
@@ -281,7 +281,7 @@ const COMMAND_DEFINITIONS = {
     alias: ['ap'],
     suggestion: "ignore auto-layout (toggle)",
     functionWithoutParam: () => absolutePosition(),
-    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','GROUP','HIGHLIGHT','INSTANCE','LINE','POLYGON','RECTANGLE','SLICE','STAMP','STAR','TEXT','VECTOR','WASHI_TAPE'],
+    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','GROUP','INSTANCE','LINE','POLYGON','RECTANGLE','SLICE','STAR','TEXT','VECTOR'],
     specialConditions: ['IsInAutoLayout']
   },
   Padding: {
@@ -347,7 +347,7 @@ const COMMAND_DEFINITIONS = {
     suggestion: 'Enter #HEX color (No value = toggle)',
     functionWithoutParam: () => toggleFill(),
     functionWithParam: (value: string) => setFill(value),
-    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','HIGHLIGHT','INSTANCE','LINE','POLYGON','RECTANGLE','SECTION','SHAPE_WITH_TEXT','STAMP','STAR','STICKY','TABLE','TEXT','VECTOR','WASHI_TAPE'],
+    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','INSTANCE','LINE','POLYGON','RECTANGLE','SECTION','STAR','TEXT','VECTOR'],
   },
   Rotate: {
     type: "optionalValueCommand",
@@ -356,7 +356,7 @@ const COMMAND_DEFINITIONS = {
     suggestion: 'Enter rotation angle in degrees',
     functionWithoutParam: () => rotate(0),
     functionWithParam: (value: string) => { rotate(parseInt(value)); },
-    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','HIGHLIGHT','INSTANCE','LINE','POLYGON','RECTANGLE','SECTION','SHAPE_WITH_TEXT','STAMP','STAR','STICKY','TABLE','TEXT','VECTOR','WASHI_TAPE'],
+    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','INSTANCE','LINE','POLYGON','RECTANGLE','SECTION','STAR','TEXT','VECTOR'],
   },
   Scale: {
     type: "commandWithValue",
@@ -385,7 +385,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: 'Top left radius',
     functionWithParam: (value: string) => setRadius({topLeftRadius: value}),
-    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','HIGHLIGHT','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
+    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
   },
   RadiusTopRight: {
     type: "commandWithValue",
@@ -393,7 +393,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: 'Top right radius',
     functionWithParam: (value: string) => setRadius({topRightRadius: value}),
-    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','HIGHLIGHT','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
+    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
   },
   RadiusBottomRight: {
     type: "commandWithValue",
@@ -401,7 +401,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: 'Bottom right radius',
     functionWithParam: (value: string) => setRadius({bottomRightRadius: value}),
-    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','HIGHLIGHT','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
+    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
   },
   RadiusBottomLeft: {
     type: "commandWithValue",
@@ -409,7 +409,7 @@ const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: 'Bottom left radius',
     functionWithParam: (value: string) => setRadius({bottomLeftRadius: value}),
-    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','HIGHLIGHT','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
+    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
   },
   RadiusAll: {
     type: "commandWithValue",
@@ -422,7 +422,7 @@ const COMMAND_DEFINITIONS = {
       bottomRightRadius: value,
       bottomLeftRadius: value
     }),
-    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','HIGHLIGHT','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
+    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
   },
   RadiusLeft: {
     type: "commandWithValue",
@@ -433,7 +433,7 @@ const COMMAND_DEFINITIONS = {
       topLeftRadius: value,
       bottomLeftRadius: value
     }),
-    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','HIGHLIGHT','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
+    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
   },
   RadiusTop: {
     type: "commandWithValue",
@@ -444,7 +444,7 @@ const COMMAND_DEFINITIONS = {
       topLeftRadius: value,
       topRightRadius: value
     }),
-    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','HIGHLIGHT','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
+    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
   },
   RadiusRight: {
     type: "commandWithValue",
@@ -455,7 +455,7 @@ const COMMAND_DEFINITIONS = {
       topRightRadius: value,
       bottomRightRadius: value
     }),
-    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','HIGHLIGHT','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
+    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
   },
   RadiusBottom: {
     type: "commandWithValue",
@@ -466,7 +466,7 @@ const COMMAND_DEFINITIONS = {
       bottomLeftRadius: value,
       bottomRightRadius: value
     }),
-    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','HIGHLIGHT','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
+    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
   },
   ClipContent: {
     type: "commandWithoutValue",
@@ -580,28 +580,28 @@ const COMMAND_DEFINITIONS = {
     alias: ['taw'],
     suggestion: 'Hug Text Width and Height',
     functionWithoutParam: () => setTextAutoResize('WIDTH_AND_HEIGHT'),
-    specialConditions: ['IsText'],
+    supportedNodes: ["TEXT"],
   },
   TextAutoHeight: {
     type: "commandWithoutValue",
     alias: ['tah'],
     suggestion: 'Hug Text Height',
     functionWithoutParam: () => setTextAutoResize('HEIGHT'),
-    specialConditions: ['IsText'],
+    supportedNodes: ["TEXT"],
   },
   TextFixedSize: {
     type: "commandWithoutValue",
     alias: ['tfs'],
     suggestion: 'Fixed Text Size',
     functionWithoutParam: () => setTextAutoResize('NONE'),
-    specialConditions: ['IsText'],
+    supportedNodes: ["TEXT"],
   },
   TextAlignLeft: {
     type: "commandWithoutValue",
     alias: ['tal'],
     suggestion: 'Align Text to Left',
     functionWithoutParam: () => AlignText({ horizontal: 'LEFT' }),
-    specialConditions: ['IsText'],
+    supportedNodes: ["TEXT"],
   },
   
   TextAlignCenter: {
@@ -609,7 +609,7 @@ const COMMAND_DEFINITIONS = {
     alias: ['tac'],
     suggestion: 'Align Text to Center',
     functionWithoutParam: () => AlignText({ horizontal: 'CENTER' }),
-    specialConditions: ['IsText'],
+    supportedNodes: ["TEXT"],
   },
   
   TextAlignRight: {
@@ -617,14 +617,14 @@ const COMMAND_DEFINITIONS = {
     alias: ['tar'],
     suggestion: 'Align Text to Right',
     functionWithoutParam: () => AlignText({ horizontal: 'RIGHT' }),
-    specialConditions: ['IsText'],
+    supportedNodes: ["TEXT"],
   },
   JustifyText: {
     type: "commandWithoutValue",
     alias: ['taj'],
     suggestion: 'Justify Text',
     functionWithoutParam: () => AlignText({ horizontal: 'JUSTIFIED' }),
-    specialConditions: ['IsText'],
+    supportedNodes: ["TEXT"],
   },
   
   TextAlignTop: {
@@ -632,7 +632,7 @@ const COMMAND_DEFINITIONS = {
     alias: ['tat'],
     suggestion: 'Align Text to Top',
     functionWithoutParam: () => AlignText({ vertical: 'TOP' }),
-    specialConditions: ['IsText'],
+    supportedNodes: ["TEXT"],
   },
   
   TextAlignMiddle: {
@@ -640,7 +640,7 @@ const COMMAND_DEFINITIONS = {
     alias: ['tam'],
     suggestion: 'Align Text to Middle',
     functionWithoutParam: () => AlignText({ vertical: 'CENTER' }),
-    specialConditions: ['IsText'],
+    supportedNodes: ["TEXT"],
   },
   
   TextAlignBottom: {
@@ -648,7 +648,7 @@ const COMMAND_DEFINITIONS = {
     alias: ['tab'],
     suggestion: 'Align Text to Bottom',
     functionWithoutParam: () => AlignText({ vertical: 'BOTTOM' }),
-    specialConditions: ['IsText'],
+    supportedNodes: ["TEXT"],
   },
   
   // Font Size Command
@@ -1144,8 +1144,6 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
         return 'layoutMode' in node && node.layoutMode !== 'NONE' && 'layoutWrap' in node && node.layoutWrap === 'WRAP';
         case 'IsVisible':
         return node.visible;
-        case 'IsText':
-        return node.type === 'TEXT';
         default:
         return false;
       }
@@ -1271,7 +1269,7 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
       // Exclude the specific command (so it doesn't show up as a "related" suggestion to itself)
       if (excludeCommand && cmd.name === excludeCommand.name) return false;
   
-      // Check specialConditions (e.g. IsText, IsAutoLayout, etc.)
+      // Check specialConditions (e.g. IsAutoLayout, etc.)
       if (cmd.specialConditions && selection.length > 0) {
         if (!selection.every(node => checkSpecialConditions(node, cmd.specialConditions!))) {
           return false;
