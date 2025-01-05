@@ -1216,7 +1216,7 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
   }
   
   const COMMAND_SPLITTER_REGEX = /[\s,]+/;
-  const COMMAND_PART_REGEX = /^(-(?![\d])|(-)?[\p{L}]+(-[\p{L}]+)*?)(?=\s|[\d]|-[\d]|-$|$|#|:)/u;
+  const COMMAND_PART_REGEX = /^(-(?![\d])|(-)?[\p{L}]+(-[\p{L}]+)*?)(?=\s|[\d]|-[\d]|-$|$|#|:|[?])/u;
   
   // Updated number regex to allow parentheses and 'x' as multiplication
   const VALUE_FORMAT_REGEX = {
@@ -1367,20 +1367,41 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
   // Keep track of the current input handler so we can remove it
   let currentInputHandler: ((event: ParameterInputEvent) => void) | null = null;
 
-  // <<< NEW: Lists all local color variables (resolvedType === "COLOR")
   async function listColorVariables(): Promise<string[]> {
-    const localCollections = await figma.variables.getLocalVariableCollectionsAsync();
-    const colorVariableNames: string[] = [];
-    for (const collection of localCollections) {
-      for (const variableId of collection.variableIds) {
-        const variable = await figma.variables.getVariableByIdAsync(variableId);
-        if (variable && variable.resolvedType === "COLOR") {
-          colorVariableNames.push(variable.name);
+    try {
+      const localCollections = await figma.variables.getLocalVariableCollectionsAsync();
+      if (!localCollections || localCollections.length === 0) {
+        figma.notify('No variable collections found');
+        return [];
+      }
+  
+      const colorVariableNames: string[] = [];
+      for (const collection of localCollections) {
+        if (!collection.variableIds) continue;
+        
+        for (const variableId of collection.variableIds) {
+          try {
+            const variable = await figma.variables.getVariableByIdAsync(variableId);
+            if (variable && variable.resolvedType === "COLOR") {
+              colorVariableNames.push(`${collection.name}/${variable.name}`);
+            }
+          } catch (error) {
+            console.error('Error fetching variable:', error);
+          }
         }
       }
+  
+      if (colorVariableNames.length === 0) {
+        figma.notify('No color variables found');
+      }
+      return colorVariableNames.sort();
+    } catch (error) {
+      console.error('Error listing color variables:', error);
+      figma.notify('Error fetching variables');
+      return [];
     }
-    return colorVariableNames.sort();
   }
+  
   
   async function listFloatVariables(): Promise<string[]> {
     const localCollections = await figma.variables.getLocalVariableCollectionsAsync();
@@ -1802,53 +1823,68 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
       let foundVariable: Variable | null = null;
       let modeId: string | null = null;
     
-      const localCollections = await figma.variables.getLocalVariableCollectionsAsync();
-      outerLoop: for (const collection of localCollections) {
-        for (const variableId of collection.variableIds) {
-          const variable = await figma.variables.getVariableByIdAsync(variableId);
-          if (variable?.name === variableName) {
-            foundVariable = variable;
-            modeId = collection.modes[0].modeId;
-            break outerLoop;
-          }
-        }
-      }
+      try {
+        const localCollections = await figma.variables.getLocalVariableCollectionsAsync();
+        
+        // Log available collections and variables for debugging
+        console.log('Available collections:', localCollections.map(c => ({
+          name: c.name,
+          variables: c.variableIds
+        })));
     
-      if (!foundVariable || !modeId) {
-        throw new Error(`No local variable found named "${variableName}"`);
-      }
+        outerLoop: for (const collection of localCollections) {
+          for (const variableId of collection.variableIds) {
+            const variable = await figma.variables.getVariableByIdAsync(variableId);
+            if (!variable) continue;
     
-      // Now, apply that variable to the selected nodes
-      for (const node of selection) {
-        if (command.name === 'Fill' && foundVariable.resolvedType === 'COLOR') {
-          if ('fills' in node) {
-            const fillsCopy = [...(node.fills as Paint[])];
-            if (fillsCopy.length > 0) {
-              // Check if the first fill is a solid paint
-              const firstFill = fillsCopy[0];
-              if (firstFill.type === 'SOLID') {
-                // Now we can safely use setBoundVariableForPaint as we've confirmed it's a SolidPaint
-                fillsCopy[0] = figma.variables.setBoundVariableForPaint(
-                  firstFill,
-                  'color',
-                  foundVariable
-                );
-                node.fills = fillsCopy;
-              } else {
-                figma.notify('Can only bind variables to solid fills');
-              }
+            // Create the full path for comparison
+            const fullPath = `${collection.name}/${variable.name}`;
+            console.log('Comparing:', fullPath, 'with:', variableName); // Debug log
+    
+            // Compare with both the full path and just the variable name
+            if (fullPath === variableName || variable.name === variableName) {
+              foundVariable = variable;
+              modeId = collection.modes[0].modeId;
+              break outerLoop;
             }
           }
         }
-        else if (command.name === 'Width' && foundVariable.resolvedType === 'FLOAT') {
-          if ('width' in node) {
-            node.setBoundVariable('width', foundVariable);
-          }
-        }
-        // ... similarly for Height, radius, etc.
-      }
     
-      figma.notify(`Bound variable "${variableName}" to '${command.name}'`);
+        if (!foundVariable || !modeId) {
+          // Log available variables for debugging
+          console.log('Available variables:', await listColorVariables());
+          throw new Error(`No local variable found named "${variableName}"`);
+        }
+    
+        // Now, apply that variable to the selected nodes
+        for (const node of selection) {
+          if (command.name === 'Fill' && foundVariable.resolvedType === 'COLOR') {
+            if ('fills' in node) {
+              const fillsCopy = [...(node.fills as Paint[])];
+              if (fillsCopy.length > 0) {
+                // Check if the first fill is a solid paint
+                const firstFill = fillsCopy[0];
+                if (firstFill.type === 'SOLID') {
+                  fillsCopy[0] = figma.variables.setBoundVariableForPaint(
+                    firstFill,
+                    'color',
+                    foundVariable
+                  );
+                  node.fills = fillsCopy;
+                } else {
+                  figma.notify('Can only bind variables to solid fills');
+                }
+              }
+            }
+          }
+          // ... handle other command types
+        }
+    
+        figma.notify(`Bound variable "${variableName}" to '${command.name}'`);
+      } catch (error) {
+        console.error('Error in applyFigmaVariable:', error);
+        throw error;
+      }
     }
     
      
