@@ -344,7 +344,7 @@ const COMMAND_DEFINITIONS = {
     type: "optionalValueCommand",
     alias: ['f'],
     valueFormat: 'hex' as const,
-    suggestion: 'Enter #HEX color (No value = toggle)',
+    suggestion: 'Enter HEX color (No value = toggle)',
     functionWithoutParam: () => toggleFill(),
     functionWithParam: (value: string) => setFill(value),
     supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','INSTANCE','LINE','POLYGON','RECTANGLE','SECTION','STAR','TEXT','VECTOR'],
@@ -1572,6 +1572,9 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
   figma.on('run', async (parameters) => {
     const commandString = originalInput.trim();
     const commands = commandString.split(COMMAND_SPLITTER_REGEX).filter(Boolean);
+
+    console.log("parameters", parameters);
+    console.log("commands", commands);
     
     try {
       // If we have original input and command doesn't contain pipe
@@ -1581,9 +1584,11 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
           const cmd = commands[i];
           await executeCommand(cmd);
         }
+        console.log("parameters.parameters.command", parameters.parameters.command);
         await executeCommand(parameters.parameters.command);
       } else {
         for (const cmd of commands) {
+          console.log("cmd", cmd);
           await executeCommand(cmd);
         }
       }
@@ -1600,6 +1605,8 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
   async function processCommand(commandName: CommandName, value?: string): Promise<void> {
     const command = COMMAND_DEFINITIONS[commandName];
     if (!command) return;
+
+    console.log("process command", command);
     
     if (command.type === 'commandWithValue') {
       await command.functionWithParam(value || '');
@@ -1617,10 +1624,18 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
   async function executeCommand(cmd: string): Promise<void> {
     if (!cmd) return;
     
-    const command = findCommand(cmd)[0];
+    // Clean the command string by removing suggestions and aliases
+    const cleanCmd = cmd.split('•')[0]  // Remove everything after the bullet point
+                       .split(',')[0]    // Take only the first part before any comma
+                       .trim();          // Remove whitespace
+    
+    const command = findCommand(cleanCmd)[0];
     if (!command) {
-      return;
+        return;
     }
+
+    console.log("execute cleaned command:", cleanCmd);
+    console.log("execute matched command:", command);
     
     const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
     const loadingNotification = figma.notify(`Executing command(s)...`, { timeout: 0 });
@@ -1631,6 +1646,7 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
         await processCommand(command.name);
       } else {
         const value = extractValue(cmd, command.valueFormat as ValueFormat);
+        console.log("value", value);
         if (command.type === 'commandWithValue') {
           if (value) {
             await processCommand(command.name, value);
@@ -1639,8 +1655,10 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
           }
         } else if (command.type === 'optionalValueCommand') {
           if (value) {
+            console.log("optional value command", value);
             await command.functionWithParam(value);
           } else {
+            console.log("optional value command without param");
             await command.functionWithoutParam();
           }
         }
@@ -1652,7 +1670,9 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
   }
   
   function extractValue(text: string, format: ValueFormat): string | null {
+    console.log("extract value", text);
     const match = text.match(VALUE_FORMAT_REGEX[format]);
+    console.log("extract value", match);
     if (!match) return null;
     
     if (format === 'hex') {
@@ -1669,7 +1689,7 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
         return expression;
       }
     }
-    
+
     return match[0];
   }
   
