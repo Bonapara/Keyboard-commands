@@ -485,7 +485,7 @@ const COMMAND_DEFINITIONS = {
     type: "optionalValueCommand",
     alias: ['o'],
     valueFormat: 'number' as const,
-    suggestion: 'In % (No value = 0% ↔️ 100%)',
+    suggestion: 'In % (No value = toggle)',
     functionWithParam: (value: string) => setOpacity(value),
     functionWithoutParam: () => toggleOpacity(),
   },
