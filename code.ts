@@ -64,6 +64,14 @@ const COMMAND_DEFINITIONS = {
     functionWithParam: (value: string) => resize(value, 'height'),
     supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','GROUP','INSTANCE','LINE','POLYGON','RECTANGLE','SLICE','STAR','TEXT','VECTOR'],
   },
+  HeightWidth: {
+    type: "commandWithValue",
+    alias: ['hw', 'wh'],
+    valueFormat: "number",
+    suggestion: "Set both width/height to...",
+    functionWithParam: (value: string) => resize(value),
+    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','GROUP','INSTANCE','LINE','POLYGON','RECTANGLE','SLICE','STAR','TEXT','VECTOR'],
+  },
   GoToMainComponent: {
     type: "commandWithoutValue",
     alias: ['m'],
@@ -1699,7 +1707,7 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
   
   // Functions
   
-  function resize(value: string, resizeType: 'width' | 'height') {
+  function resize(value: string, resizeType?: 'width' | 'height') {
     const numValue = Number(value);
     if (isNaN(numValue)) throw new Error('Invalid number provided');
     
@@ -1711,14 +1719,17 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
     for (const node of selection) {
       if ('resize' in node) {
         const newSize = {
-          width: resizeType === 'width' ? numValue : node.width,
-          height: resizeType === 'height' ? numValue : node.height
+          width: resizeType ? (resizeType === 'width' ? numValue : node.width) : numValue,
+          height: resizeType ? (resizeType === 'height' ? numValue : node.height) : numValue
         };
         node.resize(newSize.width, newSize.height);
       }
     }
     
-    figma.notify(`${resizeType} set to ${value} for all selected items`);
+    const message = resizeType 
+      ? `${resizeType} set to ${value} for all selected items`
+      : `width and height set to ${value} for all selected items`;
+    figma.notify(message);
   }
   
   function setFill(value: string) {
