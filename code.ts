@@ -1,6 +1,15 @@
 // ==========================
 // Type Definitions & Globals
 // ==========================
+// Type definitions
+type StyleBindingType = 'PAINT' | 'TEXT' | 'EFFECT' | 'GRID';
+type VariableResolvedType = 'BOOLEAN' | 'COLOR' | 'FLOAT' | 'STRING';
+
+interface BindingSupport {
+  styles?: StyleBindingType[];
+  variables?: VariableResolvedType[];
+}
+
 type SupportedNodeType = SceneNode['type'];
 type SpecialCondition = 'IsAutoLayout' | 'IsInAutoLayout' | 'IsAbsoluteInAutoLayout' | 'IsAutoLayoutWrap' | 'IsVisible' | 'TextStyleApplied' | 'NoTextStyleApplied' | 'IsNotInAutoLayout';
 
@@ -14,6 +23,7 @@ type CommandWithValue = {
   suggestion: string;
   supportedNodes?: SupportedNodeType[];
   specialConditions?: SpecialCondition[];
+  bindingSupport?: BindingSupport;
 };
 
 type CommandWithoutValue = {
@@ -23,6 +33,7 @@ type CommandWithoutValue = {
   suggestion: string;  
   supportedNodes?: SupportedNodeType[];
   specialConditions?: SpecialCondition[];
+  bindingSupport?: BindingSupport;
 };
 
 type OptionalValueCommand = {
@@ -34,6 +45,7 @@ type OptionalValueCommand = {
   functionWithParam: (value: string) => void;
   supportedNodes?: SupportedNodeType[];
   specialConditions?: SpecialCondition[];
+  bindingSupport?: BindingSupport;
 };
 
 type CommandName = keyof typeof COMMAND_DEFINITIONS;
@@ -55,6 +67,9 @@ const COMMAND_DEFINITIONS = {
     suggestion: 'Enter width in pixels',
     functionWithParam: (value: string) => resize(value, 'width'),
     supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','GROUP','INSTANCE','LINE','POLYGON','RECTANGLE','SLICE','STAR','TEXT','VECTOR'],
+    bindingSupport: {
+      variables: ['FLOAT']
+    }
   },
   Height: {
     type: "commandWithValue",
@@ -63,6 +78,9 @@ const COMMAND_DEFINITIONS = {
     suggestion: "Enter height in pixels",
     functionWithParam: (value: string) => resize(value, 'height'),
     supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','GROUP','INSTANCE','LINE','POLYGON','RECTANGLE','SLICE','STAR','TEXT','VECTOR'],
+    bindingSupport: {
+      variables: ['FLOAT']
+    }
   },
   GoToMainComponent: {
     type: "commandWithoutValue",
@@ -229,6 +247,9 @@ const COMMAND_DEFINITIONS = {
     functionWithParam: (value: string) => setPrimaryGap(value),
     functionWithoutParam: () => setPrimaryGap('AUTO'),
     specialConditions: ['IsAutoLayout'],
+    bindingSupport: {
+      variables: ['FLOAT']
+    }
   },
   SpaceBetween: {
     type: "commandWithoutValue",
@@ -291,6 +312,9 @@ const COMMAND_DEFINITIONS = {
     suggestion: "Enter padding for all sides",
     functionWithParam: (value: string) => setPadding({paddingLeft: value, paddingRight: value, paddingTop: value, paddingBottom: value}),
     supportedNodes: ['COMPONENT','COMPONENT_SET','FRAME','INSTANCE'],
+    bindingSupport: {
+      variables: ['FLOAT']
+    }
   },
   PaddingHorizontal: {
     type: "commandWithValue",
@@ -299,6 +323,9 @@ const COMMAND_DEFINITIONS = {
     suggestion: "Enter horizontal padding",
     functionWithParam: (value: string) => setPadding({paddingLeft: value, paddingRight: value}),
     supportedNodes: ['COMPONENT','COMPONENT_SET','FRAME','INSTANCE'],
+    bindingSupport: {
+      variables: ['FLOAT']
+    }
   },
   PaddingVertical: {
     type: "commandWithValue",
@@ -307,6 +334,9 @@ const COMMAND_DEFINITIONS = {
     suggestion: "Enter vertical padding",
     functionWithParam: (value: string) => setPadding({paddingTop: value, paddingBottom: value}),
     supportedNodes: ['COMPONENT','COMPONENT_SET','FRAME','INSTANCE'],
+    bindingSupport: {
+      variables: ['FLOAT']
+    }
   },
   PaddingLeft: {
     type: "commandWithValue",
@@ -315,6 +345,9 @@ const COMMAND_DEFINITIONS = {
     suggestion: "Enter left padding",
     functionWithParam: (value: string) => setPadding({paddingLeft: value}),
     supportedNodes: ['COMPONENT','COMPONENT_SET','FRAME','INSTANCE'],
+    bindingSupport: {
+      variables: ['FLOAT']
+    }
   },
   PaddingTop: {
     type: "commandWithValue",
@@ -323,6 +356,9 @@ const COMMAND_DEFINITIONS = {
     suggestion: "Enter top padding",
     functionWithParam: (value: string) => setPadding({paddingTop: value}),
     supportedNodes: ['COMPONENT','COMPONENT_SET','FRAME','INSTANCE'],
+    bindingSupport: {
+      variables: ['FLOAT']
+    }
   },
   PaddingRight: {
     type: "commandWithValue",
@@ -331,6 +367,9 @@ const COMMAND_DEFINITIONS = {
     suggestion: "Enter right padding",
     functionWithParam: (value: string) => setPadding({paddingRight: value}),
     supportedNodes: ['COMPONENT','COMPONENT_SET','FRAME','INSTANCE'],
+    bindingSupport: {
+      variables: ['FLOAT']
+    }
   },
   PaddingBottom: {
     type: "commandWithValue",
@@ -339,6 +378,9 @@ const COMMAND_DEFINITIONS = {
     suggestion: "Enter bottom padding",
     functionWithParam: (value: string) => setPadding({paddingBottom: value}),
     supportedNodes: ['COMPONENT','COMPONENT_SET','FRAME','INSTANCE'],
+    bindingSupport: {
+      variables: ['FLOAT']
+    }
   },
   Fill: {
     type: "optionalValueCommand",
@@ -348,6 +390,10 @@ const COMMAND_DEFINITIONS = {
     functionWithoutParam: () => toggleFill(),
     functionWithParam: (value: string) => setFill(value),
     supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','INSTANCE','LINE','POLYGON','RECTANGLE','SECTION','STAR','TEXT','VECTOR'],
+    bindingSupport: {
+      styles: ['PAINT'],
+      variables: ['COLOR']
+    }
   },
   Rotate: {
     type: "optionalValueCommand",
@@ -386,6 +432,9 @@ const COMMAND_DEFINITIONS = {
     suggestion: 'Top left radius',
     functionWithParam: (value: string) => setRadius({topLeftRadius: value}),
     supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
+    bindingSupport: {
+      variables: ['FLOAT']
+    }
   },
   RadiusTopRight: {
     type: "commandWithValue",
@@ -394,6 +443,9 @@ const COMMAND_DEFINITIONS = {
     suggestion: 'Top right radius',
     functionWithParam: (value: string) => setRadius({topRightRadius: value}),
     supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
+    bindingSupport: {
+      variables: ['FLOAT']
+    }
   },
   RadiusBottomRight: {
     type: "commandWithValue",
@@ -402,6 +454,9 @@ const COMMAND_DEFINITIONS = {
     suggestion: 'Bottom right radius',
     functionWithParam: (value: string) => setRadius({bottomRightRadius: value}),
     supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
+    bindingSupport: {
+      variables: ['FLOAT']
+    }
   },
   RadiusBottomLeft: {
     type: "commandWithValue",
@@ -410,6 +465,9 @@ const COMMAND_DEFINITIONS = {
     suggestion: 'Bottom left radius',
     functionWithParam: (value: string) => setRadius({bottomLeftRadius: value}),
     supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
+    bindingSupport: {
+      variables: ['FLOAT']
+    }
   },
   RadiusAll: {
     type: "commandWithValue",
@@ -423,6 +481,9 @@ const COMMAND_DEFINITIONS = {
       bottomLeftRadius: value
     }),
     supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
+    bindingSupport: {
+      variables: ['FLOAT']
+    }
   },
   RadiusLeft: {
     type: "commandWithValue",
@@ -434,6 +495,9 @@ const COMMAND_DEFINITIONS = {
       bottomLeftRadius: value
     }),
     supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
+    bindingSupport: {
+      variables: ['FLOAT']
+    }
   },
   RadiusTop: {
     type: "commandWithValue",
@@ -445,6 +509,9 @@ const COMMAND_DEFINITIONS = {
       topRightRadius: value
     }),
     supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
+    bindingSupport: {
+      variables: ['FLOAT']
+    }
   },
   RadiusRight: {
     type: "commandWithValue",
@@ -456,6 +523,9 @@ const COMMAND_DEFINITIONS = {
       bottomRightRadius: value
     }),
     supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
+    bindingSupport: {
+      variables: ['FLOAT']
+    }
   },
   RadiusBottom: {
     type: "commandWithValue",
@@ -467,6 +537,9 @@ const COMMAND_DEFINITIONS = {
       bottomRightRadius: value
     }),
     supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
+    bindingSupport: {
+      variables: ['FLOAT']
+    }
   },
   ClipContent: {
     type: "commandWithoutValue",
@@ -479,7 +552,10 @@ const COMMAND_DEFINITIONS = {
     type: "commandWithoutValue",
     alias: ['v'],
     suggestion: 'Toggle Show/Hide 👁️',
-    functionWithoutParam: () => toggleVisibility()
+    functionWithoutParam: () => toggleVisibility(),
+    bindingSupport: {
+      variables: ['BOOLEAN']
+    }
   },
   Opacity: {
     type: "optionalValueCommand",
@@ -488,12 +564,26 @@ const COMMAND_DEFINITIONS = {
     suggestion: 'In % (No value = toggle)',
     functionWithParam: (value: string) => setOpacity(value),
     functionWithoutParam: () => toggleOpacity(),
+    bindingSupport: {
+      variables: ['FLOAT']
+    }
   },
   Duplicate: {
     type: "commandWithoutValue",
     alias: ['d'],
     suggestion: '✂️ Duplicate Element',
     functionWithoutParam: () => duplicate()
+  },
+  StrokeColor: {
+    type: "optionalValueCommand",
+    alias: ['stc','bc'],
+    valueFormat: 'hex' as const,
+    suggestion: 'Enter HEX color (No value = toggle)',
+    functionWithParam: (value: string) => setBorderColor(value),
+    functionWithoutParam: () => toggleBorder('all'),
+    bindingSupport: {
+      variables: ['COLOR']
+    }
   },
   Stroke: {
     type: "optionalValueCommand",
@@ -502,6 +592,9 @@ const COMMAND_DEFINITIONS = {
     suggestion: 'border in px (No value = toggle)',
     functionWithParam: (value: string) => setBorder('all', value),
     functionWithoutParam: () => toggleBorder('all'),
+    bindingSupport: {
+      variables: ['FLOAT']
+    }
   },
   StrokeLeft: {
     type: "optionalValueCommand",
@@ -510,6 +603,9 @@ const COMMAND_DEFINITIONS = {
     suggestion: 'border in px (No value = toggle)',
     functionWithParam: (value: string) => setBorder('left', value),
     functionWithoutParam: () => toggleBorder('left'),
+    bindingSupport: {
+      variables: ['FLOAT']
+    }
   },
   StrokeRight: {
     type: "optionalValueCommand",
@@ -518,6 +614,9 @@ const COMMAND_DEFINITIONS = {
     suggestion: 'border in px (No value = toggle)',
     functionWithParam: (value: string) => setBorder('right', value),
     functionWithoutParam: () => toggleBorder('right'),
+    bindingSupport: {
+      variables: ['FLOAT']
+    }
   },
   StrokeTop: {
     type: "optionalValueCommand",
@@ -526,6 +625,9 @@ const COMMAND_DEFINITIONS = {
     suggestion: 'border in px (No value = toggle)',
     functionWithParam: (value: string) => setBorder('top', value),
     functionWithoutParam: () => toggleBorder('top'),
+    bindingSupport: {
+      variables: ['FLOAT']
+    }
   },
   StrokeBottom: {
     type: "optionalValueCommand",
@@ -534,22 +636,25 @@ const COMMAND_DEFINITIONS = {
     suggestion: 'border in px (No value = toggle)',
     functionWithParam: (value: string) => setBorder('bottom', value),
     functionWithoutParam: () => toggleBorder('bottom'),
+    bindingSupport: {
+      variables: ['FLOAT']
+    }
   },
   StrokeAlignCenter: {
     type: "commandWithoutValue",
-    alias: ['stc','bc'],
+    alias: ['stac','bac'],
     suggestion: '◌',
-    functionWithoutParam: () => setBorderAlign('CENTER')
+    functionWithoutParam: () => setBorderAlign('CENTER'),
   },
   StrokeAlignInside: {
     type: "commandWithoutValue",
-    alias: ['sti','bi'],
+    alias: ['stai','bai'],
     suggestion: '⊖',
     functionWithoutParam: () => setBorderAlign('INSIDE')
   },
   StrokeAlignOutside: {
     type: "commandWithoutValue",
-    alias: ['sto','bo'],
+    alias: ['stao','bao'],
     suggestion: '◯',
     functionWithoutParam: () => setBorderAlign('OUTSIDE')
   },
@@ -691,6 +796,9 @@ const COMMAND_DEFINITIONS = {
     functionWithParam: (value: string) => setLetterSpacing(value),
     supportedNodes: ['TEXT'],
     specialConditions: ['NoTextStyleApplied'],
+    bindingSupport: {
+      variables: ['FLOAT']
+    }
   },
   
   // Line Height Command
@@ -703,6 +811,9 @@ const COMMAND_DEFINITIONS = {
     functionWithoutParam: () => setLineHeight('AUTO'),
     supportedNodes: ['TEXT'],
     specialConditions: ['NoTextStyleApplied'],
+    bindingSupport: {
+      variables: ['FLOAT']
+    }
   },
   
   
@@ -886,6 +997,9 @@ const COMMAND_DEFINITIONS = {
     functionWithParam: (value: string) => maxDimension({value:value, type: 'max', direction: 'height', null: false}),
     functionWithoutParam: () => maxDimension({type: 'max', direction: 'height', null: true}),
     specialConditions: ['IsInAutoLayout','IsAutoLayout'],
+    bindingSupport: {
+      variables: ['FLOAT']
+    }
   },
   MaxWidth: {
     type: "optionalValueCommand",
@@ -895,6 +1009,9 @@ const COMMAND_DEFINITIONS = {
     functionWithParam: (value: string) => maxDimension({value:value, type: 'max', direction: 'width', null: false}),
     functionWithoutParam: () => maxDimension({type: 'max', direction: 'width', null: true}),
     specialConditions: ['IsInAutoLayout','IsAutoLayout'],
+    bindingSupport: {
+      variables: ['FLOAT']
+    }
   },
   MinHeight: {
     type: "optionalValueCommand",
@@ -904,6 +1021,9 @@ const COMMAND_DEFINITIONS = {
     functionWithParam: (value: string) => maxDimension({value:value, type: 'min', direction: 'height', null: false}),
     functionWithoutParam: () => maxDimension({type: 'min', direction: 'height', null: true}),
     specialConditions: ['IsInAutoLayout','IsAutoLayout'],
+    bindingSupport: {
+      variables: ['FLOAT']
+    }
   },
   MinWidth: {
     type: "optionalValueCommand",
@@ -913,6 +1033,9 @@ const COMMAND_DEFINITIONS = {
     functionWithParam: (value: string) => maxDimension({value:value, type: 'min', direction: 'width', null: false}),
     functionWithoutParam: () => maxDimension({type: 'min', direction: 'width', null: true}),
     specialConditions: ['IsInAutoLayout','IsAutoLayout'],
+    bindingSupport: {
+      variables: ['FLOAT']
+    }
   },
   RemoveEffect: {
     type: "commandWithoutValue",
@@ -3393,5 +3516,33 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
         if (figma.currentPage.selection[0].type === 'TEXT') {
           figma.currentPage.selection[0].setTextStyleIdAsync('');
         }
+      }
+      
+      // Add this function with the other functions
+      function setBorderColor(value: string) {
+        const selection = figma.currentPage.selection;
+        if (selection.length === 0) {
+          throw new Error('No items selected');
+        }
+      
+        for (const node of selection) {
+          if ('strokes' in node) {
+            const strokes = getOrCreateBorder(node);
+            strokes[0] = {
+              type: 'SOLID',
+              color: hexToRgb(value),
+              opacity: 1
+            };
+            node.strokes = strokes;
+          }
+        }
+      }
+      
+      // Add this helper if not already present
+      function hexToRgb(hex: string) {
+        const r = parseInt(hex.slice(1, 3), 16) / 255;
+        const g = parseInt(hex.slice(3, 5), 16) / 255;
+        const b = parseInt(hex.slice(5, 7), 16) / 255;
+        return { r, g, b };
       }
       
