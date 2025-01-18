@@ -1585,7 +1585,7 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
       }
       
       // Summarize previously defined commands (not used below except for display)
-      const completeCommands = parts.slice(0, -1).map((part) => {
+      const completeCommands = await Promise.all(parts.slice(0, -1).map(async (part) => {
         const matchedCommand = findCommand(part)[0];
         if (!matchedCommand) {
           return "Not Found";
@@ -1594,12 +1594,20 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
         const { name, type } = matchedCommand;
         
         // Process hex or number value if present
-        const processValue = (): string | null => {
+        const processValue = async (): Promise<string | null> => {
           // Check for variable binding first
           if (part.includes('?')) {
-            const [, variablePath = ''] = part.split('?');
-            if (variablePath) {
-              return variablePath;
+            const [, variableSearch = ''] = part.split('?');
+            if (variableSearch) {
+              // Get binding suggestions and return the first match if available
+              const bindingSupport = matchedCommand?.bindingSupport;
+              if (bindingSupport) {
+                const suggestions = await getBindingSuggestions(bindingSupport, variableSearch);
+                if (suggestions.length > 0) {
+                  return suggestions[0];  // Return first matching variable/style
+                }
+              }
+              return variableSearch;  // Fallback to raw input if no matches
             }
           }
 
@@ -1625,7 +1633,7 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
           return value ? `${name}:${value}` : name;
         };
         
-        const value = processValue();
+        const value = await processValue();
         
         if (type === 'commandWithValue') {
           return value ? formatCommand(value) : undefined;
@@ -1634,35 +1642,33 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
         } else {
           return name;
         }
-      });
+      }));
       
       
       // Process current (last) command
       const matchedCommand = findCommand(currentPart)[0];
-      console.log("Current part:", currentPart);
-      console.log("Matched command:", matchedCommand?.name);
 
       // Check for variable binding mode (presence of ?)
       const isVariableMode = currentPart.includes('?');
-      console.log("Is variable mode:", isVariableMode);
       
       if (matchedCommand && isVariableMode && matchedCommand.bindingSupport) {
         // Extract the variable search term (everything after ?)
         const [, variableSearch = ''] = currentPart.split('?');
-        console.log("Variable search term:", variableSearch);
         
         // Get binding suggestions using existing types
         const suggestions = await getBindingSuggestions(
           matchedCommand.bindingSupport,
           variableSearch
         );
-        console.log("Binding suggestions:", suggestions);
-  
+
         // Format suggestions without command history
         const formattedSuggestions = suggestions.map(suggestion => suggestion);
-        console.log("Formatted suggestions:", formattedSuggestions);
-  
+
         if (formattedSuggestions.length > 0) {
+          // Add the first matching variable to the command summary
+          const firstMatch = formattedSuggestions[0];
+          completeCommands.push(`${matchedCommand.name}:${firstMatch}`);
+          suggestions[0] = completeCommands.join(' | ');
           result.setSuggestions(formattedSuggestions);
           return;
         }
@@ -1675,14 +1681,13 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
         const isValidValue =
           (matchedCommand.type === "commandWithValue" || matchedCommand.type === "optionalValueCommand") &&
           'valueFormat' in matchedCommand;
-              
+            
         let suggestions: string[] = [];
-              
+            
         // Manage already matched commands
         if (matchedCommand.name.toLowerCase().includes(currentPart.toLowerCase()) ||
             matchedCommand.alias.some(alias => alias.toLowerCase().includes(currentPart.toLowerCase()))) {
           const previousCommand = previousCommands[matchedCommand.name];
-          console.log("Previous command:", previousCommand);
           const suggestion = previousCommand 
             ? `ℹ️ already set to '${previousCommand}'`
             : matchedCommand.suggestion;
@@ -1691,33 +1696,22 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
       
         // Check for variable binding mode first
         if (currentPart.includes('?')) {
-          const [commandPart, variablePath = ''] = currentPart.split('?');  // Modified to capture commandPart
-          console.log("Variable mode detected");
-          console.log("Command part:", commandPart);  // New
-          console.log("Variable path:", variablePath);
+          const [, variablePath = ''] = currentPart.split('?');
           
-          // Add the full variable path to the command summary
           if (variablePath) {
             const commandSummary = `${matchedCommand.name}:${variablePath}`;
-            console.log("Adding command summary:", commandSummary);
             completeCommands.push(commandSummary);
-            console.log("Complete commands after push:", completeCommands);
             suggestions[0] = completeCommands.join(' | ');
-            console.log("Updated suggestions[0]:", suggestions[0]);
           }
         } 
         // Handle regular values only if not in variable mode
         else if (isValidValue) {
-          console.log("Regular value mode");
-          console.log("Has hex:", hasHex);
-          console.log("Has number:", hasNumber);
           if (hasHex && matchedCommand.valueFormat === 'hex') {
             completeCommands.push(`${matchedCommand.name}:${hasHex[0]}`);
             suggestions[0] = completeCommands.join(' | ');
           } else if (hasNumber && matchedCommand.valueFormat === 'number') {
             try {
               const computedValue = calculateExpression(hasNumber[0]);
-              console.log("Computed value:", computedValue);
               completeCommands.push(`${matchedCommand.name}:${computedValue}`);
               suggestions[0] = completeCommands.join(' | ');
             } catch {
