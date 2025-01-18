@@ -1272,6 +1272,56 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
       }
     });
   }
+
+  function getBindingSuggestions(
+    bindingSupport: BindingSupport | undefined,
+    searchTerm: string
+  ): Promise<string[]> {
+    if (!bindingSupport) return Promise.resolve([]);
+  
+    const variableSearch = searchTerm.replace('?', '').toLowerCase();
+    const suggestions: string[] = [];
+  
+    // Handle variables
+    const variablePromise = bindingSupport.variables ? Promise.all(
+      bindingSupport.variables.map(async varType => {
+        const variables = await figma.variables.getLocalVariablesAsync(varType);
+        variables.forEach(variable => {
+          const name = variable.name.toLowerCase();
+          if (name.includes(variableSearch)) {
+            suggestions.push(variable.name);
+          }
+        });
+      })
+    ) : Promise.resolve();
+  
+    // Handle styles
+    const stylePromise = bindingSupport.styles ? Promise.all(
+      bindingSupport.styles.map(async styleType => {
+        let styles: BaseStyle[] = [];
+        switch (styleType) {
+          case 'PAINT':
+            styles = await figma.getLocalPaintStylesAsync();
+            break;
+          case 'TEXT':
+            styles = await figma.getLocalTextStylesAsync();
+            break;
+          case 'EFFECT':
+            styles = await figma.getLocalEffectStylesAsync();
+            break;
+        }
+        styles.forEach(style => {
+          const name = style.name.toLowerCase();
+          if (name.includes(variableSearch)) {
+            suggestions.push(style.name);
+          }
+        });
+      })
+    ) : Promise.resolve();
+  
+    return Promise.all([variablePromise, stylePromise]).then(() => suggestions);
+  }
+  
   
   // Unified findCommand function
   function findCommand(part: string): Array<Command & { name: CommandName }> {
@@ -1339,7 +1389,7 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
   }
   
   const COMMAND_SPLITTER_REGEX = /[\s,]+/;
-  const COMMAND_PART_REGEX = /^(-(?![\d])|(-)?[\p{L}]+(-[\p{L}]+)*?)(?=\s|[\d]|-[\d]|-$|$|#|:)/u;
+  const COMMAND_PART_REGEX = /^(-(?![\d])|(-)?[\p{L}]+(-[\p{L}]+)*?)(?=\s|[\d]|-[\d]|-$|$|#|:|[?])/u;
   
   // Updated number regex to allow parentheses and 'x' as multiplication
   const VALUE_FORMAT_REGEX = {
@@ -1497,7 +1547,7 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
     }
     
     // Define a new handler
-    currentInputHandler = ({ key, query, result }) => {
+    currentInputHandler = async ({ key, query, result }) => {
       if (key !== 'command') return;
       originalInput = query;
       
@@ -1545,6 +1595,14 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
         
         // Process hex or number value if present
         const processValue = (): string | null => {
+          // Check for variable binding first
+          if (part.includes('?')) {
+            const [, variablePath = ''] = part.split('?');
+            if (variablePath) {
+              return variablePath;
+            }
+          }
+
           const hasHex = VALUE_FORMAT_REGEX.hex.exec(part);
           if (hasHex) {
             return hasHex[0];
@@ -1581,40 +1639,85 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
       
       // Process current (last) command
       const matchedCommand = findCommand(currentPart)[0];
+      console.log("Current part:", currentPart);
+      console.log("Matched command:", matchedCommand?.name);
+
+      // Check for variable binding mode (presence of ?)
+      const isVariableMode = currentPart.includes('?');
+      console.log("Is variable mode:", isVariableMode);
+      
+      if (matchedCommand && isVariableMode && matchedCommand.bindingSupport) {
+        // Extract the variable search term (everything after ?)
+        const [, variableSearch = ''] = currentPart.split('?');
+        console.log("Variable search term:", variableSearch);
+        
+        // Get binding suggestions using existing types
+        const suggestions = await getBindingSuggestions(
+          matchedCommand.bindingSupport,
+          variableSearch
+        );
+        console.log("Binding suggestions:", suggestions);
+  
+        // Format suggestions without command history
+        const formattedSuggestions = suggestions.map(suggestion => suggestion);
+        console.log("Formatted suggestions:", formattedSuggestions);
+  
+        if (formattedSuggestions.length > 0) {
+          result.setSuggestions(formattedSuggestions);
+          return;
+        }
+      }
+      
       const hasNumber = VALUE_FORMAT_REGEX.number.exec(currentPart);
       const hasHex = VALUE_FORMAT_REGEX.hex.exec(currentPart);
       
       if (matchedCommand) {
         const isValidValue =
-        (matchedCommand.type === "commandWithValue" || matchedCommand.type === "optionalValueCommand") &&
-        'valueFormat' in matchedCommand && (
-          matchedCommand.valueFormat === 'hex' ? hasHex :
-          matchedCommand.valueFormat === 'number' ? hasNumber :
-          true
-        );
-        
+          (matchedCommand.type === "commandWithValue" || matchedCommand.type === "optionalValueCommand") &&
+          'valueFormat' in matchedCommand;
+              
         let suggestions: string[] = [];
-        
+              
         // Manage already matched commands
-        if (
-          matchedCommand.name.toLowerCase().includes(currentPart.toLowerCase()) ||
-          matchedCommand.alias.some(alias => alias.toLowerCase().includes(currentPart.toLowerCase()))
-        ) {
+        if (matchedCommand.name.toLowerCase().includes(currentPart.toLowerCase()) ||
+            matchedCommand.alias.some(alias => alias.toLowerCase().includes(currentPart.toLowerCase()))) {
           const previousCommand = previousCommands[matchedCommand.name];
+          console.log("Previous command:", previousCommand);
           const suggestion = previousCommand 
-          ? `ℹ️ already set to '${previousCommand}'`
-          : matchedCommand.suggestion;
+            ? `ℹ️ already set to '${previousCommand}'`
+            : matchedCommand.suggestion;
           suggestions.push(`${matchedCommand.alias.join(', ')} · ${matchedCommand.name} -- ${suggestion}`);
         }
-        
-        // Handle valid values
-        if (isValidValue && (hasHex || hasNumber)) {
-          if (matchedCommand.valueFormat === 'hex' && hasHex) {
+      
+        // Check for variable binding mode first
+        if (currentPart.includes('?')) {
+          const [commandPart, variablePath = ''] = currentPart.split('?');  // Modified to capture commandPart
+          console.log("Variable mode detected");
+          console.log("Command part:", commandPart);  // New
+          console.log("Variable path:", variablePath);
+          
+          // Add the full variable path to the command summary
+          if (variablePath) {
+            const commandSummary = `${matchedCommand.name}:${variablePath}`;
+            console.log("Adding command summary:", commandSummary);
+            completeCommands.push(commandSummary);
+            console.log("Complete commands after push:", completeCommands);
+            suggestions[0] = completeCommands.join(' | ');
+            console.log("Updated suggestions[0]:", suggestions[0]);
+          }
+        } 
+        // Handle regular values only if not in variable mode
+        else if (isValidValue) {
+          console.log("Regular value mode");
+          console.log("Has hex:", hasHex);
+          console.log("Has number:", hasNumber);
+          if (hasHex && matchedCommand.valueFormat === 'hex') {
             completeCommands.push(`${matchedCommand.name}:${hasHex[0]}`);
             suggestions[0] = completeCommands.join(' | ');
-          } else if (matchedCommand.valueFormat === 'number' && hasNumber) {
+          } else if (hasNumber && matchedCommand.valueFormat === 'number') {
             try {
               const computedValue = calculateExpression(hasNumber[0]);
+              console.log("Computed value:", computedValue);
               completeCommands.push(`${matchedCommand.name}:${computedValue}`);
               suggestions[0] = completeCommands.join(' | ');
             } catch {
