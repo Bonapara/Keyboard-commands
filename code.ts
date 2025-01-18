@@ -582,7 +582,8 @@ const COMMAND_DEFINITIONS = {
     functionWithParam: (value: string) => setBorderColor(value),
     functionWithoutParam: () => toggleBorder('all'),
     bindingSupport: {
-      variables: ['COLOR']
+      variables: ['COLOR'],
+      styles: ['PAINT']
     }
   },
   Stroke: {
@@ -1282,6 +1283,10 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
     const variableSearch = searchTerm.replace('?', '').toLowerCase();
     const suggestions: string[] = [];
   
+    // Zero-width markers
+    const VARIABLE_MARKER = '\u200B'; // Zero-width space for variables
+    const STYLE_MARKER = '\u200C';    // Zero-width non-joiner for styles
+  
     // Handle variables
     const variablePromise = bindingSupport.variables ? Promise.all(
       bindingSupport.variables.map(async varType => {
@@ -1289,7 +1294,7 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
         variables.forEach(variable => {
           const name = variable.name.toLowerCase();
           if (name.includes(variableSearch)) {
-            suggestions.push(variable.name);
+            suggestions.push(`${VARIABLE_MARKER}${variable.name}`);
           }
         });
       })
@@ -1313,7 +1318,7 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
         styles.forEach(style => {
           const name = style.name.toLowerCase();
           if (name.includes(variableSearch)) {
-            suggestions.push(style.name);
+            suggestions.push(`${STYLE_MARKER}${style.name}`);
           }
         });
       })
