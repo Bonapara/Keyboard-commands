@@ -1513,6 +1513,11 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
       const bContains = bLower.includes(lowerSearch);
       if (aContains !== bContains) return bContains ? 1 : -1;
       
+      // If both have same match quality, sort by name length first
+      if (aLower.length !== bLower.length) {
+        return aLower.length - bLower.length;
+      }
+      
       // Finally, alphabetical
       return a.name.localeCompare(b.name);
     });
@@ -1825,47 +1830,53 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
   figma.on('run', async (parameters) => {
     const commandString = originalInput.trim();
     const commands = commandString.split(COMMAND_SPLITTER_REGEX).filter(Boolean);
-
-    console.log("commands", commands);
+    
     console.log("parameters", parameters);
     console.log("parameters.parameters.command", parameters?.parameters?.command);
+    console.log("commands", commands);
     console.log("stylesvariables", stylesvariables);
     
     try {
-        // First execute any stylesvariables commands
-        if (stylesvariables.length > 0) {      
-            // If parameters.command contains a variable/style marker, update last stylesvariables value
-            if (parameters.parameters?.command && 
-                (parameters.parameters.command.includes(VARIABLE_MARKER) || 
-                 parameters.parameters.command.includes(STYLE_MARKER))) {
-                stylesvariables[stylesvariables.length - 1].value = parameters.parameters.command;
-            }
-
-            for (const styleVar of stylesvariables) {
-                await processCommand(styleVar.name as CommandName, styleVar.value);
-            }
-        }
-
-        // Execute all commands in sequence, skipping variable commands
-        for (const cmd of commands) {
-            // Skip commands containing '?' as they're handled by stylesvariables
-            if (!cmd.includes('?')) {
-                await executeCommand(cmd);
-            }
-        }
-        
-        // If there's a parameters.command that's not already in our commands list,
-        // execute it as well (this handles suggestions), but skip if it's a variable command
+      // First execute any stylesvariables commands
+      if (stylesvariables.length > 0) {      
+        // If parameters.command contains a variable/style marker, update last stylesvariables value
         if (parameters.parameters?.command && 
-            !commands.some(cmd => cmd === parameters.parameters?.command) &&
-            !parameters.parameters.command.includes('?')) {
-            await executeCommand(parameters.parameters.command);
+            (parameters.parameters.command.includes(VARIABLE_MARKER) || 
+             parameters.parameters.command.includes(STYLE_MARKER))) {
+          stylesvariables[stylesvariables.length - 1].value = parameters.parameters.command;
         }
 
-        figma.closePlugin();
+        for (const styleVar of stylesvariables) {
+          console.log("executing styleVar", styleVar);
+          await processCommand(styleVar.name as CommandName, styleVar.value);
+        }
+      }
+
+      // If we have original input and command doesn't contain pipe
+      if (parameters.parameters?.command && !parameters.parameters.command.includes('|')) {
+        // If we have multiple commands, execute all except the last one
+        if (commands.length > 1) {
+          for (let i = 0; i < commands.length - 1; i++) {
+            const cmd = commands[i];
+            if (!cmd.includes('?')) {
+              await executeCommand(cmd);
+            }
+          }
+        }
+        // Execute the processed version of the last command
+        await executeCommand(parameters.parameters.command);
+      } else {
+        // No processed command, execute all commands from the original input
+        for (const cmd of commands) {
+          if (!cmd.includes('?')) {
+            await executeCommand(cmd);
+          }
+        }
+      }
+      figma.closePlugin();
     } catch (error) {
-        figma.notify(error instanceof Error ? error.message : 'An unknown error occurred');
-        figma.closePlugin();
+      figma.notify(error instanceof Error ? error.message : 'An unknown error occurred');
+      figma.closePlugin();
     }
   });
   
@@ -2755,6 +2766,9 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
       throw new Error('No items selected');
     }
     
+    console.log("setting border", side, width);
+
+    
     for (const node of selection) {
       if (!('strokes' in node) || !('strokeWeight' in node) || 
       !('strokeLeftWeight' in node) || !('strokeRightWeight' in node) || 
@@ -2765,7 +2779,7 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
       // If no strokes are set, initialize with all sides at 0
       if (node.strokes.length === 0) {
         node.strokes = getOrCreateBorder(node);
-        node.strokeAlign = 'INSIDE';
+        // node.strokeAlign = 'INSIDE';
         
         // Reset all sides to 0
         node.strokeLeftWeight = 0;
@@ -2774,9 +2788,9 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
         node.strokeBottomWeight = 0;
       }
       
-      if (side !== 'all') {
-        node.strokeAlign = 'INSIDE';
-      }
+      // if (side !== 'all') {
+      //   node.strokeAlign = 'INSIDE';
+      // }
       
       switch (side) {
         case 'all':
