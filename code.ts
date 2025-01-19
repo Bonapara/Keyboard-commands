@@ -1328,7 +1328,6 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
     return Promise.all([variablePromise, stylePromise]).then(() => suggestions);
   }
   
-  
   // Unified findCommand function
   function findCommand(part: string): Array<Command & { name: CommandName }> {
     const commandPart = part.match(COMMAND_PART_REGEX)?.[0];
@@ -1389,6 +1388,12 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
         containsMatches.push(cmd);
       }
     });
+    
+    // Sort startsWithMatches alphabetically by name
+    startsWithMatches.sort((a, b) => a.name.localeCompare(b.name));
+    
+    // Sort containsMatches alphabetically by name
+    containsMatches.sort((a, b) => a.name.localeCompare(b.name));
     
     // Combine the results with "starts with" matches first
     return [...startsWithMatches, ...containsMatches];
