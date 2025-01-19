@@ -1273,20 +1273,21 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
       }
     });
   }
-
+  
+  // Zero-width markers
+  const VARIABLE_MARKER = '\u200B'; // Zero-width space for variables
+  const STYLE_MARKER = '\u200C';    // Zero-width non-joiner for styles  
+  
   function getBindingSuggestions(
     bindingSupport: BindingSupport | undefined,
     searchTerm: string
   ): Promise<string[]> {
     if (!bindingSupport) return Promise.resolve([]);
-  
+    
     const variableSearch = searchTerm.replace('?', '').toLowerCase();
     const suggestions: string[] = [];
-  
-    // Zero-width markers
-    const VARIABLE_MARKER = '\u200B'; // Zero-width space for variables
-    const STYLE_MARKER = '\u200C';    // Zero-width non-joiner for styles
-  
+    
+    
     // Handle variables
     const variablePromise = bindingSupport.variables ? Promise.all(
       bindingSupport.variables.map(async varType => {
@@ -1299,21 +1300,21 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
         });
       })
     ) : Promise.resolve();
-  
+    
     // Handle styles
     const stylePromise = bindingSupport.styles ? Promise.all(
       bindingSupport.styles.map(async styleType => {
         let styles: BaseStyle[] = [];
         switch (styleType) {
           case 'PAINT':
-            styles = await figma.getLocalPaintStylesAsync();
-            break;
+          styles = await figma.getLocalPaintStylesAsync();
+          break;
           case 'TEXT':
-            styles = await figma.getLocalTextStylesAsync();
-            break;
+          styles = await figma.getLocalTextStylesAsync();
+          break;
           case 'EFFECT':
-            styles = await figma.getLocalEffectStylesAsync();
-            break;
+          styles = await figma.getLocalEffectStylesAsync();
+          break;
         }
         styles.forEach(style => {
           const name = style.name.toLowerCase();
@@ -1323,7 +1324,7 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
         });
       })
     ) : Promise.resolve();
-  
+    
     return Promise.all([variablePromise, stylePromise]).then(() => suggestions);
   }
   
@@ -1615,7 +1616,7 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
               return variableSearch;  // Fallback to raw input if no matches
             }
           }
-
+          
           const hasHex = VALUE_FORMAT_REGEX.hex.exec(part);
           if (hasHex) {
             return hasHex[0];
@@ -1652,7 +1653,7 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
       
       // Process current (last) command
       const matchedCommand = findCommand(currentPart)[0];
-
+      
       // Check for variable binding mode (presence of ?)
       const isVariableMode = currentPart.includes('?');
       
@@ -1665,10 +1666,10 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
           matchedCommand.bindingSupport,
           variableSearch
         );
-
+        
         // Format suggestions without command history
         const formattedSuggestions = suggestions.map(suggestion => suggestion);
-
+        
         if (formattedSuggestions.length > 0) {
           // Add the first matching variable to the command summary
           const firstMatch = formattedSuggestions[0];
@@ -1684,21 +1685,21 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
       
       if (matchedCommand) {
         const isValidValue =
-          (matchedCommand.type === "commandWithValue" || matchedCommand.type === "optionalValueCommand") &&
-          'valueFormat' in matchedCommand;
-            
+        (matchedCommand.type === "commandWithValue" || matchedCommand.type === "optionalValueCommand") &&
+        'valueFormat' in matchedCommand;
+        
         let suggestions: string[] = [];
-            
+        
         // Manage already matched commands
         if (matchedCommand.name.toLowerCase().includes(currentPart.toLowerCase()) ||
-            matchedCommand.alias.some(alias => alias.toLowerCase().includes(currentPart.toLowerCase()))) {
+        matchedCommand.alias.some(alias => alias.toLowerCase().includes(currentPart.toLowerCase()))) {
           const previousCommand = previousCommands[matchedCommand.name];
           const suggestion = previousCommand 
-            ? `ℹ️ already set to '${previousCommand}'`
-            : matchedCommand.suggestion;
+          ? `ℹ️ already set to '${previousCommand}'`
+          : matchedCommand.suggestion;
           suggestions.push(`${matchedCommand.alias.join(', ')} · ${matchedCommand.name} -- ${suggestion}`);
         }
-      
+        
         // Check for variable binding mode first
         if (currentPart.includes('?')) {
           const [, variablePath = ''] = currentPart.split('?');
@@ -1797,21 +1798,23 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
   figma.on('run', async (parameters) => {
     const commandString = originalInput.trim();
     const commands = commandString.split(COMMAND_SPLITTER_REGEX).filter(Boolean);
-
+    
     console.log("parameters", parameters);
+    console.log("parameters.parameters.command", parameters?.parameters?.command);
     console.log("commands", commands);
     
     try {
       // If we have original input and command doesn't contain pipe
       if (parameters.parameters?.command && !parameters.parameters.command.includes('|')) {
         // Execute all commands except the last one
+        console.log("entered run if");
         for (let i = 0; i < commands.length - 1; i++) {
           const cmd = commands[i];
           await executeCommand(cmd);
         }
-        console.log("parameters.parameters.command", parameters.parameters.command);
         await executeCommand(parameters.parameters.command);
       } else {
+        console.log("entered run else");
         for (const cmd of commands) {
           console.log("cmd", cmd);
           await executeCommand(cmd);
@@ -1830,7 +1833,7 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
   async function processCommand(commandName: CommandName, value?: string): Promise<void> {
     const command = COMMAND_DEFINITIONS[commandName];
     if (!command) return;
-
+    
     console.log("process command", command);
     
     if (command.type === 'commandWithValue') {
@@ -1851,14 +1854,14 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
     
     // Clean the command string by removing suggestions and aliases
     const cleanCmd = cmd.split('•')[0]  // Remove everything after the bullet point
-                       .split(',')[0]    // Take only the first part before any comma
-                       .trim();          // Remove whitespace
+    .split(',')[0]    // Take only the first part before any comma
+    .trim();          // Remove whitespace
     
     const command = findCommand(cleanCmd)[0];
     if (!command) {
-        return;
+      return;
     }
-
+    
     console.log("execute cleaned command:", cleanCmd);
     console.log("execute matched command:", command);
     
@@ -1904,7 +1907,6 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
       const value = match[0];
       return value.startsWith('#') ? value : `#${value}`;
     }
-    
     if (format === 'number') {
       const expression = match[0];
       try {
@@ -1914,8 +1916,57 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
         return expression;
       }
     }
-
     return match[0];
+  }
+  
+  // ================================
+  // New: Shared "resolve" helper
+  // ================================
+  interface PaintResolution {
+    type: 'style' | 'variable' | 'literal';
+    styleId?: string;
+    variableId?: string;
+    color?: RGB;
+  }
+  
+  /**
+  * Given a raw user input (which could be a style marker, variable marker, or hex),
+  * return either a style ID, variable ID, or literal color.
+  */
+  async function resolvePaintOrVariable(rawValue: string): Promise<PaintResolution> {
+    // Style reference => starts with STYLE_MARKER
+    if (rawValue.startsWith(STYLE_MARKER)) {
+      const styleName = rawValue.slice(STYLE_MARKER.length);
+      const allPaintStyles = await figma.getLocalPaintStylesAsync();
+      const style = allPaintStyles.find(s => s.name === styleName);
+      if (!style) throw new Error(`No local paint style named "${styleName}"`);
+      return { type: 'style', styleId: style.id };
+    }
+    
+    // Variable reference => starts with VARIABLE_MARKER
+    if (rawValue.startsWith(VARIABLE_MARKER)) {
+      const variableName = rawValue.slice(VARIABLE_MARKER.length);
+      const allColorVars = await figma.variables.getLocalVariablesAsync('COLOR');
+      const foundVar = allColorVars.find(v => v.name === variableName);
+      if (!foundVar) throw new Error(`No local color variable named "${variableName}"`);
+      return { type: 'variable', variableId: foundVar.id };
+    }
+    
+    // Else treat as literal (hex).
+    const cleanHex = rawValue.replace(/^#/, '');
+    const hex6 = cleanHex.length === 3
+    ? cleanHex.split('').map(char => char + char).join('')
+    : cleanHex;
+    
+    if (!/^[0-9A-Fa-f]{6}$/.test(hex6)) {
+      throw new Error(`Invalid hex color: "${rawValue}"`);
+    }
+    
+    const r = parseInt(hex6.substring(0, 2), 16) / 255;
+    const g = parseInt(hex6.substring(2, 4), 16) / 255;
+    const b = parseInt(hex6.substring(4, 6), 16) / 255;
+    
+    return { type: 'literal', color: { r, g, b } };
   }
   
   // ================================
@@ -1946,45 +1997,58 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
     figma.notify(`${resizeType} set to ${value} for all selected items`);
   }
   
-  function setFill(value: string) {
+  async function setFill(value: string) {
+    console.log("set fill", value);
     const selection = figma.currentPage.selection;
-    if (selection.length === 0) {
-      throw new Error('No items selected');
-    }
-    // Convert input to a standardized hex string
-    
-    let hexColor = value.toString();
-    
-    // Remove # if present
-    hexColor = hexColor.replace('#', '');
-    
-    // Convert 3-digit hex to 6-digit hex
-    if (hexColor.length === 3) {
-      hexColor = hexColor.split('').map(char => char + char).join('');
-    }
-    
-    // Validate hex format
-    if (!/^[0-9A-Fa-f]{6}$/.test(hexColor)) {
-      throw new Error('Invalid hex color format');
-    }
-    
-    // Convert hex to RGB values (0-1 range for Figma)
-    const r = parseInt(hexColor.substring(0, 2), 16) / 255;
-    const g = parseInt(hexColor.substring(2, 4), 16) / 255;
-    const b = parseInt(hexColor.substring(4, 6), 16) / 255;
-    
-    // Apply fill to selected nodes
+    if (selection.length === 0) throw new Error('No items selected');
+  
+    const resolution = await resolvePaintOrVariable(value);
+  
     for (const node of selection) {
       if ('fills' in node) {
-        const newFills: Paint[] = [{
-          type: 'SOLID',
-          color: { r, g, b },
-          opacity: 1
-        } as SolidPaint];
-        node.fills = newFills;
+        switch (resolution.type) {
+          case 'style': {
+            await node.setFillStyleIdAsync(resolution.styleId!);
+            break;
+          }
+          case 'variable': {
+            const variable = await figma.variables.getVariableByIdAsync(resolution.variableId!);
+            const defaultSolidPaint: SolidPaint = {
+              type: 'SOLID',
+              color: { r: 0, g: 0, b: 0 },
+              opacity: 1,
+              visible: true,
+            };
+            
+            // Handle the case where fills might be figma.mixed
+            const currentFills = node.fills === figma.mixed ? [] : [...node.fills];
+            const currentFill = currentFills[0] && currentFills[0].type === 'SOLID' 
+              ? currentFills[0] as SolidPaint 
+              : defaultSolidPaint;
+  
+            const newFill = figma.variables.setBoundVariableForPaint(
+              currentFill,
+              'color',
+              variable
+            );
+            node.fills = [newFill];
+            break;
+          }
+          case 'literal': {
+            node.fills = [{
+              type: 'SOLID',
+              color: resolution.color!,
+              opacity: 1,
+              visible: true,
+            }];
+            break;
+          }
+        }
       }
     }
   }
+  
+  
   
   function toggleFill() {
     const selection = figma.currentPage.selection;
@@ -3626,7 +3690,7 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
         if (selection.length === 0) {
           throw new Error('No items selected');
         }
-      
+        
         for (const node of selection) {
           if ('strokes' in node) {
             const strokes = getOrCreateBorder(node);
