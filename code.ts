@@ -1538,6 +1538,7 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
     });
   }
   
+  const stylesvariables: Array<{ name: string, value: string }> = [];
   
   // ================
   // New Setup Logic
@@ -1675,6 +1676,18 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
           const firstMatch = formattedSuggestions[0];
           completeCommands.push(`${matchedCommand.name}:${firstMatch}`);
           suggestions[0] = completeCommands.join(' | ');
+          
+          // Update or add to stylesvariables array
+          const existingIndex = stylesvariables.findIndex(item => item.name === matchedCommand.name);
+          if (existingIndex !== -1) {
+            stylesvariables[existingIndex].value = firstMatch;
+          } else {
+            stylesvariables.push({
+              name: matchedCommand.name,
+              value: firstMatch
+            });
+          }
+          
           result.setSuggestions(formattedSuggestions);
           return;
         }
@@ -1707,6 +1720,20 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
           if (variablePath) {
             const commandSummary = `${matchedCommand.name}:${variablePath}`;
             completeCommands.push(commandSummary);
+            
+            // Update or add to stylesvariables array when a valid variable path is entered
+            if (matchedCommand.bindingSupport) {
+              const existingIndex = stylesvariables.findIndex(item => item.name === matchedCommand.name);
+              if (existingIndex !== -1) {
+                stylesvariables[existingIndex].value = variablePath;
+              } else {
+                stylesvariables.push({
+                  name: matchedCommand.name,
+                  value: variablePath
+                });
+              }
+            }
+            
             suggestions[0] = completeCommands.join(' | ');
           }
         } 
@@ -1798,32 +1825,47 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
   figma.on('run', async (parameters) => {
     const commandString = originalInput.trim();
     const commands = commandString.split(COMMAND_SPLITTER_REGEX).filter(Boolean);
-    
+
+    console.log("commands", commands);
     console.log("parameters", parameters);
     console.log("parameters.parameters.command", parameters?.parameters?.command);
-    console.log("commands", commands);
+    console.log("stylesvariables", stylesvariables);
     
     try {
-      // If we have original input and command doesn't contain pipe
-      if (parameters.parameters?.command && !parameters.parameters.command.includes('|')) {
-        // Execute all commands except the last one
-        console.log("entered run if");
-        for (let i = 0; i < commands.length - 1; i++) {
-          const cmd = commands[i];
-          await executeCommand(cmd);
+        // First execute any stylesvariables commands
+        if (stylesvariables.length > 0) {      
+            // If parameters.command contains a variable/style marker, update last stylesvariables value
+            if (parameters.parameters?.command && 
+                (parameters.parameters.command.includes(VARIABLE_MARKER) || 
+                 parameters.parameters.command.includes(STYLE_MARKER))) {
+                stylesvariables[stylesvariables.length - 1].value = parameters.parameters.command;
+            }
+
+            for (const styleVar of stylesvariables) {
+                await processCommand(styleVar.name as CommandName, styleVar.value);
+            }
         }
-        await executeCommand(parameters.parameters.command);
-      } else {
-        console.log("entered run else");
+
+        // Execute all commands in sequence, skipping variable commands
         for (const cmd of commands) {
-          console.log("cmd", cmd);
-          await executeCommand(cmd);
+            // Skip commands containing '?' as they're handled by stylesvariables
+            if (!cmd.includes('?')) {
+                await executeCommand(cmd);
+            }
         }
-      }
-      figma.closePlugin();
+        
+        // If there's a parameters.command that's not already in our commands list,
+        // execute it as well (this handles suggestions), but skip if it's a variable command
+        if (parameters.parameters?.command && 
+            !commands.some(cmd => cmd === parameters.parameters?.command) &&
+            !parameters.parameters.command.includes('?')) {
+            await executeCommand(parameters.parameters.command);
+        }
+
+        figma.closePlugin();
     } catch (error) {
-      figma.notify(error instanceof Error ? error.message : 'An unknown error occurred');
-      figma.closePlugin();
+        figma.notify(error instanceof Error ? error.message : 'An unknown error occurred');
+        figma.closePlugin();
     }
   });
   
@@ -3685,30 +3727,61 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
       }
       
       // Add this function with the other functions
-      function setBorderColor(value: string) {
+      async function setBorderColor(value: string) {
         const selection = figma.currentPage.selection;
-        if (selection.length === 0) {
-          throw new Error('No items selected');
-        }
-        
+        if (selection.length === 0) throw new Error('No items selected');
+
+        const resolution = await resolvePaintOrVariable(value);
+
         for (const node of selection) {
           if ('strokes' in node) {
-            const strokes = getOrCreateBorder(node);
-            strokes[0] = {
-              type: 'SOLID',
-              color: hexToRgb(value),
-              opacity: 1
-            };
-            node.strokes = strokes;
+            switch (resolution.type) {
+              case 'style': {
+                await node.setStrokeStyleIdAsync(resolution.styleId!);
+                break;
+              }
+              case 'variable': {
+                const variable = await figma.variables.getVariableByIdAsync(resolution.variableId!);
+                const defaultSolidPaint: SolidPaint = {
+                  type: 'SOLID',
+                  color: { r: 0, g: 0, b: 0 },
+                  opacity: 1,
+                  visible: true,
+                };
+                
+                // Handle the case where strokes might be figma.mixed
+                const currentStrokes = Array.isArray(node.strokes) ? [...node.strokes] : [];
+                const currentStroke = currentStrokes[0] && currentStrokes[0].type === 'SOLID' 
+                  ? currentStrokes[0] as SolidPaint 
+                  : defaultSolidPaint;
+
+                const newStroke = figma.variables.setBoundVariableForPaint(
+                  currentStroke,
+                  'color',
+                  variable
+                );
+                node.strokes = [newStroke];
+                break;
+              }
+              case 'literal': {
+                node.strokes = [{
+                  type: 'SOLID',
+                  color: resolution.color!,
+                  opacity: 1,
+                  visible: true,
+                }];
+                break;
+              }
+            }
           }
         }
       }
       
-      // Add this helper if not already present
-      function hexToRgb(hex: string) {
-        const r = parseInt(hex.slice(1, 3), 16) / 255;
-        const g = parseInt(hex.slice(3, 5), 16) / 255;
-        const b = parseInt(hex.slice(5, 7), 16) / 255;
-        return { r, g, b };
-      }
+      // // Add this helper if not already present
+      // function hexToRgb(hex: string) {
+      //   const r = parseInt(hex.slice(1, 3), 16) / 255;
+      //   const g = parseInt(hex.slice(3, 5), 16) / 255;
+      //   const b = parseInt(hex.slice(5, 7), 16) / 255;
+      //   return { r, g, b };
+      // }
       
