@@ -2251,12 +2251,49 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
       throw new Error('No items selected');
     }
     
+    // Define a type guard for nodes that support padding
+    type NodeWithPadding = FrameNode | ComponentNode | InstanceNode;
+    
+    function hasPadding(node: SceneNode): node is NodeWithPadding {
+      return 'paddingLeft' in node && 'paddingRight' in node && 
+             'paddingTop' in node && 'paddingBottom' in node;
+    }
+    
+    const processPadding = async (node: NodeWithPadding, property: 'paddingLeft' | 'paddingRight' | 'paddingTop' | 'paddingBottom', value?: string) => {
+      if (!value) return;
+      
+      try {
+        const resolution = await resolveFloatVariable(value);
+        
+        switch (resolution.type) {
+          case 'variable': {
+            const variable = await figma.variables.getVariableByIdAsync(resolution.variableId!);
+            if (!variable) throw new Error(`Variable not found`);
+            
+            // Bind the variable to the padding property
+            node.setBoundVariable(property, variable);
+            break;
+          }
+          case 'literal': {
+            // Set the literal value
+            node[property] = resolution.value!;
+            break;
+          }
+        }
+      } catch (error) {
+        console.error(`Error setting ${property}:`, error);
+        // Fallback to direct number assignment if variable binding fails
+        node[property] = Number(value);
+      }
+    };
+    
     for (const node of selection) {
-      if ('paddingLeft' in node) {
-        if (paddingLeft !== undefined) node.paddingLeft = Number(paddingLeft);
-        if (paddingRight !== undefined) node.paddingRight = Number(paddingRight);
-        if (paddingTop !== undefined) node.paddingTop = Number(paddingTop);
-        if (paddingBottom !== undefined) node.paddingBottom = Number(paddingBottom);
+      if (hasPadding(node)) {
+        // Process each padding property that was provided
+        if (paddingLeft) processPadding(node, 'paddingLeft', paddingLeft);
+        if (paddingRight) processPadding(node, 'paddingRight', paddingRight);
+        if (paddingTop) processPadding(node, 'paddingTop', paddingTop);
+        if (paddingBottom) processPadding(node, 'paddingBottom', paddingBottom);
       }
     }
     
@@ -2521,6 +2558,35 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
     figma.notify('Items deleted');
   }
   
+  /**
+   * Given a raw user input (which could be a variable marker or a number),
+   * return either a variable ID or a literal number.
+   */
+  interface FloatResolution {
+    type: 'variable' | 'literal';
+    variableId?: string;
+    value?: number;
+  }
+  
+  async function resolveFloatVariable(rawValue: string): Promise<FloatResolution> {
+    // Variable reference => starts with VARIABLE_MARKER
+    if (rawValue.startsWith(VARIABLE_MARKER)) {
+      const variableName = rawValue.slice(VARIABLE_MARKER.length);
+      const allFloatVars = await figma.variables.getLocalVariablesAsync('FLOAT');
+      const foundVar = allFloatVars.find(v => v.name === variableName);
+      if (!foundVar) throw new Error(`No local float variable named "${variableName}"`);
+      return { type: 'variable', variableId: foundVar.id };
+    }
+    
+    // Else treat as literal number
+    const numValue = Number(rawValue);
+    if (isNaN(numValue)) {
+      throw new Error(`Invalid number value: "${rawValue}"`);
+    }
+    
+    return { type: 'literal', value: numValue };
+  }
+  
   function setRadius({ 
     topLeftRadius, 
     topRightRadius, 
@@ -2538,12 +2604,50 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
       throw new Error('No items selected');
     }
     
+    // Define a type guard for nodes that support individual corner radius properties
+    // Note: VectorNode has 'cornerRadius' but not individual corner properties
+    type NodeWithCornerRadii = RectangleNode | FrameNode | ComponentNode | InstanceNode;
+    
+    function hasIndividualCornerRadii(node: SceneNode): node is NodeWithCornerRadii {
+      return 'topLeftRadius' in node && 'topRightRadius' in node && 
+             'bottomLeftRadius' in node && 'bottomRightRadius' in node;
+    }
+    
+    const processCornerRadius = async (node: NodeWithCornerRadii, corner: 'topLeftRadius' | 'topRightRadius' | 'bottomLeftRadius' | 'bottomRightRadius', value?: string) => {
+      if (!value) return;
+      
+      try {
+        const resolution = await resolveFloatVariable(value);
+        
+        switch (resolution.type) {
+          case 'variable': {
+            const variable = await figma.variables.getVariableByIdAsync(resolution.variableId!);
+            if (!variable) throw new Error(`Variable not found`);
+            
+            // Bind the variable to the corner radius property
+            node.setBoundVariable(corner, variable);
+            break;
+          }
+          case 'literal': {
+            // Set the literal value
+            node[corner] = resolution.value!;
+            break;
+          }
+        }
+      } catch (error) {
+        console.error(`Error setting ${corner}:`, error);
+        // Fallback to direct number assignment if variable binding fails
+        node[corner] = Number(value);
+      }
+    };
+    
     for (const node of selection) {
-      if ('topLeftRadius' in node) {
-        if (topLeftRadius !== undefined) node.topLeftRadius = Number(topLeftRadius);
-        if (topRightRadius !== undefined) node.topRightRadius = Number(topRightRadius)  ;
-        if (bottomLeftRadius !== undefined) node.bottomLeftRadius = Number(bottomLeftRadius);
-        if (bottomRightRadius !== undefined) node.bottomRightRadius = Number(bottomRightRadius);
+      if (hasIndividualCornerRadii(node)) {
+        // Process each corner radius that was provided
+        processCornerRadius(node, 'topLeftRadius', topLeftRadius);
+        processCornerRadius(node, 'topRightRadius', topRightRadius);
+        processCornerRadius(node, 'bottomLeftRadius', bottomLeftRadius);
+        processCornerRadius(node, 'bottomRightRadius', bottomRightRadius);
       }
     }
     
@@ -2772,47 +2876,80 @@ function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[])
     }
     
     console.log("setting border", side, width);
-
+    
+    // Define a type guard for nodes that support strokes
+    type NodeWithStrokes = SceneNode & {
+      strokes: Paint[];
+      strokeWeight: number;
+      strokeLeftWeight: number;
+      strokeRightWeight: number;
+      strokeTopWeight: number;
+      strokeBottomWeight: number;
+    };
+    
+    function hasStrokes(node: SceneNode): node is NodeWithStrokes {
+      return 'strokes' in node && 'strokeWeight' in node && 
+             'strokeLeftWeight' in node && 'strokeRightWeight' in node && 
+             'strokeTopWeight' in node && 'strokeBottomWeight' in node;
+    }
+    
+    const processBorderWidth = async (node: NodeWithStrokes, property: 'strokeWeight' | 'strokeLeftWeight' | 'strokeRightWeight' | 'strokeTopWeight' | 'strokeBottomWeight', value: string) => {
+      try {
+        const resolution = await resolveFloatVariable(value);
+        
+        switch (resolution.type) {
+          case 'variable': {
+            const variable = await figma.variables.getVariableByIdAsync(resolution.variableId!);
+            if (!variable) throw new Error(`Variable not found`);
+            
+            // Bind the variable to the stroke property
+            node.setBoundVariable(property, variable);
+            break;
+          }
+          case 'literal': {
+            // Set the literal value
+            node[property] = resolution.value!;
+            break;
+          }
+        }
+      } catch (error) {
+        console.error(`Error setting ${property}:`, error);
+        // Fallback to direct number assignment if variable binding fails
+        node[property] = Number(value);
+      }
+    };
     
     for (const node of selection) {
-      if (!('strokes' in node) || !('strokeWeight' in node) || 
-      !('strokeLeftWeight' in node) || !('strokeRightWeight' in node) || 
-      !('strokeTopWeight' in node) || !('strokeBottomWeight' in node)) {
-        continue;
-      }
-      
-      // If no strokes are set, initialize with all sides at 0
-      if (node.strokes.length === 0) {
-        node.strokes = getOrCreateBorder(node);
-        // node.strokeAlign = 'INSIDE';
+      if (hasStrokes(node)) {
+        // If no strokes are set, initialize with all sides at 0
+        if (node.strokes.length === 0) {
+          node.strokes = getOrCreateBorder(node);
+          
+          // Reset all sides to 0
+          node.strokeLeftWeight = 0;
+          node.strokeRightWeight = 0;
+          node.strokeTopWeight = 0;
+          node.strokeBottomWeight = 0;
+        }
         
-        // Reset all sides to 0
-        node.strokeLeftWeight = 0;
-        node.strokeRightWeight = 0;
-        node.strokeTopWeight = 0;
-        node.strokeBottomWeight = 0;
-      }
-      
-      // if (side !== 'all') {
-      //   node.strokeAlign = 'INSIDE';
-      // }
-      
-      switch (side) {
-        case 'all':
-        node.strokeWeight = Number(width);
-        break;
-        case 'left':
-        node.strokeLeftWeight = Number(width);
-        break;
-        case 'right':
-        node.strokeRightWeight = Number(width);
-        break;
-        case 'top':
-        node.strokeTopWeight = Number(width);
-        break;
-        case 'bottom':
-        node.strokeBottomWeight = Number(width);
-        break;
+        // Apply the border width based on the side
+        switch (side) {
+          case 'all':
+            processBorderWidth(node, 'strokeWeight', width);
+            break;
+          case 'left':
+            processBorderWidth(node, 'strokeLeftWeight', width);
+            break;
+          case 'right':
+            processBorderWidth(node, 'strokeRightWeight', width);
+            break;
+          case 'top':
+            processBorderWidth(node, 'strokeTopWeight', width);
+            break;
+          case 'bottom':
+            processBorderWidth(node, 'strokeBottomWeight', width);
+            break;
+        }
       }
     }
     
