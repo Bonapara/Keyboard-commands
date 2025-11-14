@@ -277,8 +277,7 @@ export function rotate(value: number) {
     }
   }
   
-  // figma.notify(`Rotated ${value}° for all selected items`);
-  figma.notify(`🚀 V8 BRANCH 🚀 Rotated ${value}° for all selected items`)
+  figma.notify(`Rotated ${value}° for all selected items`);
 }
 
 export function move(direction: 'TOP' | 'RIGHT' | 'LEFT' | 'BOTTOM', value: string) {
@@ -295,7 +294,7 @@ export function move(direction: 'TOP' | 'RIGHT' | 'LEFT' | 'BOTTOM', value: stri
     } else if ((direction === 'TOP' || direction === 'BOTTOM') && 'y' in node) {
       node.y += direction === 'BOTTOM' ? numValue : -numValue;
     }
-  }
+  
   
   const dirValue = (direction === 'LEFT' || direction === 'TOP') ? -numValue : numValue;
   figma.notify(`Moved items ${direction.toLowerCase()} by ${Math.abs(dirValue)} pixels`);
