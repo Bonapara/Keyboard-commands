@@ -232,6 +232,14 @@ export function rotate(value: number) {
   
   for (const node of selection) {
     if ('rotation' in node) {
+      // If rotating to 0, clean up stored plugin data to prevent memory leak
+      if (value === 0) {
+        node.rotation = 0;
+        node.setPluginData('originalX', '');
+        node.setPluginData('originalY', '');
+        continue;
+      }
+      
       // Get or store original position
       let originalX = node.getPluginData('originalX');
       let originalY = node.getPluginData('originalY');
@@ -269,7 +277,8 @@ export function rotate(value: number) {
     }
   }
   
-  figma.notify(`Rotated ${value}° for all selected items`);
+  // figma.notify(`Rotated ${value}° for all selected items`);
+  figma.notify(`🚀 V8 BRANCH 🚀 Rotated ${value}° for all selected items`, { timeout: 5000 })
 }
 
 export function move(direction: 'TOP' | 'RIGHT' | 'LEFT' | 'BOTTOM', value: string) {
@@ -1167,12 +1176,19 @@ export async function exportAs({
     figma.ui.postMessage(exportResults);
   } catch (error) {
     console.error('Export failed:', error);
+    figma.notify('Export failed. Please try again.');
     throw error;
   }
   
-  // Handle messages from UI
-  return new Promise(resolve => {
+  // Handle messages from UI with timeout to prevent hanging
+  return new Promise((resolve, _reject) => {
+    const timeout = setTimeout(() => {
+      figma.notify('Export completed');
+      resolve('Export timeout - files may still be downloading');
+    }, 10000); // 10 second timeout
+    
     figma.ui.onmessage = msg => {
+      clearTimeout(timeout);
       resolve(msg);
       figma.closePlugin();
     };
@@ -1455,7 +1471,7 @@ export async function selectMasterComponent() {
     figma.notify(`Aligned ${validNodes.length} items to ${alignment.toLowerCase().replace('_', ' ')}`);
   }
   
-  export function setTextAutoResize(resizeType: 'NONE' | 'WIDTH_AND_HEIGHT' | 'HEIGHT') {
+  export async function setTextAutoResize(resizeType: 'NONE' | 'WIDTH_AND_HEIGHT' | 'HEIGHT') {
     const selection = figma.currentPage.selection;
     if (selection.length === 0) {
       throw new Error('No items selected');
@@ -1463,17 +1479,22 @@ export async function selectMasterComponent() {
     
     for (const node of selection) {
       if (node.type === 'TEXT') {
-        // Ensure the font is loaded before setting textAutoResize
-        if (node.fontName !== figma.mixed) {
-          figma.loadFontAsync(node.fontName).then(() => {
+        try {
+          // Ensure the font is loaded before setting textAutoResize
+          if (node.fontName !== figma.mixed) {
+            await figma.loadFontAsync(node.fontName);
             node.textAutoResize = resizeType;
-          });
+          }
+        } catch (error) {
+          console.error('Error loading font:', error);
+          figma.notify(`Failed to set text auto-resize for "${node.name}"`);
         }
       }
     }
+    figma.notify(`Text auto-resize set to ${resizeType.toLowerCase().replace('_', ' ')}`);
   }
   
-  export function textTruncation(maxLines?: string) {
+  export async function textTruncation(maxLines?: string) {
     const selection = figma.currentPage.selection;
     if (selection.length === 0) {
       throw new Error('No items selected');
@@ -1481,12 +1502,14 @@ export async function selectMasterComponent() {
     
     for (const node of selection) {
       if (node.type === 'TEXT') {
-        if (node.fontName !== figma.mixed) {
-          figma.loadFontAsync(node.fontName).then(() => {
+        try {
+          if (node.fontName !== figma.mixed) {
+            await figma.loadFontAsync(node.fontName);
             if (maxLines === undefined) {
               // Toggle mode
               const newTruncation = node.textTruncation === 'DISABLED' ? 'ENDING' : 'DISABLED';
               node.textTruncation = newTruncation;
+              figma.notify(`Text truncation ${newTruncation === 'ENDING' ? 'enabled' : 'disabled'}`);
             } else {
               // Set mode with max lines
               const lines = parseInt(maxLines);
@@ -1495,14 +1518,18 @@ export async function selectMasterComponent() {
               }
               node.textTruncation = 'ENDING';
               node.maxLines = lines;
+              figma.notify(`Text truncation set to ${lines} lines`);
             }
-          });
+          }
+        } catch (error) {
+          console.error('Error setting text truncation:', error);
+          figma.notify(`Failed to set text truncation for "${node.name}"`);
         }
       }
     }
   }
   
-  export function setFontSize(size: string) {
+  export async function setFontSize(size: string) {
     const selection = figma.currentPage.selection;
     if (selection.length === 0) {
       throw new Error('No items selected');
@@ -1515,16 +1542,21 @@ export async function selectMasterComponent() {
     
     for (const node of selection) {
       if (node.type === 'TEXT') {
-        if (node.fontName !== figma.mixed) {
-          figma.loadFontAsync(node.fontName).then(() => {
+        try {
+          if (node.fontName !== figma.mixed) {
+            await figma.loadFontAsync(node.fontName);
             node.fontSize = fontSize;
-          });
+          }
+        } catch (error) {
+          console.error('Error loading font:', error);
+          figma.notify(`Failed to set font size for "${node.name}"`);
         }
       }
     }
+    figma.notify(`Font size set to ${fontSize}px`);
   }
   
-  export function setFontWeight(weight: string) {
+  export async function setFontWeight(weight: string) {
     const selection = figma.currentPage.selection;
     if (selection.length === 0) {
       throw new Error('No items selected');
@@ -1537,20 +1569,25 @@ export async function selectMasterComponent() {
     
     for (const node of selection) {
       if (node.type === 'TEXT' && node.fontName !== figma.mixed) {
-        const currentFont = node.fontName as FontName;
-        const newFontName = {
-          family: currentFont.family,
-          style: fontWeight.toString()
-        };
-        
-        figma.loadFontAsync(newFontName).then(() => {
+        try {
+          const currentFont = node.fontName as FontName;
+          const newFontName = {
+            family: currentFont.family,
+            style: fontWeight.toString()
+          };
+          
+          await figma.loadFontAsync(newFontName);
           node.fontName = newFontName;
-        });
+        } catch (error) {
+          console.error('Error loading font weight:', error);
+          figma.notify(`Failed to set font weight for "${node.name}" - weight ${fontWeight} may not be available`);
+        }
       }
     }
+    figma.notify(`Font weight set to ${fontWeight}`);
   }
   
-  export function setLetterSpacing(spacing: string) {
+  export async function setLetterSpacing(spacing: string) {
     const selection = figma.currentPage.selection;
     if (selection.length === 0) {
       throw new Error('No items selected');
@@ -1563,16 +1600,21 @@ export async function selectMasterComponent() {
     
     for (const node of selection) {
       if (node.type === 'TEXT') {
-        if (node.fontName !== figma.mixed) {
-          figma.loadFontAsync(node.fontName).then(() => {
+        try {
+          if (node.fontName !== figma.mixed) {
+            await figma.loadFontAsync(node.fontName);
             node.letterSpacing = { value: letterSpacing, unit: 'PIXELS' };
-          });
+          }
+        } catch (error) {
+          console.error('Error loading font:', error);
+          figma.notify(`Failed to set letter spacing for "${node.name}"`);
         }
       }
     }
+    figma.notify(`Letter spacing set to ${letterSpacing}px`);
   }
   
-  export function setLineHeight(height: string) {
+  export async function setLineHeight(height: string) {
     const selection = figma.currentPage.selection;
     if (selection.length === 0) {
       throw new Error('No items selected');
@@ -1580,8 +1622,9 @@ export async function selectMasterComponent() {
     
     for (const node of selection) {
       if (node.type === 'TEXT') {
-        if (node.fontName !== figma.mixed) {
-          figma.loadFontAsync(node.fontName).then(() => {
+        try {
+          if (node.fontName !== figma.mixed) {
+            await figma.loadFontAsync(node.fontName);
             if (height === 'AUTO') {
               node.lineHeight = { unit: 'AUTO' };
             } else {
@@ -1600,13 +1643,17 @@ export async function selectMasterComponent() {
               ? { unit: 'PERCENT', value: value }
               : { unit: 'PIXELS', value: value };
             }
-          });
+          }
+        } catch (error) {
+          console.error('Error loading font:', error);
+          figma.notify(`Failed to set line height for "${node.name}"`);
         }
       }
     }
+    figma.notify(`Line height set to ${height}`);
   }
   
-  export function setTextCase(textCase: TextCase) {
+  export async function setTextCase(textCase: TextCase) {
     const selection = figma.currentPage.selection;
     if (selection.length === 0) {
       throw new Error('No items selected');
@@ -1614,16 +1661,21 @@ export async function selectMasterComponent() {
     
     for (const node of selection) {
       if (node.type === 'TEXT') {
-        if (node.fontName !== figma.mixed) {
-          figma.loadFontAsync(node.fontName).then(() => {
+        try {
+          if (node.fontName !== figma.mixed) {
+            await figma.loadFontAsync(node.fontName);
             node.textCase = textCase;
-          });
+          }
+        } catch (error) {
+          console.error('Error loading font:', error);
+          figma.notify(`Failed to set text case for "${node.name}"`);
         }
       }
     }
+    figma.notify(`Text case set to ${textCase.toLowerCase().replace('_', ' ')}`);
   }
   
-  export function toggleTextDecoration(decoration: TextDecoration) {
+  export async function toggleTextDecoration(decoration: TextDecoration) {
     const selection = figma.currentPage.selection;
     if (selection.length === 0) {
       throw new Error('No items selected');
@@ -1631,16 +1683,22 @@ export async function selectMasterComponent() {
     
     for (const node of selection) {
       if (node.type === 'TEXT') {
-        if (node.fontName !== figma.mixed) {
-          figma.loadFontAsync(node.fontName).then(() => {
-            node.textDecoration = node.textDecoration === decoration ? 'NONE' : decoration;
-          });
+        try {
+          if (node.fontName !== figma.mixed) {
+            await figma.loadFontAsync(node.fontName);
+            const newDecoration = node.textDecoration === decoration ? 'NONE' : decoration;
+            node.textDecoration = newDecoration;
+            figma.notify(`Text decoration ${newDecoration === 'NONE' ? 'removed' : 'set to ' + decoration.toLowerCase()}`);
+          }
+        } catch (error) {
+          console.error('Error loading font:', error);
+          figma.notify(`Failed to toggle text decoration for "${node.name}"`);
         }
       }
     }
   }
   
-  export function setTextListOptions(listType: 'ORDERED' | 'UNORDERED' | 'NONE') {
+  export async function setTextListOptions(listType: 'ORDERED' | 'UNORDERED' | 'NONE') {
     const selection = figma.currentPage.selection;
     if (selection.length === 0) {
       throw new Error('No items selected');
@@ -1648,18 +1706,23 @@ export async function selectMasterComponent() {
     
     for (const node of selection) {
       if (node.type === 'TEXT') {
-        if (node.fontName !== figma.mixed) {
-          figma.loadFontAsync(node.fontName).then(() => {
+        try {
+          if (node.fontName !== figma.mixed) {
+            await figma.loadFontAsync(node.fontName);
             // Select all text in the node
             const length = node.characters.length;
             node.setRangeListOptions(0, length, { type: listType });
-          });
+          }
+        } catch (error) {
+          console.error('Error loading font:', error);
+          figma.notify(`Failed to set list options for "${node.name}"`);
         }
       }
     }
+    figma.notify(`List type set to ${listType.toLowerCase()}`);
   }
   
-  export function toggleVerticalTrim() {
+  export async function toggleVerticalTrim() {
     const selection = figma.currentPage.selection;
     if (selection.length === 0) {
       throw new Error('No items selected');
@@ -1667,19 +1730,25 @@ export async function selectMasterComponent() {
     
     for (const node of selection) {
       if (node.type === 'TEXT') {
-        if (node.fontName !== figma.mixed) {
-          figma.loadFontAsync(node.fontName).then(() => {
+        try {
+          if (node.fontName !== figma.mixed) {
+            await figma.loadFontAsync(node.fontName);
             // Toggle between CAP_HEIGHT and NONE
-            node.leadingTrim = (node.leadingTrim === figma.mixed || 
+            const newTrim = (node.leadingTrim === figma.mixed || 
               !node.leadingTrim || 
               node.leadingTrim === 'CAP_HEIGHT')
               ? 'NONE'
               : 'CAP_HEIGHT';
-            });
+            node.leadingTrim = newTrim;
+            figma.notify(`Vertical trim ${newTrim === 'NONE' ? 'disabled' : 'enabled'}`);
           }
+        } catch (error) {
+          console.error('Error loading font:', error);
+          figma.notify(`Failed to toggle vertical trim for "${node.name}"`);
         }
       }
     }
+  }
     
     export function removeTextStyle() {
       if (figma.currentPage.selection[0].type === 'TEXT') {

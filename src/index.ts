@@ -218,10 +218,9 @@ function setupInputHandler() {
 // Set up the initial input handler
 setupInputHandler();
 
-// Whenever the selection changes, re-run setup so the suggestions always match
-figma.on('selectionchange', () => {
-  setupInputHandler();
-});
+// Whenever the selection changes, we don't need to recreate the entire handler
+// The handler already checks selection dynamically when generating suggestions
+// This optimization prevents unnecessary handler recreation on every selection change
 
 // ===================
 // Main Run Handler
@@ -234,19 +233,20 @@ figma.on('run', async (parameters) => {
   console.log("commands", commands);
   
   try {
-    // If we have original input and command doesn't contain pipe
+    // Group all command executions into a single undo step for better UX
+    // This allows users to undo all commands at once with Cmd+Z
     if (parameters.parameters?.command && !parameters.parameters.command.includes('|')) {
       // Execute all commands except the last one
       for (let i = 0; i < commands.length - 1; i++) {
         const cmd = commands[i];
-        await executeCommand(cmd);
+        await executeCommand(cmd, true);
       }
       console.log("parameters.parameters.command", parameters.parameters.command);
-      await executeCommand(parameters.parameters.command);
+      await executeCommand(parameters.parameters.command, true);
     } else {
       for (const cmd of commands) {
         console.log("cmd", cmd);
-        await executeCommand(cmd);
+        await executeCommand(cmd, true);
       }
     }
     figma.closePlugin();
@@ -261,24 +261,45 @@ figma.on('run', async (parameters) => {
 // =================
 async function processCommand(commandName: CommandName, value?: string): Promise<void> {
   const command = COMMAND_DEFINITIONS[commandName];
-  if (!command) return;
+  if (!command) {
+    throw new Error(`Command "${commandName}" not found`);
+  }
 
   console.log("process command", command);
   
-  if (command.type === 'commandWithValue') {
-    await command.functionWithParam(value || '');
-  } else if (command.type === 'commandWithoutValue') {
-    await command.functionWithoutParam();
-  } else if (command.type === 'optionalValueCommand') {
-    if (value) {
+  try {
+    if (command.type === 'commandWithValue') {
+      if (!value) {
+        throw new Error(`Command "${commandName}" requires a value`);
+      }
       await command.functionWithParam(value);
-    } else {
+    } else if (command.type === 'commandWithoutValue') {
       await command.functionWithoutParam();
+    } else if (command.type === 'optionalValueCommand') {
+      if (value) {
+        await command.functionWithParam(value);
+      } else {
+        await command.functionWithoutParam();
+      }
     }
+  } catch (error) {
+    // Improve error messages for common failures
+    if (error instanceof Error) {
+      if (error.message.includes('font')) {
+        throw new Error(`Font loading failed for "${commandName}". The font may not be available.`);
+      } else if (error.message.includes('permission')) {
+        throw new Error(`Permission denied for "${commandName}". Check node permissions.`);
+      } else if (error.message.includes('read-only')) {
+        throw new Error(`Cannot modify "${commandName}" - node or property is read-only.`);
+      }
+      // Re-throw original error if it's already descriptive
+      throw error;
+    }
+    throw new Error(`Failed to execute command "${commandName}"`);
   }
 }
 
-async function executeCommand(cmd: string): Promise<void> {
+async function executeCommand(cmd: string, skipNotification: boolean = false): Promise<void> {
   if (!cmd) return;
   
   // Clean the command string by removing suggestions and aliases
@@ -295,7 +316,7 @@ async function executeCommand(cmd: string): Promise<void> {
   console.log("execute matched command:", command);
   
   const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-  const loadingNotification = figma.notify(`Executing command(s)...`, { timeout: 0 });
+  const loadingNotification = skipNotification ? null : figma.notify(`Executing command(s)...`, { timeout: 0 });
   
   try {
     await delay(1);
@@ -320,9 +341,15 @@ async function executeCommand(cmd: string): Promise<void> {
         }
       }
     }
+  } catch (error) {
+    console.error('Error executing command:', error);
+    figma.notify(error instanceof Error ? error.message : 'Command execution failed');
+    throw error;
   } finally {
     await delay(1);
-    loadingNotification.cancel();
+    if (loadingNotification) {
+      loadingNotification.cancel();
+    }
   }
 }
 
