@@ -278,7 +278,7 @@ export function rotate(value: number) {
   }
   
   // figma.notify(`Rotated ${value}° for all selected items`);
-  figma.notify(`🚀 V8 BRANCH 🚀 Rotated ${value}° for all selected items`, { timeout: 5000 })
+  figma.notify(`🚀 V8 BRANCH 🚀 Rotated ${value}° for all selected items`)
 }
 
 export function move(direction: 'TOP' | 'RIGHT' | 'LEFT' | 'BOTTOM', value: string) {
