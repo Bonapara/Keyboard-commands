@@ -9,6 +9,6 @@
     ],
     "outDir": "dist"
   },
-  "include": ["code.ts"],
+  "include": ["src/**/*.ts"],
   "exclude": ["ui.ts", "node_modules"]
 }

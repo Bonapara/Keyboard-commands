@@ -1,0 +1,276 @@
+// ===============
+// Helper Functions & Constants
+// ===============
+
+import type { Command, SpecialCondition, ValueFormat } from './types';
+import { COMMANDS, type CommandName } from './commands';
+
+// Regex Constants
+export const COMMAND_SPLITTER_REGEX = /[\s,]+/;
+export const COMMAND_PART_REGEX = /^(-(?![\d])|(-)?[\p{L}]+(-[\p{L}]+)*?)(?=\s|[\d]|-[\d]|-$|$|#|:)/u;
+
+export const VALUE_FORMAT_REGEX = {
+  number: /-?\s*\(?(\d+(\.\d+)?(?:\s*[-+*/x]\s*\(?-?\d+(\.\d+)?\)?)*\)?%?)/,
+  hex: /#[0-9a-fA-F]{0,6}/,
+};
+
+// Helper Functions
+
+export function checkSpecialConditions(node: SceneNode, conditions: SpecialCondition[]): boolean {
+  if (!conditions || conditions.length === 0) return true;
+  
+  return conditions.some(condition => {
+    switch (condition) {
+      case 'IsAutoLayout':
+      return 'layoutMode' in node && node.layoutMode !== 'NONE';
+      case 'IsInAutoLayout':
+      return node.parent && 'layoutMode' in node.parent && node.parent.layoutMode !== 'NONE';
+      case 'IsAbsoluteInAutoLayout':
+      return node.parent && 
+      'layoutMode' in node.parent && 
+      node.parent.layoutMode !== 'NONE' && 
+      'layoutPositioning' in node &&
+      node.layoutPositioning === 'ABSOLUTE';
+      case 'NoTextStyleApplied':
+      return node.type === 'TEXT' && 
+      (!node.textStyleId || 
+        node.textStyleId === '');
+        case 'TextStyleApplied':
+        return node.type === 'TEXT' && 
+        node.textStyleId !== '' && 
+        node.textStyleId !== undefined;
+        
+        case 'IsNotInAutoLayout':
+        return node.parent && 'layoutMode' in node.parent && node.parent.layoutMode === 'NONE';
+        case 'IsAutoLayoutWrap':
+        return 'layoutMode' in node && node.layoutMode !== 'NONE' && 'layoutWrap' in node && node.layoutWrap === 'WRAP';
+        case 'IsVisible':
+        return node.visible;
+        default:
+        return false;
+      }
+    });
+  }
+  
+  // Unified findCommand function
+  export function findCommand(part: string): Array<Command & { name: CommandName }> {
+    const commandPart = part.match(COMMAND_PART_REGEX)?.[0];
+    
+    if (!commandPart) {
+      return [];
+    }
+    
+    const cmdLower = commandPart.toLowerCase();
+    const selection = figma.currentPage.selection;
+    
+    // Helper function to check if command supports current selection
+    const supportsCurrentSelection = (cmd: Command) => {
+      if (!cmd.supportedNodes && !cmd.specialConditions) return true;
+      if (selection.length === 0) return true;
+      
+      // Check both supportedNodes and specialConditions
+      const supportsNodeTypes = !cmd.supportedNodes || selection.every(node => 
+        cmd.supportedNodes!.indexOf(node.type) !== -1
+      );
+      
+      const meetsSpecialConditions = !cmd.specialConditions || selection.every(node =>
+        checkSpecialConditions(node, cmd.specialConditions!)
+      );
+      
+      return supportsNodeTypes && meetsSpecialConditions;
+    };
+    
+    // First, check for exact alias matches
+    const exactAliasMatches = COMMANDS.filter(cmd => {
+      const aliases = Array.isArray(cmd.alias) ? cmd.alias : [cmd.alias];
+      return aliases.some(alias => alias.toLowerCase() === cmdLower) && supportsCurrentSelection(cmd);
+    });
+    
+    if (exactAliasMatches.length > 0) {
+      return exactAliasMatches;
+    }
+    
+    // Then, split results into "starts with" and "contains"
+    const startsWithMatches: Array<Command & { name: CommandName }> = [];
+    const containsMatches: Array<Command & { name: CommandName }> = [];
+    
+    COMMANDS.forEach(cmd => {
+      // First check if command supports current selection
+      if (!supportsCurrentSelection(cmd)) return;
+      
+      const nameLower = cmd.name.toLowerCase();
+      const aliases = Array.isArray(cmd.alias) ? cmd.alias : [cmd.alias];
+      
+      // Check if name or any alias starts with the search term
+      if (nameLower.startsWith(cmdLower) || 
+      aliases.some(alias => alias.toLowerCase().startsWith(cmdLower))) {
+        startsWithMatches.push(cmd);
+      }
+      // If not starting with, check if it contains the term
+      else if (nameLower.includes(cmdLower) ||
+      aliases.some(alias => alias.toLowerCase().includes(cmdLower))) {
+        containsMatches.push(cmd);
+      }
+    });
+    
+    // Combine the results with "starts with" matches first
+    return [...startsWithMatches, ...containsMatches];
+  }
+  
+  export function calculateExpression(expression: string): string {
+    // Check if the expression ends with %
+    const isPercentage = expression.endsWith('%');
+    
+    // Remove % sign and spaces, normalize 'x' to '*'
+    const sanitizedExp = expression
+    .replace(/%$/, '')
+    .replace(/\s+/g, '')
+    .replace(/x/gi, '*');
+    
+    // Validate the expression
+    if (!/^-?\(?\d+(\.\d+)?(?:[-+*/]\(?-?\d+(\.\d+)?\)?)*\)?$/.test(sanitizedExp)) {
+      throw new Error('Invalid calculation format');
+    }
+    
+    try {
+      // Calculate the numeric result
+      const result = Function(`return ${sanitizedExp}`)();
+      
+      // Return the result with % if the input had %
+      return isPercentage ? `${result}%` : result.toString();
+    } catch (error) {
+      throw new Error('Invalid calculation');
+    }
+  }
+  
+  // ================
+  // Suggestion Helper
+  // ================
+  
+  export function getCommandSuggestions(
+    commands: Array<Command & { name: CommandName }>,
+    searchTerm: string = '',
+    excludeCommand?: Command,
+    includeSuggestion: boolean = false,
+    previousCommands: Record<string, string> = {}
+  ) {
+    const selection = figma.currentPage.selection;
+    
+    const filteredCommands = commands.filter(cmd => {
+      // Exclude the specific command (so it doesn't show up as a "related" suggestion to itself)
+      if (excludeCommand && cmd.name === excludeCommand.name) return false;
+      
+      // Check specialConditions (e.g. IsAutoLayout, etc.)
+      if (cmd.specialConditions && selection.length > 0) {
+        if (!selection.every(node => checkSpecialConditions(node, cmd.specialConditions!))) {
+          return false;
+        }
+      }
+      
+      // Check supportedNodes if selection exists
+      if (cmd.supportedNodes && selection.length > 0) {
+        if (!selection.every(node => cmd.supportedNodes!.indexOf(node.type) !== -1)) {
+          return false;
+        }
+      }      
+      
+      // If the user typed nothing (searchTerm is empty):
+      // - For the initial top-level suggestions, we return all commands.
+      // - For "related" suggestions (excludeCommand is set), we don't return everything
+      //   (otherwise you'd see random commands that have nothing to do with the matched command).
+      if (!searchTerm) {
+        return !excludeCommand; // Return true if no excludeCommand, false if we are in "related" mode
+      }
+      
+      // Otherwise, normal search filtering
+      const lowerSearch = searchTerm.toLowerCase();
+      return (
+        cmd.name.toLowerCase().startsWith(lowerSearch) ||
+        cmd.name.toLowerCase().includes(lowerSearch) ||
+        cmd.alias.some(alias =>
+          alias.toLowerCase().startsWith(lowerSearch) ||
+          alias.toLowerCase().includes(lowerSearch)
+        )
+      );
+    });
+    
+    // Sort results
+    const sortedCommands = filteredCommands.sort((a, b) => {
+      // If no search term (and we're showing top-level suggestions),
+      // just sort by shortest alias first, then name
+      if (!searchTerm && !excludeCommand) {
+        if (a.alias[0].length !== b.alias[0].length) {
+          return a.alias[0].length - b.alias[0].length;
+        }
+        return a.name.localeCompare(b.name);
+      }
+      
+      // With a search term, do an exact-match-first, then "starts with," then "contains"
+      const lowerSearch = searchTerm.toLowerCase();
+      const aLower = a.name.toLowerCase();
+      const bLower = b.name.toLowerCase();
+      
+      // Exact match first
+      const aExact = aLower === lowerSearch;
+      const bExact = bLower === lowerSearch;
+      if (aExact !== bExact) return bExact ? 1 : -1;
+      
+      // "Starts with" next
+      const aStarts = aLower.startsWith(lowerSearch);
+      const bStarts = bLower.startsWith(lowerSearch);
+      if (aStarts !== bStarts) return bStarts ? 1 : -1;
+      
+      // "Contains" afterwards
+      const aContains = aLower.includes(lowerSearch);
+      const bContains = bLower.includes(lowerSearch);
+      if (aContains !== bContains) return bContains ? 1 : -1;
+      
+      // Finally, alphabetical
+      return a.name.localeCompare(b.name);
+    });
+    
+    // Build suggestion strings
+    return sortedCommands.map((cmd, index) => {
+      const previousValue = previousCommands[cmd.name];
+      let infoText = '';
+      
+      if (previousValue !== undefined) {
+        // If we previously set this command
+        infoText =
+        cmd.type === 'commandWithoutValue'
+        ? 'ℹ️ already set'
+        : `ℹ️ already set to '${previousValue}'`;
+      } else if (includeSuggestion && index === 0) {
+        // If this is the top suggestion, show the command's built-in suggestion (if any)
+        infoText = cmd.suggestion || '';
+      }
+      
+      const separator = infoText ? ' -- ' : '';
+      return `${cmd.alias.join(', ')} · ${cmd.name}${separator}${infoText}`;
+    });
+  }
+  
+  export function extractValue(text: string, format: ValueFormat): string | null {
+    console.log("extract value", text);
+    const match = text.match(VALUE_FORMAT_REGEX[format]);
+    console.log("extract value", match);
+    if (!match) return null;
+    
+    if (format === 'hex') {
+      const value = match[0];
+      return value.startsWith('#') ? value : `#${value}`;
+    }
+    
+    if (format === 'number') {
+      const expression = match[0];
+      try {
+        const result = calculateExpression(expression);
+        return result.toString();
+      } catch {
+        return expression;
+      }
+    }
+
+    return match[0];
+  }
+
