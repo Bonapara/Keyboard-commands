@@ -294,7 +294,7 @@ export function move(direction: 'TOP' | 'RIGHT' | 'LEFT' | 'BOTTOM', value: stri
     } else if ((direction === 'TOP' || direction === 'BOTTOM') && 'y' in node) {
       node.y += direction === 'BOTTOM' ? numValue : -numValue;
     }
-  
+  }
   
   const dirValue = (direction === 'LEFT' || direction === 'TOP') ? -numValue : numValue;
   figma.notify(`Moved items ${direction.toLowerCase()} by ${Math.abs(dirValue)} pixels`);

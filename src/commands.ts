@@ -5,6 +5,120 @@
 import type { CommandWithValue, CommandWithoutValue, OptionalValueCommand } from './types';
 import * as impl from './implementations';
 
+// ==================================
+// Node Type Groups (Figma API v1)
+// ==================================
+
+/**
+ * Reusable node type groups based on Figma Plugin API capabilities.
+ * Following Figma best practice: always check node.type, not property existence.
+ * 
+ * Reference: Groups don't support fills, strokes, or corner radius (Figma API docs)
+ * @see https://www.figma.com/plugin-docs/api/nodes/
+ */
+export const NODE_GROUPS = {
+  /** Nodes supporting resize operations (width/height) */
+  RESIZABLE: [
+    'BOOLEAN_OPERATION',
+    'COMPONENT',
+    'COMPONENT_SET',
+    'ELLIPSE',
+    'FRAME',
+    'GROUP',
+    'INSTANCE',
+    'LINE',
+    'POLYGON',
+    'RECTANGLE',
+    'SLICE',
+    'STAR',
+    'TEXT',
+    'VECTOR',
+  ] as const,
+  
+  /** Nodes supporting position (x, y) including sections */
+  POSITIONABLE: [
+    'BOOLEAN_OPERATION',
+    'COMPONENT',
+    'COMPONENT_SET',
+    'ELLIPSE',
+    'FRAME',
+    'GROUP',
+    'INSTANCE',
+    'LINE',
+    'POLYGON',
+    'RECTANGLE',
+    'SECTION',
+    'SLICE',
+    'STAR',
+    'TEXT',
+    'VECTOR',
+  ] as const,
+  
+  /** Nodes supporting fills and strokes (excludes GROUP per Figma API) */
+  FILLS_AND_STROKES: [
+    'BOOLEAN_OPERATION',
+    'COMPONENT',
+    'COMPONENT_SET',
+    'ELLIPSE',
+    'FRAME',
+    'INSTANCE',
+    'LINE',
+    'POLYGON',
+    'RECTANGLE',
+    'SECTION',
+    'STAR',
+    'TEXT',
+    'VECTOR',
+  ] as const,
+  
+  /** Nodes supporting corner radius (excludes GROUP, LINE, SLICE, SECTION, TEXT) */
+  CORNER_RADIUS: [
+    'BOOLEAN_OPERATION',
+    'COMPONENT',
+    'COMPONENT_SET',
+    'ELLIPSE',
+    'FRAME',
+    'INSTANCE',
+    'POLYGON',
+    'RECTANGLE',
+    'STAR',
+    'VECTOR',
+  ] as const,
+  
+  /** Frame-like containers supporting padding, layout, clip content */
+  FRAME_LIKE: [
+    'COMPONENT',
+    'COMPONENT_SET',
+    'FRAME',
+    'INSTANCE',
+  ] as const,
+  
+  /** Text nodes only */
+  TEXT_ONLY: ['TEXT'] as const,
+  
+  /** Instance nodes only (for master component navigation) */
+  INSTANCE_ONLY: ['INSTANCE'] as const,
+  
+  /** All deletable nodes */
+  DELETABLE: [
+    'BOOLEAN_OPERATION',
+    'COMPONENT',
+    'COMPONENT_SET',
+    'ELLIPSE',
+    'FRAME',
+    'GROUP',
+    'INSTANCE',
+    'LINE',
+    'POLYGON',
+    'RECTANGLE',
+    'SECTION',
+    'SLICE',
+    'STAR',
+    'TEXT',
+    'VECTOR',
+  ] as const,
+} as const;
+
 export const COMMAND_DEFINITIONS = {
   Width: {
     type: "commandWithValue",
@@ -12,7 +126,7 @@ export const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: 'Enter width in pixels',
     functionWithParam: (value: string) => impl.resize(value, 'width'),
-    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','GROUP','INSTANCE','LINE','POLYGON','RECTANGLE','SLICE','STAR','TEXT','VECTOR'],
+    supportedNodes: [...NODE_GROUPS.RESIZABLE],
   },
   Height: {
     type: "commandWithValue",
@@ -20,7 +134,7 @@ export const COMMAND_DEFINITIONS = {
     valueFormat: "number",
     suggestion: "Enter height in pixels",
     functionWithParam: (value: string) => impl.resize(value, 'height'),
-    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','GROUP','INSTANCE','LINE','POLYGON','RECTANGLE','SLICE','STAR','TEXT','VECTOR'],
+    supportedNodes: [...NODE_GROUPS.RESIZABLE],
   },
   HeightWidth: {
     type: "commandWithValue",
@@ -28,14 +142,14 @@ export const COMMAND_DEFINITIONS = {
     valueFormat: "number",
     suggestion: "Set both width/height to...",
     functionWithParam: (value: string) => impl.resize(value),
-    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','GROUP','INSTANCE','LINE','POLYGON','RECTANGLE','SLICE','STAR','TEXT','VECTOR'],
+    supportedNodes: [...NODE_GROUPS.RESIZABLE],
   },
   GoToMainComponent: {
     type: "commandWithoutValue",
     alias: ['m'],
     suggestion: "use ⌘Z to come back",
     functionWithoutParam: () => impl.selectMasterComponent(),
-    supportedNodes: ['INSTANCE'],
+    supportedNodes: [...NODE_GROUPS.INSTANCE_ONLY],
   },
   MoveTop: {
     type: "commandWithValue",
@@ -43,7 +157,7 @@ export const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: "Move X pixels up",
     functionWithParam: (value: string) => impl.move('TOP', value),
-    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','GROUP','INSTANCE','LINE','POLYGON','RECTANGLE','SECTION','SLICE','STAR','TEXT','VECTOR'],
+    supportedNodes: [...NODE_GROUPS.POSITIONABLE],
     specialConditions: ['IsNotInAutoLayout', 'IsAbsoluteInAutoLayout'],
   },
   MoveBottom: {
@@ -52,7 +166,7 @@ export const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: "Move X pixels down",
     functionWithParam: (value: string) => impl.move('BOTTOM', value),
-    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','GROUP','INSTANCE','LINE','POLYGON','RECTANGLE','SECTION','SLICE','STAR','TEXT','VECTOR'],
+    supportedNodes: [...NODE_GROUPS.POSITIONABLE],
     specialConditions: ['IsNotInAutoLayout', 'IsAbsoluteInAutoLayout'],
   },
   MoveLeft: {
@@ -61,7 +175,7 @@ export const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: "Move X pixels left",
     functionWithParam: (value: string) => impl.move('LEFT', value),
-    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','GROUP','INSTANCE','LINE','POLYGON','RECTANGLE','SECTION','SLICE','STAR','TEXT','VECTOR'],
+    supportedNodes: [...NODE_GROUPS.POSITIONABLE],
     specialConditions: ['IsNotInAutoLayout', 'IsAbsoluteInAutoLayout'],
   },
   MoveRight: {
@@ -70,7 +184,7 @@ export const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: "Move X pixels right",
     functionWithParam: (value: string) => impl.move('RIGHT', value),
-    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','GROUP','INSTANCE','LINE','POLYGON','RECTANGLE','SECTION','SLICE','STAR','TEXT','VECTOR'],
+    supportedNodes: [...NODE_GROUPS.POSITIONABLE],
     specialConditions: ['IsNotInAutoLayout', 'IsAbsoluteInAutoLayout'],
   },
   PositionLeft: {
@@ -79,7 +193,7 @@ export const COMMAND_DEFINITIONS = {
     valueFormat: "number",
     suggestion: "Position in px from left",
     functionWithParam: (value: string) => impl.position(value, 'left'),
-    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','GROUP','INSTANCE','LINE','POLYGON','RECTANGLE','SECTION','SLICE','STAR','TEXT','VECTOR'],
+    supportedNodes: [...NODE_GROUPS.POSITIONABLE],
     specialConditions: ['IsNotInAutoLayout', 'IsAbsoluteInAutoLayout'],
   },
   PositionRight: {
@@ -88,7 +202,7 @@ export const COMMAND_DEFINITIONS = {
     valueFormat: "number",
     suggestion: "Position in px from right",
     functionWithParam: (value: string) => impl.position(value, 'right'),
-    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','GROUP','INSTANCE','LINE','POLYGON','RECTANGLE','SECTION','SLICE','STAR','TEXT','VECTOR'],
+    supportedNodes: [...NODE_GROUPS.POSITIONABLE],
     specialConditions: ['IsNotInAutoLayout', 'IsAbsoluteInAutoLayout'],
   },
   PositionTop: {
@@ -97,7 +211,7 @@ export const COMMAND_DEFINITIONS = {
     valueFormat: "number",
     suggestion: "Position in px from top",
     functionWithParam: (value: string) => impl.position(value, 'top'),
-    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','GROUP','INSTANCE','LINE','POLYGON','RECTANGLE','SECTION','SLICE','STAR','TEXT','VECTOR'],
+    supportedNodes: [...NODE_GROUPS.POSITIONABLE],
     specialConditions: ['IsNotInAutoLayout', 'IsAbsoluteInAutoLayout'],
   },
   PositionBottom: {
@@ -106,7 +220,7 @@ export const COMMAND_DEFINITIONS = {
     valueFormat: "number",
     suggestion: "Position in px from bottom",
     functionWithParam: (value: string) => impl.position(value, 'bottom'),
-    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','GROUP','INSTANCE','LINE','POLYGON','RECTANGLE','SECTION','SLICE','STAR','TEXT','VECTOR'],
+    supportedNodes: [...NODE_GROUPS.POSITIONABLE],
     specialConditions: ['IsNotInAutoLayout','IsAbsoluteInAutoLayout'],
   },
   Delete: {
@@ -114,7 +228,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['de'],
     suggestion: '🗑️',
     functionWithoutParam: () => impl.deleteSelection(),
-    supportedNodes: ["BOOLEAN_OPERATION","COMPONENT","COMPONENT_SET","ELLIPSE","FRAME","GROUP","INSTANCE","LINE","POLYGON","RECTANGLE","SECTION","SLICE","STAR","TEXT","VECTOR"],
+    supportedNodes: [...NODE_GROUPS.DELETABLE],
   },
   AutoLayout: {
     type: "commandWithoutValue",
@@ -133,7 +247,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['ra'],
     suggestion: '🗑️📐',
     functionWithoutParam: () => impl.setLayout('NONE'),
-    supportedNodes: ['COMPONENT','COMPONENT_SET','FRAME','INSTANCE'],
+    supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
   },
   FlipHorizontal: {
     type: "commandWithoutValue",
@@ -224,7 +338,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['lh'],
     suggestion: "→",
     functionWithoutParam: () => impl.setLayout('HORIZONTAL'),
-    supportedNodes: ['COMPONENT','COMPONENT_SET','FRAME','INSTANCE'],
+    supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
     specialConditions: ['IsAutoLayout'],
   },
   LayoutVertical: {
@@ -232,7 +346,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['lv'],
     suggestion: "↓",
     functionWithoutParam: () => impl.setLayout('VERTICAL'),
-    supportedNodes: ['COMPONENT','COMPONENT_SET','FRAME','INSTANCE'],
+    supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
     specialConditions: ['IsAutoLayout'],
   },
   LayoutWrap: {
@@ -240,14 +354,14 @@ export const COMMAND_DEFINITIONS = {
     alias: ['lw'],
     suggestion: "↩️",
     functionWithoutParam: () => impl.setLayout('WRAP'),
-    supportedNodes: ['COMPONENT','COMPONENT_SET','FRAME','INSTANCE'],
+    supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
   },
   AbsolutePosition: {
     type: "commandWithoutValue",
     alias: ['ap'],
     suggestion: "ignore auto-layout (toggle)",
     functionWithoutParam: () => impl.absolutePosition(),
-    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','GROUP','INSTANCE','LINE','POLYGON','RECTANGLE','SLICE','STAR','TEXT','VECTOR'],
+    supportedNodes: [...NODE_GROUPS.RESIZABLE],
     specialConditions: ['IsInAutoLayout']
   },
   Padding: {
@@ -256,7 +370,7 @@ export const COMMAND_DEFINITIONS = {
     valueFormat: "number",
     suggestion: "Enter padding for all sides",
     functionWithParam: (value: string) => impl.setPadding({paddingLeft: value, paddingRight: value, paddingTop: value, paddingBottom: value}),
-    supportedNodes: ['COMPONENT','COMPONENT_SET','FRAME','INSTANCE'],
+    supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
   },
   PaddingHorizontal: {
     type: "commandWithValue",
@@ -264,7 +378,7 @@ export const COMMAND_DEFINITIONS = {
     valueFormat: "number",
     suggestion: "Enter horizontal padding",
     functionWithParam: (value: string) => impl.setPadding({paddingLeft: value, paddingRight: value}),
-    supportedNodes: ['COMPONENT','COMPONENT_SET','FRAME','INSTANCE'],
+    supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
   },
   PaddingVertical: {
     type: "commandWithValue",
@@ -272,7 +386,7 @@ export const COMMAND_DEFINITIONS = {
     valueFormat: "number",
     suggestion: "Enter vertical padding",
     functionWithParam: (value: string) => impl.setPadding({paddingTop: value, paddingBottom: value}),
-    supportedNodes: ['COMPONENT','COMPONENT_SET','FRAME','INSTANCE'],
+    supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
   },
   PaddingLeft: {
     type: "commandWithValue",
@@ -280,7 +394,7 @@ export const COMMAND_DEFINITIONS = {
     valueFormat: "number",
     suggestion: "Enter left padding",
     functionWithParam: (value: string) => impl.setPadding({paddingLeft: value}),
-    supportedNodes: ['COMPONENT','COMPONENT_SET','FRAME','INSTANCE'],
+    supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
   },
   PaddingTop: {
     type: "commandWithValue",
@@ -288,7 +402,7 @@ export const COMMAND_DEFINITIONS = {
     valueFormat: "number",
     suggestion: "Enter top padding",
     functionWithParam: (value: string) => impl.setPadding({paddingTop: value}),
-    supportedNodes: ['COMPONENT','COMPONENT_SET','FRAME','INSTANCE'],
+    supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
   },
   PaddingRight: {
     type: "commandWithValue",
@@ -296,7 +410,7 @@ export const COMMAND_DEFINITIONS = {
     valueFormat: "number",
     suggestion: "Enter right padding",
     functionWithParam: (value: string) => impl.setPadding({paddingRight: value}),
-    supportedNodes: ['COMPONENT','COMPONENT_SET','FRAME','INSTANCE'],
+    supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
   },
   PaddingBottom: {
     type: "commandWithValue",
@@ -304,7 +418,7 @@ export const COMMAND_DEFINITIONS = {
     valueFormat: "number",
     suggestion: "Enter bottom padding",
     functionWithParam: (value: string) => impl.setPadding({paddingBottom: value}),
-    supportedNodes: ['COMPONENT','COMPONENT_SET','FRAME','INSTANCE'],
+    supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
   },
   Fill: {
     type: "optionalValueCommand",
@@ -313,7 +427,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'Enter HEX color (No value = toggle)',
     functionWithoutParam: () => impl.toggleFill(),
     functionWithParam: (value: string) => impl.setFill(value),
-    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','INSTANCE','LINE','POLYGON','RECTANGLE','SECTION','STAR','TEXT','VECTOR'],
+    supportedNodes: [...NODE_GROUPS.FILLS_AND_STROKES],
   },
   Rotate: {
     type: "optionalValueCommand",
@@ -322,7 +436,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'Enter rotation angle in degrees',
     functionWithoutParam: () => impl.rotate(0),
     functionWithParam: (value: string) => { impl.rotate(parseInt(value)); },
-    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','INSTANCE','LINE','POLYGON','RECTANGLE','SECTION','STAR','TEXT','VECTOR'],
+    supportedNodes: [...NODE_GROUPS.FILLS_AND_STROKES],
   },
   Scale: {
     type: "commandWithValue",
@@ -351,7 +465,7 @@ export const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: 'Top left radius',
     functionWithParam: (value: string) => impl.setRadius({topLeftRadius: value}),
-    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
+    supportedNodes: [...NODE_GROUPS.CORNER_RADIUS],
   },
   RadiusTopRight: {
     type: "commandWithValue",
@@ -359,7 +473,7 @@ export const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: 'Top right radius',
     functionWithParam: (value: string) => impl.setRadius({topRightRadius: value}),
-    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
+    supportedNodes: [...NODE_GROUPS.CORNER_RADIUS],
   },
   RadiusBottomRight: {
     type: "commandWithValue",
@@ -367,7 +481,7 @@ export const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: 'Bottom right radius',
     functionWithParam: (value: string) => impl.setRadius({bottomRightRadius: value}),
-    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
+    supportedNodes: [...NODE_GROUPS.CORNER_RADIUS],
   },
   RadiusBottomLeft: {
     type: "commandWithValue",
@@ -375,7 +489,7 @@ export const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: 'Bottom left radius',
     functionWithParam: (value: string) => impl.setRadius({bottomLeftRadius: value}),
-    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
+    supportedNodes: [...NODE_GROUPS.CORNER_RADIUS],
   },
   RadiusAll: {
     type: "commandWithValue",
@@ -388,7 +502,7 @@ export const COMMAND_DEFINITIONS = {
       bottomRightRadius: value,
       bottomLeftRadius: value
     }),
-    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
+    supportedNodes: [...NODE_GROUPS.CORNER_RADIUS],
   },
   RadiusLeft: {
     type: "commandWithValue",
@@ -399,7 +513,7 @@ export const COMMAND_DEFINITIONS = {
       topLeftRadius: value,
       bottomLeftRadius: value
     }),
-    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
+    supportedNodes: [...NODE_GROUPS.CORNER_RADIUS],
   },
   RadiusTop: {
     type: "commandWithValue",
@@ -410,7 +524,7 @@ export const COMMAND_DEFINITIONS = {
       topLeftRadius: value,
       topRightRadius: value
     }),
-    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
+    supportedNodes: [...NODE_GROUPS.CORNER_RADIUS],
   },
   RadiusRight: {
     type: "commandWithValue",
@@ -421,7 +535,7 @@ export const COMMAND_DEFINITIONS = {
       topRightRadius: value,
       bottomRightRadius: value
     }),
-    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
+    supportedNodes: [...NODE_GROUPS.CORNER_RADIUS],
   },
   RadiusBottom: {
     type: "commandWithValue",
@@ -432,14 +546,14 @@ export const COMMAND_DEFINITIONS = {
       bottomLeftRadius: value,
       bottomRightRadius: value
     }),
-    supportedNodes: ['BOOLEAN_OPERATION','COMPONENT','COMPONENT_SET','ELLIPSE','FRAME','INSTANCE','POLYGON','RECTANGLE','STAR','VECTOR'],
+    supportedNodes: [...NODE_GROUPS.CORNER_RADIUS],
   },
   ClipContent: {
     type: "commandWithoutValue",
     alias: ['c'],
     suggestion: ' ☑️ Toggle Clip Content',
     functionWithoutParam: () => impl.clipContent(),
-    supportedNodes: ['COMPONENT','INSTANCE','FRAME','COMPONENT_SET'],
+    supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
   },
   Visibility: {
     type: "commandWithoutValue",
@@ -532,42 +646,42 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'Enter max lines (No value = toggle truncation)',
     functionWithoutParam: async () => await impl.textTruncation(),
     functionWithParam: async (value: string) => await impl.textTruncation(value),
-    supportedNodes: ['TEXT'],
+    supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
   },
   VerticalTrim: {
     type: "commandWithoutValue",
     alias: ['vt'],
     suggestion: 'Toggle Vertical Trim',
     functionWithoutParam: async () => await impl.toggleVerticalTrim(),
-    supportedNodes: ['TEXT'],
+    supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
   },
   TextAutoWidth: {
     type: "commandWithoutValue",
     alias: ['taw'],
     suggestion: 'Hug Text Width and Height',
     functionWithoutParam: async () => await impl.setTextAutoResize('WIDTH_AND_HEIGHT'),
-    supportedNodes: ["TEXT"],
+    supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
   },
   TextAutoHeight: {
     type: "commandWithoutValue",
     alias: ['tah'],
     suggestion: 'Hug Text Height',
     functionWithoutParam: async () => await impl.setTextAutoResize('HEIGHT'),
-    supportedNodes: ["TEXT"],
+    supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
   },
   TextFixedSize: {
     type: "commandWithoutValue",
     alias: ['tfs'],
     suggestion: 'Fixed Text Size',
     functionWithoutParam: async () => await impl.setTextAutoResize('NONE'),
-    supportedNodes: ["TEXT"],
+    supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
   },
   TextAlignLeft: {
     type: "commandWithoutValue",
     alias: ['tal'],
     suggestion: 'Align Text to Left',
     functionWithoutParam: () => impl.AlignText({ horizontal: 'LEFT' }),
-    supportedNodes: ["TEXT"],
+    supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
   },
   
   TextAlignCenter: {
@@ -575,7 +689,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['tac'],
     suggestion: 'Align Text to Center',
     functionWithoutParam: () => impl.AlignText({ horizontal: 'CENTER' }),
-    supportedNodes: ["TEXT"],
+    supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
   },
   
   TextAlignRight: {
@@ -583,14 +697,14 @@ export const COMMAND_DEFINITIONS = {
     alias: ['tar'],
     suggestion: 'Align Text to Right',
     functionWithoutParam: () => impl.AlignText({ horizontal: 'RIGHT' }),
-    supportedNodes: ["TEXT"],
+    supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
   },
   JustifyText: {
     type: "commandWithoutValue",
     alias: ['taj'],
     suggestion: 'Justify Text',
     functionWithoutParam: () => impl.AlignText({ horizontal: 'JUSTIFIED' }),
-    supportedNodes: ["TEXT"],
+    supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
   },
   
   TextAlignTop: {
@@ -598,7 +712,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['tat'],
     suggestion: 'Align Text to Top',
     functionWithoutParam: () => impl.AlignText({ vertical: 'TOP' }),
-    supportedNodes: ["TEXT"],
+    supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
   },
   
   TextAlignMiddle: {
@@ -606,7 +720,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['tam'],
     suggestion: 'Align Text to Middle',
     functionWithoutParam: () => impl.AlignText({ vertical: 'CENTER' }),
-    supportedNodes: ["TEXT"],
+    supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
   },
   
   TextAlignBottom: {
@@ -614,7 +728,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['tab'],
     suggestion: 'Align Text to Bottom',
     functionWithoutParam: () => impl.AlignText({ vertical: 'BOTTOM' }),
-    supportedNodes: ["TEXT"],
+    supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
   },
   
   // Font Size Command
@@ -624,7 +738,7 @@ export const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: 'Enter font size in px',
     functionWithParam: async (value: string) => await impl.setFontSize(value),
-    supportedNodes: ['TEXT'],
+    supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
     specialConditions: ['NoTextStyleApplied'],
   },
   
@@ -633,7 +747,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['rts'],
     suggestion: 'Detach Text Style ⛓️‍💥',
     functionWithoutParam:() => impl.removeTextStyle(),
-    supportedNodes: ['TEXT'],
+    supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
     specialConditions: ['TextStyleApplied'],
   },  
   
@@ -644,7 +758,7 @@ export const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: 'Enter font weight (100-900)',
     functionWithParam: async (value: string) => await impl.setFontWeight(value),
-    supportedNodes: ['TEXT'],
+    supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
     specialConditions: ['NoTextStyleApplied'],
   },
   
@@ -655,7 +769,7 @@ export const COMMAND_DEFINITIONS = {
     valueFormat: 'number' as const,
     suggestion: 'Enter letter spacing in px',
     functionWithParam: async (value: string) => await impl.setLetterSpacing(value),
-    supportedNodes: ['TEXT'],
+    supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
     specialConditions: ['NoTextStyleApplied'],
   },
   
@@ -667,7 +781,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'In px or % (No value = Auto)',
     functionWithParam: async (value: string) => await impl.setLineHeight(value),
     functionWithoutParam: async () => await impl.setLineHeight('AUTO'),
-    supportedNodes: ['TEXT'],
+    supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
     specialConditions: ['NoTextStyleApplied'],
   },
   
@@ -678,7 +792,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['tco'],
     suggestion: 'Reset Text to Original Case',
     functionWithoutParam: async () => await impl.setTextCase('ORIGINAL'),
-    supportedNodes: ['TEXT'],
+    supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
     specialConditions: ['NoTextStyleApplied'],
   },
   
@@ -688,7 +802,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['tcu'],
     suggestion: 'Convert Text to UPPERCASE',
     functionWithoutParam: async () => await impl.setTextCase('UPPER'),
-    supportedNodes: ['TEXT'],
+    supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
     specialConditions: ['NoTextStyleApplied'],
   },
   
@@ -698,7 +812,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['tcl'],
     suggestion: 'Convert Text to lowercase',
     functionWithoutParam: async () => await impl.setTextCase('LOWER'),
-    supportedNodes: ['TEXT'],
+    supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
     specialConditions: ['NoTextStyleApplied'],
   },
   
@@ -708,7 +822,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['tct'],
     suggestion: 'Convert Text to Title Case',
     functionWithoutParam: async () => await impl.setTextCase('TITLE'),
-    supportedNodes: ['TEXT'],
+    supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
     specialConditions: ['NoTextStyleApplied'],
   },
   
@@ -718,7 +832,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['tcs'],
     suggestion: 'Convert Text to Small Caps',
     functionWithoutParam: async () => await impl.setTextCase('SMALL_CAPS'),
-    supportedNodes: ['TEXT'],
+    supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
     specialConditions: ['NoTextStyleApplied'],
   },
   
@@ -728,7 +842,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['tcsf'],
     suggestion: 'Convert Text to Forced Small Caps',
     functionWithoutParam: async () => await impl.setTextCase('SMALL_CAPS_FORCED'),
-    supportedNodes: ['TEXT'],
+    supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
     specialConditions: ['NoTextStyleApplied'],
   },
   
@@ -738,14 +852,14 @@ export const COMMAND_DEFINITIONS = {
     alias: ['rtd'],
     suggestion: 'Remove Text Decoration 🗑️',
     functionWithoutParam: async () => await impl.toggleTextDecoration('NONE'),
-    supportedNodes: ['TEXT'],
+    supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
   },
   TextUnderline: {
     type: "commandWithoutValue",
     alias: ['tu'],
     suggestion: 'Add/Remove Underline',
     functionWithoutParam: async () => await impl.toggleTextDecoration('UNDERLINE'),
-    supportedNodes: ['TEXT'],
+    supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
   },
   
   TextStrikethrough: {
@@ -753,7 +867,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['ts'],
     suggestion: 'Add/Remove Strikethrough',
     functionWithoutParam: async () => await impl.toggleTextDecoration('STRIKETHROUGH'),
-    supportedNodes: ['TEXT'],
+    supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
   },
   
   // List Type Commands
@@ -762,7 +876,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['tol'],
     suggestion: 'Convert to Ordered List',
     functionWithoutParam: async () => await impl.setTextListOptions('ORDERED'),
-    supportedNodes: ['TEXT'],
+    supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
   },
   
   TextUnorderedList: {
@@ -770,7 +884,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['tul'],
     suggestion: 'Convert to Unordered List',
     functionWithoutParam: async () => await impl.setTextListOptions('UNORDERED'),
-    supportedNodes: ['TEXT'],
+    supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
   },
   
   TextRemoveList: {
@@ -778,7 +892,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['trl'],
     suggestion: 'Remove List Formatting 🗑️',
     functionWithoutParam: async () => await impl.setTextListOptions('NONE'),
-    supportedNodes: ['TEXT'],
+    supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
   },
   
   AlignTopLeft: {
