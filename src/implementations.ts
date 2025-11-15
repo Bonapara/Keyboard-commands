@@ -1467,10 +1467,63 @@ export async function selectMasterComponent() {
       }
     }
     
-    figma.notify(`Aligned ${validNodes.length} items to ${alignment.toLowerCase().replace('_', ' ')}`);
+  figma.notify(`Aligned ${validNodes.length} items to ${alignment.toLowerCase().replace('_', ' ')}`);
+}
+
+export function alignNodesToParent(alignment: 'TOP_LEFT' | 'TOP_RIGHT' | 'BOTTOM_LEFT' | 'BOTTOM_RIGHT' | 'CENTER_CENTER') {
+  const selection = figma.currentPage.selection;
+  
+  if (selection.length === 0) {
+    figma.notify('Please select at least 1 item to align');
+    return;
   }
   
-  export async function setTextAutoResize(resizeType: 'NONE' | 'WIDTH_AND_HEIGHT' | 'HEIGHT') {
+  const validNodes = selection.filter(node => 'x' in node && 'y' in node);
+  
+  for (const node of validNodes) {
+    const parent = node.parent;
+    
+    if (!parent || !('width' in parent) || !('height' in parent)) {
+      continue;
+    }
+    
+    // Set position based on alignment
+    switch (alignment) {
+      case 'TOP_LEFT':
+        node.x = 0;
+        node.y = 0;
+        break;
+      case 'TOP_RIGHT':
+        if ('width' in node) {
+          node.x = parent.width - node.width;
+          node.y = 0;
+        }
+        break;
+      case 'BOTTOM_LEFT':
+        if ('height' in node) {
+          node.x = 0;
+          node.y = parent.height - node.height;
+        }
+        break;
+      case 'BOTTOM_RIGHT':
+        if ('width' in node && 'height' in node) {
+          node.x = parent.width - node.width;
+          node.y = parent.height - node.height;
+        }
+        break;
+      case 'CENTER_CENTER':
+        if ('width' in node && 'height' in node) {
+          node.x = (parent.width - node.width) / 2;
+          node.y = (parent.height - node.height) / 2;
+        }
+        break;
+    }
+  }
+  
+  figma.notify(`Aligned ${validNodes.length} item(s) to ${alignment.toLowerCase().replace('_', ' ')} of parent`);
+}
+
+export async function setTextAutoResize(resizeType: 'NONE' | 'WIDTH_AND_HEIGHT' | 'HEIGHT') {
     const selection = figma.currentPage.selection;
     if (selection.length === 0) {
       throw new Error('No items selected');

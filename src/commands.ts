@@ -1181,6 +1181,46 @@ export const COMMAND_DEFINITIONS = {
     suggestion: "Align item(s) to horizontal center",
     functionWithoutParam: () => impl.alignNodes('HORIZONTAL_CENTER'),
   },
+  AlignTopLeftToParent: {
+    type: "commandWithoutValue",
+    alias: ['atlp', 'altp'],
+    suggestion: "Align item(s) to parent's top left ↖",
+    functionWithoutParam: () => impl.alignNodesToParent('TOP_LEFT'),
+    supportedNodes: [...NODE_GROUPS.POSITIONABLE],
+    specialConditions: ['IsNotInAutoLayout'],
+  },
+  AlignTopRightToParent: {
+    type: "commandWithoutValue",
+    alias: ['atrp', 'artp'],
+    suggestion: "Align item(s) to parent's top right ↗",
+    functionWithoutParam: () => impl.alignNodesToParent('TOP_RIGHT'),
+    supportedNodes: [...NODE_GROUPS.POSITIONABLE],
+    specialConditions: ['IsNotInAutoLayout'],
+  },
+  AlignBottomLeftToParent: {
+    type: "commandWithoutValue",
+    alias: ['ablp', 'albp'],
+    suggestion: "Align item(s) to parent's bottom left ↙",
+    functionWithoutParam: () => impl.alignNodesToParent('BOTTOM_LEFT'),
+    supportedNodes: [...NODE_GROUPS.POSITIONABLE],
+    specialConditions: ['IsNotInAutoLayout'],
+  },
+  AlignBottomRightToParent: {
+    type: "commandWithoutValue",
+    alias: ['abrp', 'arbp'],
+    suggestion: "Align item(s) to parent's bottom right ↘",
+    functionWithoutParam: () => impl.alignNodesToParent('BOTTOM_RIGHT'),
+    supportedNodes: [...NODE_GROUPS.POSITIONABLE],
+    specialConditions: ['IsNotInAutoLayout'],
+  },
+  AlignCenterCenterToParent: {
+    type: "commandWithoutValue",
+    alias: ['accp'],
+    suggestion: "Align item(s) to parent's center ・",
+    functionWithoutParam: () => impl.alignNodesToParent('CENTER_CENTER'),
+    supportedNodes: [...NODE_GROUPS.POSITIONABLE],
+    specialConditions: ['IsNotInAutoLayout'],
+  },
 } satisfies Record<string, CommandWithValue | CommandWithoutValue | OptionalValueCommand>;
 
 // Create CommandName type from COMMAND_DEFINITIONS keys
