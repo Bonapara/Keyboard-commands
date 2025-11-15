@@ -424,10 +424,14 @@ export const COMMAND_DEFINITIONS = {
     type: "optionalValueCommand",
     alias: ['f'],
     valueFormat: 'hex' as const,
-    suggestion: 'Enter HEX color (No value = toggle)',
+    suggestion: 'HEX color or ?search for styles/variables',
     functionWithoutParam: () => impl.toggleFill(),
     functionWithParam: (value: string) => impl.setFill(value),
     supportedNodes: [...NODE_GROUPS.FILLS_AND_STROKES],
+    bindingSupport: {
+      styles: ['PAINT'],
+      variables: ['COLOR']
+    }
   },
   Rotate: {
     type: "optionalValueCommand",
@@ -615,9 +619,21 @@ export const COMMAND_DEFINITIONS = {
     functionWithParam: (value: string) => impl.setBorder('bottom', value),
     functionWithoutParam: () => impl.toggleBorder('bottom'),
   },
+  StrokeColor: {
+    type: "optionalValueCommand",
+    alias: ['stc', 'bc'],
+    valueFormat: 'hex' as const,
+    suggestion: 'HEX color or ?search for styles/variables',
+    functionWithParam: (value: string) => impl.setBorderColor(value),
+    functionWithoutParam: () => impl.toggleBorder('all'),
+    bindingSupport: {
+      styles: ['PAINT'],
+      variables: ['COLOR']
+    }
+  },
   StrokeAlignCenter: {
     type: "commandWithoutValue",
-    alias: ['stc','bc'],
+    alias: ['sac', 'scc'],
     suggestion: '◌',
     functionWithoutParam: () => impl.setBorderAlign('CENTER')
   },

@@ -2,12 +2,12 @@
 // Helper Functions & Constants
 // ===============
 
-import type { Command, SpecialCondition, ValueFormat } from './types';
+import type { Command, SpecialCondition, ValueFormat, BindingSupport, VariableResolvedType, PaintResolution } from './types';
 import { COMMANDS, type CommandName } from './commands';
 
 // Regex Constants
 export const COMMAND_SPLITTER_REGEX = /[\s,]+/;
-export const COMMAND_PART_REGEX = /^(-(?![\d])|(-)?[\p{L}]+(-[\p{L}]+)*?)(?=\s|[\d]|-[\d]|-$|$|#|:)/u;
+export const COMMAND_PART_REGEX = /^(-(?![\d])|(-)?[\p{L}]+(-[\p{L}]+)*?)(?=\s|[\d]|-[\d]|-$|$|#|:|\$|@)/u;
 
 export const VALUE_FORMAT_REGEX = {
   number: /-?\s*\(?(\d+(\.\d+)?(?:\s*[-+*/x]\s*\(?-?\d+(\.\d+)?\)?)*\)?%?)/,
@@ -252,6 +252,21 @@ export function checkSpecialConditions(node: SceneNode, conditions: SpecialCondi
   
   export function extractValue(text: string, format: ValueFormat): string | null {
     console.log("extract value", text);
+    
+    // Check for style/variable references (prefixed with $ or @)
+    // These are from the binding system and should be extracted as-is
+    if (text.includes(VARIABLE_PREFIX) || text.includes(STYLE_PREFIX)) {
+      const styleMatch = text.match(/@[^•]+/);
+      const variableMatch = text.match(/\$[^•]+/);
+      
+      if (styleMatch) {
+        return styleMatch[0].trim();
+      }
+      if (variableMatch) {
+        return variableMatch[0].trim();
+      }
+    }
+    
     const match = text.match(VALUE_FORMAT_REGEX[format]);
     console.log("extract value", match);
     if (!match) return null;
@@ -272,5 +287,260 @@ export function checkSpecialConditions(node: SceneNode, conditions: SpecialCondi
     }
 
     return match[0];
+  }
+
+  // ================
+  // Style & Variable Caching
+  // ================
+
+  // Prefixes for identification
+  export const VARIABLE_PREFIX = '$';
+  export const STYLE_PREFIX = '@';
+
+  // Cache structure
+  interface StyleVariableCache {
+    paintStyles: Array<{name: string, key: string, isLocal: boolean}>;
+    textStyles: Array<{name: string, key: string, isLocal: boolean}>;
+    variables: Array<{id: string, name: string, type: string, collection: string, isLibrary: boolean}>;
+    timestamp: number;
+  }
+
+  let cache: StyleVariableCache | null = null;
+  const CACHE_DURATION = 60000; // 60 seconds
+
+  export async function getCachedStylesAndVariables(): Promise<StyleVariableCache> {
+    if (cache && Date.now() - cache.timestamp < CACHE_DURATION) {
+      return cache;
+    }
+
+    // Fetch local paint styles (includes already imported library styles)
+    const localPaintStyles = await figma.getLocalPaintStylesAsync();
+    const paintStylesData = localPaintStyles.map(s => ({
+      name: s.name,
+      key: s.key,
+      isLocal: !s.remote  // remote means it's from a library
+    }));
+
+    // Fetch local text styles (includes already imported library styles)
+    const localTextStyles = await figma.getLocalTextStylesAsync();
+    const textStylesData = localTextStyles.map(s => ({
+      name: s.name,
+      key: s.key,
+      isLocal: !s.remote  // remote means it's from a library
+    }));
+
+    // Fetch all local variables
+    const allVariables = await figma.variables.getLocalVariablesAsync();
+    const collections = await figma.variables.getLocalVariableCollectionsAsync();
+    const collectionMap = new Map(collections.map(c => [c.id, c.name]));
+
+    const variablesData = allVariables.map(v => ({
+      id: v.id,
+      name: v.name,
+      type: v.resolvedType,
+      collection: collectionMap.get(v.variableCollectionId) || 'Unknown',
+      isLibrary: false
+    }));
+
+    // Fetch library variables
+    try {
+      const libraryCollections = await figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync();
+      
+      for (const libCollection of libraryCollections) {
+        try {
+          const libVars = await figma.teamLibrary.getVariablesInLibraryCollectionAsync(libCollection.key);
+          
+          libVars.forEach(libVar => {
+            variablesData.push({
+              id: libVar.key,           // Use key for library vars (will import later)
+              name: libVar.name,
+              type: libVar.resolvedType,
+              collection: libCollection.name,
+              isLibrary: true
+            });
+          });
+        } catch (e) {
+          console.warn(`Failed to fetch variables from library collection ${libCollection.name}:`, e);
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to fetch library variable collections:', e);
+    }
+    
+    console.log(`📚 Loaded ${variablesData.length} variables (${variablesData.filter(v => !v.isLibrary).length} local, ${variablesData.filter(v => v.isLibrary).length} library)`);
+
+    cache = {
+      paintStyles: paintStylesData,
+      textStyles: textStylesData,
+      variables: variablesData,
+      timestamp: Date.now()
+    };
+
+    return cache;
+  }
+
+  // ================
+  // Search Function
+  // ================
+
+  export async function searchStylesAndVariables(
+    searchTerm: string,
+    bindingSupport: BindingSupport
+  ): Promise<string[]> {
+    const data = await getCachedStylesAndVariables();
+    const results: Array<{score: number, text: string}> = [];
+    const search = searchTerm.toLowerCase();
+
+    // Search variables
+    if (bindingSupport.variables) {
+      const matchingVars = data.variables.filter(v =>
+        bindingSupport.variables!.indexOf(v.type as VariableResolvedType) !== -1 &&
+        v.name.toLowerCase().indexOf(search) !== -1
+      );
+      
+      const localMatches = matchingVars.filter(v => !v.isLibrary).length;
+      const libraryMatches = matchingVars.filter(v => v.isLibrary).length;
+      
+      if (matchingVars.length > 0) {
+        console.log(`🔍 Found ${matchingVars.length} variables matching "${searchTerm}" (${localMatches} local, ${libraryMatches} library)`);
+      }
+
+      matchingVars.forEach(v => {
+        const nameLower = v.name.toLowerCase();
+        const score = nameLower === search ? 1000 :
+                      nameLower.startsWith(search) ? 500 : 100;
+        const location = v.isLibrary ? 'Library' : 'Local';
+        results.push({
+          score,
+          text: `${VARIABLE_PREFIX}${v.name} (${v.collection} - ${location})`
+        });
+      });
+    }
+
+    // Search paint styles
+    if (bindingSupport.styles && bindingSupport.styles.indexOf('PAINT') !== -1) {
+      const matchingStyles = data.paintStyles.filter(s =>
+        s.name.toLowerCase().indexOf(search) !== -1
+      );
+
+      matchingStyles.forEach(s => {
+        const nameLower = s.name.toLowerCase();
+        const score = nameLower === search ? 1000 :
+                      nameLower.startsWith(search) ? 500 : 100;
+        const location = s.isLocal ? 'Local' : 'Library';
+        results.push({
+          score,
+          text: `${STYLE_PREFIX}${s.name} (${location})`
+        });
+      });
+    }
+
+    // Search text styles
+    if (bindingSupport.styles && bindingSupport.styles.indexOf('TEXT') !== -1) {
+      const matchingStyles = data.textStyles.filter(s =>
+        s.name.toLowerCase().indexOf(search) !== -1
+      );
+
+      matchingStyles.forEach(s => {
+        const nameLower = s.name.toLowerCase();
+        const score = nameLower === search ? 1000 :
+                      nameLower.startsWith(search) ? 500 : 100;
+        const location = s.isLocal ? 'Local' : 'Library';
+        results.push({
+          score,
+          text: `${STYLE_PREFIX}${s.name} (${location})`
+        });
+      });
+    }
+
+    // Sort by score and limit to 20 results
+    return results
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 20)
+      .map(r => r.text);
+  }
+
+  // ================
+  // Resolution Function
+  // ================
+
+  export async function resolvePaintValue(rawValue: string): Promise<PaintResolution> {
+    const cleanValue = rawValue.trim();
+
+    // Style reference (starts with @)
+    if (cleanValue.startsWith(STYLE_PREFIX)) {
+      // Extract style name from "@StyleName (Location)"
+      const match = cleanValue.match(/^@(.+?)\s*\(/);
+      const styleName = match ? match[1] : cleanValue.slice(1);
+
+      const data = await getCachedStylesAndVariables();
+      const styleData = data.paintStyles.find(s => s.name === styleName);
+
+      if (!styleData) {
+        figma.notify(`Style "${styleName}" not found, skipping...`);
+        throw new Error(`Style not found: ${styleName}`);
+      }
+
+      // Lazy import if it's a library style
+      if (!styleData.isLocal && styleData.key) {
+        try {
+          await figma.importStyleByKeyAsync(styleData.key);
+        } catch (e) {
+          console.error("Failed to import style:", e);
+          throw new Error(`Failed to import library style: ${styleName}`);
+        }
+      }
+
+      return {
+        type: 'style',
+        styleKey: styleData.key
+      };
+    }
+
+    // Variable reference (starts with $)
+    if (cleanValue.startsWith(VARIABLE_PREFIX)) {
+      // Extract variable name from "$VarName (Collection - Location)"
+      const match = cleanValue.match(/^\$(.+?)\s*\(/);
+      const variableName = match ? match[1] : cleanValue.slice(1);
+
+      const data = await getCachedStylesAndVariables();
+      const varData = data.variables.find(v => v.name === variableName);
+
+      if (!varData) {
+        figma.notify(`Variable "${variableName}" not found, skipping...`);
+        throw new Error(`Variable not found: ${variableName}`);
+      }
+
+      return {
+        type: 'variable',
+        variableId: varData.id,
+        variableName: varData.name,
+        isLibraryVariable: varData.isLibrary
+      };
+    }
+
+    // Literal hex color
+    const hexMatch = cleanValue.match(/#?([0-9a-fA-F]{3,6})/);
+    if (!hexMatch) {
+      throw new Error(`Invalid color format: ${cleanValue}`);
+    }
+
+    let hex = hexMatch[1];
+    if (hex.length === 3) {
+      hex = hex.split('').map(c => c + c).join('');
+    }
+
+    if (hex.length !== 6) {
+      throw new Error(`Invalid hex color: ${cleanValue}`);
+    }
+
+    const r = parseInt(hex.substring(0, 2), 16) / 255;
+    const g = parseInt(hex.substring(2, 4), 16) / 255;
+    const b = parseInt(hex.substring(4, 6), 16) / 255;
+
+    return {
+      type: 'literal',
+      color: { r, g, b }
+    };
   }
 

@@ -7,6 +7,15 @@ export type SpecialCondition = 'IsAutoLayout' | 'IsInAutoLayout' | 'IsAbsoluteIn
 
 export type ValueFormat = 'number' | 'hex';
 
+// Style and variable binding support
+export type StyleBindingType = 'PAINT' | 'TEXT' | 'EFFECT';
+export type VariableResolvedType = 'BOOLEAN' | 'COLOR' | 'FLOAT' | 'STRING';
+
+export interface BindingSupport {
+  styles?: StyleBindingType[];
+  variables?: VariableResolvedType[];
+}
+
 export type CommandWithValue = {
   type: "commandWithValue";
   alias: Array<string>;
@@ -15,6 +24,7 @@ export type CommandWithValue = {
   suggestion: string;
   supportedNodes?: SupportedNodeType[];
   specialConditions?: SpecialCondition[];
+  bindingSupport?: BindingSupport;
 };
 
 export type CommandWithoutValue = {
@@ -24,6 +34,7 @@ export type CommandWithoutValue = {
   suggestion: string;  
   supportedNodes?: SupportedNodeType[];
   specialConditions?: SpecialCondition[];
+  bindingSupport?: BindingSupport;
 };
 
 export type OptionalValueCommand = {
@@ -35,10 +46,21 @@ export type OptionalValueCommand = {
   functionWithParam: (value: string) => void;
   supportedNodes?: SupportedNodeType[];
   specialConditions?: SpecialCondition[];
+  bindingSupport?: BindingSupport;
 };
 
 export type Command = {
   name: string;
   type: "commandWithValue" | "commandWithoutValue" | "optionalValueCommand"
 } & (CommandWithValue | CommandWithoutValue | OptionalValueCommand);
+
+// Resolution result
+export interface PaintResolution {
+  type: 'style' | 'variable' | 'literal';
+  styleKey?: string;      // For library import
+  variableId?: string;
+  variableName?: string;  // For error messages
+  isLibraryVariable?: boolean; // Flag for library variables that need importing
+  color?: RGB;
+}
 

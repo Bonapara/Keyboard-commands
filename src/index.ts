@@ -11,7 +11,8 @@ import {
   calculateExpression,
   checkSpecialConditions,
   VALUE_FORMAT_REGEX,
-  COMMAND_SPLITTER_REGEX 
+  COMMAND_SPLITTER_REGEX,
+  searchStylesAndVariables
 } from './utils';
 
 // Global state
@@ -31,7 +32,7 @@ function setupInputHandler() {
   }
   
   // Define a new handler
-  currentInputHandler = ({ key, query, result }) => {
+  currentInputHandler = async ({ key, query, result }) => {
     if (key !== 'command') return;
     originalInput = query;
     
@@ -61,6 +62,33 @@ function setupInputHandler() {
         }
       }
     });
+    
+    // Check for binding mode (contains ?)
+    const bindingModeMatch = currentPart.match(/^([a-z]+)\?(.*)$/i);
+    
+    if (bindingModeMatch) {
+      const [, cmdAlias, searchTerm] = bindingModeMatch;
+      const matchedCommand = findCommand(cmdAlias)[0];
+      
+      if (matchedCommand?.bindingSupport) {
+        try {
+          const suggestions = await searchStylesAndVariables(
+            searchTerm,
+            matchedCommand.bindingSupport
+          );
+          
+          if (suggestions.length > 0) {
+            result.setSuggestions(suggestions);
+            return;
+          } else {
+            result.setSuggestions(['No matching styles or variables found']);
+            return;
+          }
+        } catch (error) {
+          console.error('Error searching styles/variables:', error);
+        }
+      }
+    }
     
     // If query is empty or ends with space, show all commands
     if (!query || query.endsWith(' ')) {
@@ -242,7 +270,22 @@ figma.on('run', async (parameters) => {
         await executeCommand(cmd, true);
       }
       console.log("parameters.parameters.command", parameters.parameters.command);
-      await executeCommand(parameters.parameters.command, true);
+      
+      // Check if this is a style/variable reference from binding mode
+      // These start with $ (variable) or @ (style) and need command prefix reconstruction
+      let commandToExecute = parameters.parameters.command;
+      if (commandToExecute.startsWith('$') || commandToExecute.startsWith('@')) {
+        // Extract command prefix from originalInput (part before ?)
+        const bindingModeMatch = originalInput.match(/^([^?]+)\?/);
+        if (bindingModeMatch) {
+          const commandPrefix = bindingModeMatch[1].trim();
+          // Reconstruct full command: prefix + value
+          commandToExecute = commandPrefix + commandToExecute;
+          console.log("Reconstructed command:", commandToExecute);
+        }
+      }
+      
+      await executeCommand(commandToExecute, true);
     } else {
       for (const cmd of commands) {
         console.log("cmd", cmd);
@@ -300,15 +343,26 @@ async function processCommand(commandName: CommandName, value?: string): Promise
 }
 
 async function executeCommand(cmd: string, skipNotification: boolean = false): Promise<void> {
-  if (!cmd) return;
+  console.log("=== executeCommand START ===");
+  console.log("Input cmd:", cmd);
+  
+  if (!cmd) {
+    console.log("Empty command, returning");
+    return;
+  }
   
   // Clean the command string by removing suggestions and aliases
   const cleanCmd = cmd.split('•')[0]  // Remove everything after the bullet point
                      .split(',')[0]    // Take only the first part before any comma
                      .trim();          // Remove whitespace
   
+  console.log("Cleaned command:", cleanCmd);
+  
   const command = findCommand(cleanCmd)[0];
+  console.log("Found command:", command);
+  
   if (!command) {
+      console.log("No command found, returning");
       return;
   }
 
@@ -321,27 +375,34 @@ async function executeCommand(cmd: string, skipNotification: boolean = false): P
   try {
     await delay(1);
     if (command.type === 'commandWithoutValue') {
+      console.log("Executing commandWithoutValue");
       await processCommand(command.name);
     } else {
       const value = extractValue(cmd, command.valueFormat as ValueFormat);
-      console.log("value", value);
+      console.log("Extracted value:", value);
+      console.log("Command type:", command.type);
+      
       if (command.type === 'commandWithValue') {
         if (value) {
+          console.log("Executing commandWithValue with value:", value);
           await processCommand(command.name, value);
         } else {
+          console.log("No value for commandWithValue");
           figma.notify(`No value provided for ${command.name}`);
         }
       } else if (command.type === 'optionalValueCommand') {
         if (value) {
-          console.log("optional value command", value);
+          console.log("Executing optionalValueCommand with param:", value);
           await command.functionWithParam(value);
         } else {
-          console.log("optional value command without param");
+          console.log("Executing optionalValueCommand without param");
           await command.functionWithoutParam();
         }
       }
     }
+    console.log("=== executeCommand END (success) ===");
   } catch (error) {
+    console.error('=== executeCommand END (error) ===');
     console.error('Error executing command:', error);
     figma.notify(error instanceof Error ? error.message : 'Command execution failed');
     throw error;

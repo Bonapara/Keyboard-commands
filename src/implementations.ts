@@ -2,6 +2,8 @@
 // Implementation Functions
 // ================================
 
+import { resolvePaintValue } from './utils';
+
 export function resize(value: string, resizeType?: 'width' | 'height') {
   const numValue = Number(value);
   if (isNaN(numValue)) throw new Error('Invalid number provided');
@@ -27,44 +29,82 @@ export function resize(value: string, resizeType?: 'width' | 'height') {
   figma.notify(message);
 }
 
-export function setFill(value: string) {
+export async function setFill(value: string) {
   const selection = figma.currentPage.selection;
-  if (selection.length === 0) {
-    throw new Error('No items selected');
-  }
-  // Convert input to a standardized hex string
   
-  let hexColor = value.toString();
-  
-  // Remove # if present
-  hexColor = hexColor.replace('#', '');
-  
-  // Convert 3-digit hex to 6-digit hex
-  if (hexColor.length === 3) {
-    hexColor = hexColor.split('').map(char => char + char).join('');
-  }
-  
-  // Validate hex format
-  if (!/^[0-9A-Fa-f]{6}$/.test(hexColor)) {
-    throw new Error('Invalid hex color format');
-  }
-  
-  // Convert hex to RGB values (0-1 range for Figma)
-  const r = parseInt(hexColor.substring(0, 2), 16) / 255;
-  const g = parseInt(hexColor.substring(2, 4), 16) / 255;
-  const b = parseInt(hexColor.substring(4, 6), 16) / 255;
-  
-  // Apply fill to selected nodes
+  if (selection.length === 0) throw new Error('No items selected');
+
+  const resolution = await resolvePaintValue(value);
+
   for (const node of selection) {
-    if ('fills' in node) {
-      const newFills: Paint[] = [{
-        type: 'SOLID',
-        color: { r, g, b },
-        opacity: 1
-      } as SolidPaint];
-      node.fills = newFills;
+    if (!('fills' in node)) {
+      continue;
+    }
+
+    try {
+      switch (resolution.type) {
+        case 'style': {
+          if (!resolution.styleKey) break;
+          
+          // Get the style by key
+          const localStyles = await figma.getLocalPaintStylesAsync();
+          let style: PaintStyle | undefined = localStyles.find(s => s.key === resolution.styleKey);
+          
+          // If not found locally, import from library
+          if (!style) {
+            const importedStyle = await figma.importStyleByKeyAsync(resolution.styleKey);
+            if (importedStyle.type === 'PAINT') {
+              style = importedStyle as PaintStyle;
+            }
+          }
+          
+          if (style) {
+            await node.setFillStyleIdAsync(style.id);
+          }
+          break;
+        }
+
+        case 'variable': {
+          // Import library variable if needed
+          let variableId = resolution.variableId!;
+          
+          if (resolution.isLibraryVariable) {
+            const importedVar = await figma.variables.importVariableByKeyAsync(variableId);
+            variableId = importedVar.id;
+          }
+          
+          const variable = await figma.variables.getVariableByIdAsync(variableId);
+          if (!variable) throw new Error('Variable not found');
+
+          const currentFills = node.fills === figma.mixed ? [] : [...node.fills];
+          const basePaint: SolidPaint = currentFills[0]?.type === 'SOLID'
+            ? currentFills[0] as SolidPaint
+            : { type: 'SOLID', color: { r: 0, g: 0, b: 0 } };
+
+          const boundPaint = figma.variables.setBoundVariableForPaint(
+            basePaint,
+            'color',
+            variable
+          );
+          node.fills = [boundPaint];
+          break;
+        }
+
+        case 'literal': {
+          node.fills = [{
+            type: 'SOLID',
+            color: resolution.color!
+          }];
+          break;
+        }
+      }
+    } catch (error) {
+      console.error(`Failed to apply fill to ${node.name}:`, error);
+      // Continue with other nodes
     }
   }
+
+  figma.notify('Fill applied successfully');
 }
 
 export function toggleFill() {
@@ -1305,6 +1345,78 @@ export function setBorderAlign(alignment: 'CENTER' | 'INSIDE' | 'OUTSIDE') {
   }
   
   figma.notify(`Border alignment set to ${alignment.toLowerCase()}`);
+}
+
+export async function setBorderColor(value: string) {
+  const selection = figma.currentPage.selection;
+  if (selection.length === 0) throw new Error('No items selected');
+
+  const resolution = await resolvePaintValue(value);
+
+  for (const node of selection) {
+    if (!('strokes' in node)) continue;
+
+    try {
+      switch (resolution.type) {
+        case 'style': {
+          if (!resolution.styleKey) break;
+          
+          const localStyles = await figma.getLocalPaintStylesAsync();
+          let style: PaintStyle | undefined = localStyles.find(s => s.key === resolution.styleKey);
+          
+          if (!style) {
+            const importedStyle = await figma.importStyleByKeyAsync(resolution.styleKey);
+            if (importedStyle.type === 'PAINT') {
+              style = importedStyle as PaintStyle;
+            }
+          }
+          
+          if (style) {
+            await node.setStrokeStyleIdAsync(style.id);
+          }
+          break;
+        }
+
+        case 'variable': {
+          // Import library variable if needed
+          let variableId = resolution.variableId!;
+          
+          if (resolution.isLibraryVariable) {
+            const importedVar = await figma.variables.importVariableByKeyAsync(variableId);
+            variableId = importedVar.id;
+          }
+          
+          const variable = await figma.variables.getVariableByIdAsync(variableId);
+          if (!variable) throw new Error('Variable not found');
+
+          const currentStrokes = Array.isArray(node.strokes) ? [...node.strokes] : [];
+          const basePaint: SolidPaint = currentStrokes[0]?.type === 'SOLID'
+            ? currentStrokes[0] as SolidPaint
+            : { type: 'SOLID', color: { r: 0, g: 0, b: 0 } };
+
+          const boundPaint = figma.variables.setBoundVariableForPaint(
+            basePaint,
+            'color',
+            variable
+          );
+          node.strokes = [boundPaint];
+          break;
+        }
+
+        case 'literal': {
+          node.strokes = [{
+            type: 'SOLID',
+            color: resolution.color!
+          }];
+          break;
+        }
+      }
+    } catch (error) {
+      console.error(`Failed to apply stroke to ${node.name}:`, error);
+    }
+  }
+
+  figma.notify('Stroke color applied successfully');
 }
 
 export async function selectMasterComponent() {
