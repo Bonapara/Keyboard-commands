@@ -4,15 +4,15 @@
 
 import type { Command, SpecialCondition, ValueFormat, BindingSupport, VariableResolvedType, PaintResolution } from './types';
 import { COMMANDS, type CommandName } from './commands';
+import { 
+  COMMAND_SPLITTER_REGEX, 
+  COMMAND_PART_REGEX, 
+  VALUE_FORMAT_REGEX, 
+  CACHE_DURATION 
+} from './constants';
 
-// Regex Constants
-export const COMMAND_SPLITTER_REGEX = /[\s,]+/;
-export const COMMAND_PART_REGEX = /^(-(?![\d])|(-)?[\p{L}]+(-[\p{L}]+)*?)(?=\s|[\d]|-[\d]|-$|$|#|:|\$|@)/u;
-
-export const VALUE_FORMAT_REGEX = {
-  number: /-?\s*\(?(\d+(\.\d+)?(?:\s*[-+*/x]\s*\(?-?\d+(\.\d+)?\)?)*\)?%?)/,
-  hex: /#[0-9a-fA-F]{0,6}/,
-};
+// Re-export constants for backwards compatibility
+export { COMMAND_SPLITTER_REGEX, COMMAND_PART_REGEX, VALUE_FORMAT_REGEX };
 
 // Helper Functions
 
@@ -44,8 +44,6 @@ export function checkSpecialConditions(node: SceneNode, conditions: SpecialCondi
         return node.parent && 'layoutMode' in node.parent && node.parent.layoutMode === 'NONE';
         case 'IsAutoLayoutWrap':
         return 'layoutMode' in node && node.layoutMode !== 'NONE' && 'layoutWrap' in node && node.layoutWrap === 'WRAP';
-        case 'IsVisible':
-        return node.visible;
         default:
         return false;
       }
@@ -295,10 +293,6 @@ export function checkSpecialConditions(node: SceneNode, conditions: SpecialCondi
   // Style & Variable Caching
   // ================
 
-  // Prefixes for identification
-  export const VARIABLE_PREFIX = '$';
-  export const STYLE_PREFIX = '@';
-
   // Cache structure
   interface StyleVariableCache {
     paintStyles: Array<{name: string, key: string, isLocal: boolean}>;
@@ -308,7 +302,6 @@ export function checkSpecialConditions(node: SceneNode, conditions: SpecialCondi
   }
 
   let cache: StyleVariableCache | null = null;
-  const CACHE_DURATION = 60000; // 60 seconds
 
   export async function getCachedStylesAndVariables(): Promise<StyleVariableCache> {
     if (cache && Date.now() - cache.timestamp < CACHE_DURATION) {

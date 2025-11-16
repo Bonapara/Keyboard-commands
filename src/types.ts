@@ -3,7 +3,7 @@
 // ==========================
 
 export type SupportedNodeType = SceneNode['type'];
-export type SpecialCondition = 'IsAutoLayout' | 'IsInAutoLayout' | 'IsAbsoluteInAutoLayout' | 'IsAutoLayoutWrap' | 'IsVisible' | 'TextStyleApplied' | 'NoTextStyleApplied' | 'IsNotInAutoLayout';
+export type SpecialCondition = 'IsAutoLayout' | 'IsInAutoLayout' | 'IsAbsoluteInAutoLayout' | 'IsAutoLayoutWrap' | 'TextStyleApplied' | 'NoTextStyleApplied' | 'IsNotInAutoLayout';
 
 export type ValueFormat = 'number' | 'hex';
 

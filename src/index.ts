@@ -3,7 +3,7 @@
 // ==========================
 
 import type { ValueFormat } from './types';
-import { COMMAND_DEFINITIONS, COMMANDS, type CommandName } from './commands';
+import { COMMANDS } from './commands';
 import { 
   findCommand, 
   getCommandSuggestions, 
@@ -41,7 +41,7 @@ function setupInputHandler() {
     const bindingModeMatch = query.match(/^(.*?)\s+([a-z]+)\?(.*)$/i);
     
     if (bindingModeMatch) {
-      const [, previousCommandsStr, cmdAlias, searchTerm] = bindingModeMatch;
+      const [, _previousCommandsStr, cmdAlias, searchTerm] = bindingModeMatch;
       const matchedCommand = findCommand(cmdAlias)[0];
       
       if (matchedCommand?.bindingSupport) {
@@ -362,46 +362,6 @@ figma.on('run', async (parameters) => {
 // =================
 // Command Execution
 // =================
-async function processCommand(commandName: CommandName, value?: string): Promise<void> {
-  const command = COMMAND_DEFINITIONS[commandName];
-  if (!command) {
-    throw new Error(`Command "${commandName}" not found`);
-  }
-
-  console.log("process command", command);
-  
-  try {
-    if (command.type === 'commandWithValue') {
-      if (!value) {
-        throw new Error(`Command "${commandName}" requires a value`);
-      }
-      await command.functionWithParam(value);
-    } else if (command.type === 'commandWithoutValue') {
-      await command.functionWithoutParam();
-    } else if (command.type === 'optionalValueCommand') {
-      if (value) {
-        await command.functionWithParam(value);
-      } else {
-        await command.functionWithoutParam();
-      }
-    }
-  } catch (error) {
-    // Improve error messages for common failures
-    if (error instanceof Error) {
-      if (error.message.includes('font')) {
-        throw new Error(`Font loading failed for "${commandName}". The font may not be available.`);
-      } else if (error.message.includes('permission')) {
-        throw new Error(`Permission denied for "${commandName}". Check node permissions.`);
-      } else if (error.message.includes('read-only')) {
-        throw new Error(`Cannot modify "${commandName}" - node or property is read-only.`);
-      }
-      // Re-throw original error if it's already descriptive
-      throw error;
-    }
-    throw new Error(`Failed to execute command "${commandName}"`);
-  }
-}
-
 async function executeCommand(cmd: string, skipNotification: boolean = false): Promise<void> {
   console.log("=== executeCommand START ===");
   console.log("Input cmd:", cmd);
@@ -434,22 +394,24 @@ async function executeCommand(cmd: string, skipNotification: boolean = false): P
   
   try {
     await delay(1);
+    
+    // Execute command based on type
     if (command.type === 'commandWithoutValue') {
       console.log("Executing commandWithoutValue");
-      await processCommand(command.name);
+      await command.functionWithoutParam();
     } else {
       const value = extractValue(cmd, command.valueFormat as ValueFormat);
       console.log("Extracted value:", value);
       console.log("Command type:", command.type);
       
       if (command.type === 'commandWithValue') {
-        if (value) {
-          console.log("Executing commandWithValue with value:", value);
-          await processCommand(command.name, value);
-        } else {
+        if (!value) {
           console.log("No value for commandWithValue");
           figma.notify(`No value provided for ${command.name}`);
+          return;
         }
+        console.log("Executing commandWithValue with value:", value);
+        await command.functionWithParam(value);
       } else if (command.type === 'optionalValueCommand') {
         if (value) {
           console.log("Executing optionalValueCommand with param:", value);
@@ -464,7 +426,21 @@ async function executeCommand(cmd: string, skipNotification: boolean = false): P
   } catch (error) {
     console.error('=== executeCommand END (error) ===');
     console.error('Error executing command:', error);
-    figma.notify(error instanceof Error ? error.message : 'Command execution failed');
+    
+    // Improve error messages for common failures
+    if (error instanceof Error) {
+      if (error.message.includes('font')) {
+        figma.notify(`Font loading failed for "${command.name}". The font may not be available.`);
+      } else if (error.message.includes('permission')) {
+        figma.notify(`Permission denied for "${command.name}". Check node permissions.`);
+      } else if (error.message.includes('read-only')) {
+        figma.notify(`Cannot modify "${command.name}" - node or property is read-only.`);
+      } else {
+        figma.notify(error.message);
+      }
+    } else {
+      figma.notify('Command execution failed');
+    }
     throw error;
   } finally {
     await delay(1);
