@@ -36,6 +36,61 @@ function setupInputHandler() {
     if (key !== 'command') return;
     originalInput = query;
     
+    // Check for binding mode BEFORE splitting by spaces
+    // This allows variable/style names with spaces to work properly
+    const bindingModeMatch = query.match(/^(.*?)\s+([a-z]+)\?(.*)$/i);
+    
+    if (bindingModeMatch) {
+      const [, previousCommandsStr, cmdAlias, searchTerm] = bindingModeMatch;
+      const matchedCommand = findCommand(cmdAlias)[0];
+      
+      if (matchedCommand?.bindingSupport) {
+        try {
+          const suggestions = await searchStylesAndVariables(
+            searchTerm,
+            matchedCommand.bindingSupport
+          );
+          
+          if (suggestions.length > 0) {
+            result.setSuggestions(suggestions);
+            return;
+          } else {
+            result.setSuggestions(['No matching styles or variables found']);
+            return;
+          }
+        } catch (error) {
+          console.error('Error searching styles/variables:', error);
+        }
+      }
+    }
+    
+    // Check for binding mode at the start of the query (no previous commands)
+    const simpleBindingMatch = query.match(/^([a-z]+)\?(.*)$/i);
+    
+    if (simpleBindingMatch) {
+      const [, cmdAlias, searchTerm] = simpleBindingMatch;
+      const matchedCommand = findCommand(cmdAlias)[0];
+      
+      if (matchedCommand?.bindingSupport) {
+        try {
+          const suggestions = await searchStylesAndVariables(
+            searchTerm,
+            matchedCommand.bindingSupport
+          );
+          
+          if (suggestions.length > 0) {
+            result.setSuggestions(suggestions);
+            return;
+          } else {
+            result.setSuggestions(['No matching styles or variables found']);
+            return;
+          }
+        } catch (error) {
+          console.error('Error searching styles/variables:', error);
+        }
+      }
+    }
+    
     const parts = query.split(' ');
     const currentPart = parts[parts.length - 1];
     
@@ -62,33 +117,6 @@ function setupInputHandler() {
         }
       }
     });
-    
-    // Check for binding mode (contains ?)
-    const bindingModeMatch = currentPart.match(/^([a-z]+)\?(.*)$/i);
-    
-    if (bindingModeMatch) {
-      const [, cmdAlias, searchTerm] = bindingModeMatch;
-      const matchedCommand = findCommand(cmdAlias)[0];
-      
-      if (matchedCommand?.bindingSupport) {
-        try {
-          const suggestions = await searchStylesAndVariables(
-            searchTerm,
-            matchedCommand.bindingSupport
-          );
-          
-          if (suggestions.length > 0) {
-            result.setSuggestions(suggestions);
-            return;
-          } else {
-            result.setSuggestions(['No matching styles or variables found']);
-            return;
-          }
-        } catch (error) {
-          console.error('Error searching styles/variables:', error);
-        }
-      }
-    }
     
     // If query is empty or ends with space, show all commands
     if (!query || query.endsWith(' ')) {
@@ -255,33 +283,65 @@ setupInputHandler();
 // ===================
 figma.on('run', async (parameters) => {
   const commandString = originalInput.trim();
-  const commands = commandString.split(COMMAND_SPLITTER_REGEX).filter(Boolean);
-
+  
   console.log("parameters", parameters);
+  console.log("originalInput", originalInput);
+  
+  // Check for binding mode BEFORE splitting by spaces
+  // Patterns: "cmd?" or "prev commands cmd?" 
+  const bindingModeMatch = commandString.match(/^(.*?)\s*([a-z]+)\?(.*)$/i);
+  
+  let commands: string[];
+  let isBindingMode = false;
+  let bindingCommandAlias = '';
+  
+  if (bindingModeMatch) {
+    isBindingMode = true;
+    const [, previousCommandsStr, cmdAlias, searchTerm] = bindingModeMatch;
+    bindingCommandAlias = cmdAlias;
+    
+    console.log("Binding mode detected");
+    console.log("Previous commands:", previousCommandsStr);
+    console.log("Binding command alias:", cmdAlias);
+    console.log("Search term:", searchTerm);
+    
+    // Split only the previous commands part (before the binding command)
+    if (previousCommandsStr.trim()) {
+      commands = previousCommandsStr.trim().split(COMMAND_SPLITTER_REGEX).filter(Boolean);
+    } else {
+      commands = [];
+    }
+    // Don't include the binding command itself in the commands array
+  } else {
+    // Normal mode: split all commands by spaces
+    commands = commandString.split(COMMAND_SPLITTER_REGEX).filter(Boolean);
+  }
+  
   console.log("commands", commands);
   
   try {
     // Group all command executions into a single undo step for better UX
     // This allows users to undo all commands at once with Cmd+Z
     if (parameters.parameters?.command && !parameters.parameters.command.includes('|')) {
-      // Execute all commands except the last one
-      for (let i = 0; i < commands.length - 1; i++) {
+      // Execute all commands (which won't include the binding command part)
+      for (let i = 0; i < commands.length; i++) {
         const cmd = commands[i];
         await executeCommand(cmd, true);
       }
+      
       console.log("parameters.parameters.command", parameters.parameters.command);
       
       // Check if this is a style/variable reference from binding mode
-      // These start with $ (variable) or @ (style) and need command prefix reconstruction
+      // These have format "Name (Collection - Location)" or "Name (Location)" and need command prefix reconstruction
       let commandToExecute = parameters.parameters.command;
-      if (commandToExecute.startsWith('$') || commandToExecute.startsWith('@')) {
-        // Extract command prefix from originalInput (part before ?)
-        const bindingModeMatch = originalInput.match(/^([^?]+)\?/);
-        if (bindingModeMatch) {
-          const commandPrefix = bindingModeMatch[1].trim();
-          // Reconstruct full command: prefix + value
-          commandToExecute = commandPrefix + commandToExecute;
-          console.log("Reconstructed command:", commandToExecute);
+      const bindingPattern = /^([^(]+)\s*\(([^)]+)\)$/;
+      if (bindingPattern.test(commandToExecute)) {
+        // This is a binding mode value
+        if (isBindingMode && bindingCommandAlias) {
+          // Reconstruct full command: alias + space + value
+          // The space is needed so findCommand regex can extract just the alias
+          commandToExecute = bindingCommandAlias + ' ' + commandToExecute;
+          console.log("Reconstructed binding command:", commandToExecute);
         }
       }
       

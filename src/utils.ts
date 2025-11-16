@@ -253,18 +253,20 @@ export function checkSpecialConditions(node: SceneNode, conditions: SpecialCondi
   export function extractValue(text: string, format: ValueFormat): string | null {
     console.log("extract value", text);
     
-    // Check for style/variable references (prefixed with $ or @)
-    // These are from the binding system and should be extracted as-is
-    if (text.includes(VARIABLE_PREFIX) || text.includes(STYLE_PREFIX)) {
-      const styleMatch = text.match(/@[^•]+/);
-      const variableMatch = text.match(/\$[^•]+/);
-      
-      if (styleMatch) {
-        return styleMatch[0].trim();
+    // Check for style/variable references from the binding system
+    // Variables have format: "Name (Collection - Location)" (contains " - " in parentheses)
+    // Styles have format: "Name (Location)" (single word in parentheses)
+    // The text might be "cmd Name (...)" so we need to extract just "Name (...)"
+    const bindingMatch = text.match(/([^(]+)\s*\(([^)]+)\)/);
+    if (bindingMatch) {
+      // Check if there's a space before the name (indicating a command prefix)
+      const spaceIndex = text.indexOf(' ');
+      if (spaceIndex !== -1) {
+        // Extract everything after the first space (the binding value)
+        return text.substring(spaceIndex + 1).trim();
       }
-      if (variableMatch) {
-        return variableMatch[0].trim();
-      }
+      // No space, so the entire text is the binding value
+      return text.trim();
     }
     
     const match = text.match(VALUE_FORMAT_REGEX[format]);
@@ -379,86 +381,125 @@ export function checkSpecialConditions(node: SceneNode, conditions: SpecialCondi
     return cache;
   }
 
-  // ================
-  // Search Function
-  // ================
+// ================
+// Search Function
+// ================
 
-  export async function searchStylesAndVariables(
-    searchTerm: string,
-    bindingSupport: BindingSupport
-  ): Promise<string[]> {
-    const data = await getCachedStylesAndVariables();
-    const results: Array<{score: number, text: string}> = [];
-    const search = searchTerm.toLowerCase();
-
-    // Search variables
-    if (bindingSupport.variables) {
-      const matchingVars = data.variables.filter(v =>
-        bindingSupport.variables!.indexOf(v.type as VariableResolvedType) !== -1 &&
-        v.name.toLowerCase().indexOf(search) !== -1
-      );
-      
-      const localMatches = matchingVars.filter(v => !v.isLibrary).length;
-      const libraryMatches = matchingVars.filter(v => v.isLibrary).length;
-      
-      if (matchingVars.length > 0) {
-        console.log(`🔍 Found ${matchingVars.length} variables matching "${searchTerm}" (${localMatches} local, ${libraryMatches} library)`);
-      }
-
-      matchingVars.forEach(v => {
-        const nameLower = v.name.toLowerCase();
-        const score = nameLower === search ? 1000 :
-                      nameLower.startsWith(search) ? 500 : 100;
-        const location = v.isLibrary ? 'Library' : 'Local';
-        results.push({
-          score,
-          text: `${VARIABLE_PREFIX}${v.name} (${v.collection} - ${location})`
-        });
-      });
+// Natural sort helper function for sorting strings with numbers
+function naturalSort(a: string, b: string): number {
+  const regex = /(\d+)|(\D+)/g;
+  const aParts = a.match(regex) || [];
+  const bParts = b.match(regex) || [];
+  
+  for (let i = 0; i < Math.min(aParts.length, bParts.length); i++) {
+    const aPart = aParts[i];
+    const bPart = bParts[i];
+    
+    const aNum = parseInt(aPart);
+    const bNum = parseInt(bPart);
+    
+    // If both are numbers, compare numerically
+    if (!isNaN(aNum) && !isNaN(bNum)) {
+      if (aNum !== bNum) return aNum - bNum;
+    } else {
+      // Otherwise compare as strings
+      const cmp = aPart.localeCompare(bPart);
+      if (cmp !== 0) return cmp;
     }
-
-    // Search paint styles
-    if (bindingSupport.styles && bindingSupport.styles.indexOf('PAINT') !== -1) {
-      const matchingStyles = data.paintStyles.filter(s =>
-        s.name.toLowerCase().indexOf(search) !== -1
-      );
-
-      matchingStyles.forEach(s => {
-        const nameLower = s.name.toLowerCase();
-        const score = nameLower === search ? 1000 :
-                      nameLower.startsWith(search) ? 500 : 100;
-        const location = s.isLocal ? 'Local' : 'Library';
-        results.push({
-          score,
-          text: `${STYLE_PREFIX}${s.name} (${location})`
-        });
-      });
-    }
-
-    // Search text styles
-    if (bindingSupport.styles && bindingSupport.styles.indexOf('TEXT') !== -1) {
-      const matchingStyles = data.textStyles.filter(s =>
-        s.name.toLowerCase().indexOf(search) !== -1
-      );
-
-      matchingStyles.forEach(s => {
-        const nameLower = s.name.toLowerCase();
-        const score = nameLower === search ? 1000 :
-                      nameLower.startsWith(search) ? 500 : 100;
-        const location = s.isLocal ? 'Local' : 'Library';
-        results.push({
-          score,
-          text: `${STYLE_PREFIX}${s.name} (${location})`
-        });
-      });
-    }
-
-    // Sort by score and limit to 20 results
-    return results
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 20)
-      .map(r => r.text);
   }
+  
+  return aParts.length - bParts.length;
+}
+
+export async function searchStylesAndVariables(
+  searchTerm: string,
+  bindingSupport: BindingSupport
+): Promise<string[]> {
+  const data = await getCachedStylesAndVariables();
+  const results: Array<{score: number, text: string, collection: string, name: string}> = [];
+  const search = searchTerm.toLowerCase();
+
+  // Search variables
+  if (bindingSupport.variables) {
+    const matchingVars = data.variables.filter(v =>
+      bindingSupport.variables!.indexOf(v.type as VariableResolvedType) !== -1 &&
+      v.name.toLowerCase().indexOf(search) !== -1
+    );
+    
+    const localMatches = matchingVars.filter(v => !v.isLibrary).length;
+    const libraryMatches = matchingVars.filter(v => v.isLibrary).length;
+    
+    if (matchingVars.length > 0) {
+      console.log(`🔍 Found ${matchingVars.length} variables matching "${searchTerm}" (${localMatches} local, ${libraryMatches} library)`);
+    }
+
+    matchingVars.forEach(v => {
+      const nameLower = v.name.toLowerCase();
+      const score = nameLower === search ? 1000 :
+                    nameLower.startsWith(search) ? 500 : 100;
+      const location = v.isLibrary ? 'Library' : 'Local';
+      results.push({
+        score,
+        text: `${v.name} (${v.collection} - ${location})`,
+        collection: v.collection,
+        name: v.name
+      });
+    });
+  }
+
+  // Search paint styles
+  if (bindingSupport.styles && bindingSupport.styles.indexOf('PAINT') !== -1) {
+    const matchingStyles = data.paintStyles.filter(s =>
+      s.name.toLowerCase().indexOf(search) !== -1
+    );
+
+    matchingStyles.forEach(s => {
+      const nameLower = s.name.toLowerCase();
+      const score = nameLower === search ? 1000 :
+                    nameLower.startsWith(search) ? 500 : 100;
+      const location = s.isLocal ? 'Local' : 'Library';
+      results.push({
+        score,
+        text: `${s.name} (${location})`,
+        collection: location, // Use location as collection for styles
+        name: s.name
+      });
+    });
+  }
+
+  // Search text styles
+  if (bindingSupport.styles && bindingSupport.styles.indexOf('TEXT') !== -1) {
+    const matchingStyles = data.textStyles.filter(s =>
+      s.name.toLowerCase().indexOf(search) !== -1
+    );
+
+    matchingStyles.forEach(s => {
+      const nameLower = s.name.toLowerCase();
+      const score = nameLower === search ? 1000 :
+                    nameLower.startsWith(search) ? 500 : 100;
+      const location = s.isLocal ? 'Local' : 'Library';
+      results.push({
+        score,
+        text: `${s.name} (${location})`,
+        collection: location, // Use location as collection for styles
+        name: s.name
+      });
+    });
+  }
+
+  // Sort by collection name first, then alphabetically by name (with natural number sorting)
+  return results
+    .sort((a, b) => {
+      // First, sort by collection name
+      const collectionCompare = a.collection.localeCompare(b.collection);
+      if (collectionCompare !== 0) return collectionCompare;
+      
+      // Then, sort alphabetically by name with natural number sorting
+      return naturalSort(a.name, b.name);
+    })
+    .slice(0, 20)
+    .map(r => r.text);
+}
 
   // ================
   // Resolution Function
@@ -467,56 +508,57 @@ export function checkSpecialConditions(node: SceneNode, conditions: SpecialCondi
   export async function resolvePaintValue(rawValue: string): Promise<PaintResolution> {
     const cleanValue = rawValue.trim();
 
-    // Style reference (starts with @)
-    if (cleanValue.startsWith(STYLE_PREFIX)) {
-      // Extract style name from "@StyleName (Location)"
-      const match = cleanValue.match(/^@(.+?)\s*\(/);
-      const styleName = match ? match[1] : cleanValue.slice(1);
-
+    // Check if this is a style/variable reference by pattern
+    // Variables have format: "Name (Collection - Location)" (contains " - " in parentheses)
+    // Styles have format: "Name (Location)" (single word in parentheses)
+    const bindingMatch = cleanValue.match(/^(.+?)\s*\(([^)]+)\)$/);
+    
+    if (bindingMatch) {
+      const name = bindingMatch[1].trim();
+      const metadata = bindingMatch[2];
+      
       const data = await getCachedStylesAndVariables();
-      const styleData = data.paintStyles.find(s => s.name === styleName);
+      
+      // Check if it's a variable (contains " - " in metadata)
+      if (metadata.includes(' - ')) {
+        // Variable reference
+        const varData = data.variables.find(v => v.name === name);
 
-      if (!styleData) {
-        figma.notify(`Style "${styleName}" not found, skipping...`);
-        throw new Error(`Style not found: ${styleName}`);
-      }
-
-      // Lazy import if it's a library style
-      if (!styleData.isLocal && styleData.key) {
-        try {
-          await figma.importStyleByKeyAsync(styleData.key);
-        } catch (e) {
-          console.error("Failed to import style:", e);
-          throw new Error(`Failed to import library style: ${styleName}`);
+        if (!varData) {
+          figma.notify(`Variable "${name}" not found, skipping...`);
+          throw new Error(`Variable not found: ${name}`);
         }
+
+        return {
+          type: 'variable',
+          variableId: varData.id,
+          variableName: varData.name,
+          isLibraryVariable: varData.isLibrary
+        };
+      } else {
+        // Style reference
+        const styleData = data.paintStyles.find(s => s.name === name);
+
+        if (!styleData) {
+          figma.notify(`Style "${name}" not found, skipping...`);
+          throw new Error(`Style not found: ${name}`);
+        }
+
+        // Lazy import if it's a library style
+        if (!styleData.isLocal && styleData.key) {
+          try {
+            await figma.importStyleByKeyAsync(styleData.key);
+          } catch (e) {
+            console.error("Failed to import style:", e);
+            throw new Error(`Failed to import library style: ${name}`);
+          }
+        }
+
+        return {
+          type: 'style',
+          styleKey: styleData.key
+        };
       }
-
-      return {
-        type: 'style',
-        styleKey: styleData.key
-      };
-    }
-
-    // Variable reference (starts with $)
-    if (cleanValue.startsWith(VARIABLE_PREFIX)) {
-      // Extract variable name from "$VarName (Collection - Location)"
-      const match = cleanValue.match(/^\$(.+?)\s*\(/);
-      const variableName = match ? match[1] : cleanValue.slice(1);
-
-      const data = await getCachedStylesAndVariables();
-      const varData = data.variables.find(v => v.name === variableName);
-
-      if (!varData) {
-        figma.notify(`Variable "${variableName}" not found, skipping...`);
-        throw new Error(`Variable not found: ${variableName}`);
-      }
-
-      return {
-        type: 'variable',
-        variableId: varData.id,
-        variableName: varData.name,
-        isLibraryVariable: varData.isLibrary
-      };
     }
 
     // Literal hex color
