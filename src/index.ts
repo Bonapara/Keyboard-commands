@@ -331,11 +331,17 @@ figma.on('run', async (parameters) => {
       
       console.log("parameters.parameters.command", parameters.parameters.command);
       
-      // Check if this is a style/variable reference from binding mode
-      // These have format "Name (Collection - Location)" or "Name (Location)" and need command prefix reconstruction
+      // Check if this is a binding mode value that needs reconstruction
+      // Formats:
+      // - Style/Variable: "Name (Collection - Location)" or "Name (Location)"
+      // - Instance Property: "PropertyName:OptionValue"
       let commandToExecute = parameters.parameters.command;
-      const bindingPattern = /^([^(]+)\s*\(([^)]+)\)$/;
-      const isBindingValue = bindingPattern.test(commandToExecute);
+      const styleVariablePattern = /^([^(]+)\s*\(([^)]+)\)$/;
+      const instancePropertyPattern = /^([^:]+):(.+)$/;
+      
+      const isStyleVariableBinding = styleVariablePattern.test(commandToExecute);
+      const isInstancePropertyBinding = instancePropertyPattern.test(commandToExecute);
+      const isBindingValue = isStyleVariableBinding || isInstancePropertyBinding;
       
       if (isBindingValue) {
         // This is a binding mode value

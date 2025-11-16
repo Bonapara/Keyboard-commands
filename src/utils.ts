@@ -10,6 +10,7 @@ import {
   VALUE_FORMAT_REGEX, 
   CACHE_DURATION 
 } from './constants';
+import { searchInstanceProperties } from './implementations/instance';
 
 // Re-export constants for backwards compatibility
 export { COMMAND_SPLITTER_REGEX, COMMAND_PART_REGEX, VALUE_FORMAT_REGEX };
@@ -251,6 +252,14 @@ export function checkSpecialConditions(node: SceneNode, conditions: SpecialCondi
   export function extractValue(text: string, format: ValueFormat): string | null {
     console.log("extract value", text);
     
+    // Check for instance property format: "PropertyName:Value"
+    // This is used for instance property binding mode
+    const instancePropertyMatch = text.match(/^([a-z]+)\s+([^:]+):(.+)$/i);
+    if (instancePropertyMatch) {
+      // Format: "ip PropertyName:Value" -> extract "PropertyName:Value"
+      return text.substring(text.indexOf(' ') + 1).trim();
+    }
+    
     // Check for style/variable references from the binding system
     // Variables have format: "Name (Collection - Location)" (contains " - " in parentheses)
     // Styles have format: "Name (Location)" (single word in parentheses)
@@ -472,6 +481,11 @@ export async function searchStylesAndVariables(
   searchTerm: string,
   bindingSupport: BindingSupport
 ): Promise<string[]> {
+  // Handle instance properties separately
+  if (bindingSupport.instanceProperties) {
+    return await searchInstanceProperties(searchTerm);
+  }
+  
   const data = await getCachedStylesAndVariables();
   const results: Array<{score: number, text: string, collection: string, name: string}> = [];
 

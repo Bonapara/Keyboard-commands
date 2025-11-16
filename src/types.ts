@@ -14,6 +14,7 @@ export type VariableResolvedType = 'BOOLEAN' | 'COLOR' | 'FLOAT' | 'STRING';
 export interface BindingSupport {
   styles?: StyleBindingType[];
   variables?: VariableResolvedType[];
+  instanceProperties?: boolean;
 }
 
 export type CommandWithValue = {

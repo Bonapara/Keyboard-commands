@@ -8,6 +8,7 @@ export * from './constraints';
 export * from './effects';
 export * from './export';
 export * from './grouping';
+export * from './instance';
 export * from './layout';
 export * from './selection';
 export * from './sizing';

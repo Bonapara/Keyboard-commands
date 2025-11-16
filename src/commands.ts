@@ -151,6 +151,17 @@ export const COMMAND_DEFINITIONS = {
     functionWithoutParam: () => impl.selectMasterComponent(),
     supportedNodes: [...NODE_GROUPS.INSTANCE_ONLY],
   },
+  InstanceProperty: {
+    type: "commandWithValue",
+    alias: ['ip'],
+    valueFormat: 'hex' as const,
+    suggestion: '?search for instance properties',
+    functionWithParam: (value: string) => impl.setInstanceProperty(value),
+    supportedNodes: [...NODE_GROUPS.INSTANCE_ONLY],
+    bindingSupport: {
+      instanceProperties: true
+    }
+  },
   MoveTop: {
     type: "commandWithValue",
     alias: ['mt', '-my'],
