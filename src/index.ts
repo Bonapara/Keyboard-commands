@@ -335,7 +335,9 @@ figma.on('run', async (parameters) => {
       // These have format "Name (Collection - Location)" or "Name (Location)" and need command prefix reconstruction
       let commandToExecute = parameters.parameters.command;
       const bindingPattern = /^([^(]+)\s*\(([^)]+)\)$/;
-      if (bindingPattern.test(commandToExecute)) {
+      const isBindingValue = bindingPattern.test(commandToExecute);
+      
+      if (isBindingValue) {
         // This is a binding mode value
         if (isBindingMode && bindingCommandAlias) {
           // Reconstruct full command: alias + space + value
@@ -343,9 +345,12 @@ figma.on('run', async (parameters) => {
           commandToExecute = bindingCommandAlias + ' ' + commandToExecute;
           console.log("Reconstructed binding command:", commandToExecute);
         }
+        await executeCommand(commandToExecute, true);
+      } else if (isBindingMode) {
+        // In binding mode but not a binding value pattern, still execute it
+        await executeCommand(commandToExecute, true);
       }
-      
-      await executeCommand(commandToExecute, true);
+      // If not in binding mode and not a binding value, skip (already executed in loop above)
     } else {
       for (const cmd of commands) {
         console.log("cmd", cmd);
