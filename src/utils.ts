@@ -411,19 +411,82 @@ function naturalSort(a: string, b: string): number {
   return aParts.length - bParts.length;
 }
 
+// Flexible search helper - normalizes separators for matching
+// This allows "Sky 4" to match "Bright/sky/4"
+function flexibleMatch(searchTerm: string, targetName: string): boolean {
+  // Normalize both strings: lowercase and replace separators with spaces
+  const normalizeString = (str: string) => 
+    str.toLowerCase().replace(/[/\-_]/g, ' ').replace(/\s+/g, ' ').trim();
+  
+  const normalizedSearch = normalizeString(searchTerm);
+  const normalizedTarget = normalizeString(targetName);
+  
+  // Simple substring match on normalized strings
+  if (normalizedTarget.includes(normalizedSearch)) {
+    return true;
+  }
+  
+  // Also check if all search tokens appear in the target (in order)
+  const searchTokens = normalizedSearch.split(' ').filter(t => t.length > 0);
+  const targetTokens = normalizedTarget.split(' ').filter(t => t.length > 0);
+  
+  if (searchTokens.length === 0) return true;
+  
+  // Check if all search tokens appear in target tokens in order
+  let searchIndex = 0;
+  for (const targetToken of targetTokens) {
+    if (searchIndex >= searchTokens.length) break;
+    
+    if (targetToken.includes(searchTokens[searchIndex]) || 
+        searchTokens[searchIndex].includes(targetToken)) {
+      searchIndex++;
+    }
+  }
+  
+  return searchIndex === searchTokens.length;
+}
+
+// Calculate a flexible search score
+function calculateSearchScore(searchTerm: string, targetName: string): number {
+  const normalizeString = (str: string) => 
+    str.toLowerCase().replace(/[/\-_]/g, ' ').replace(/\s+/g, ' ').trim();
+  
+  const normalizedSearch = normalizeString(searchTerm);
+  const normalizedTarget = normalizeString(targetName);
+  const targetLower = targetName.toLowerCase();
+  const searchLower = searchTerm.toLowerCase();
+  
+  // Exact match (highest priority)
+  if (targetLower === searchLower || normalizedTarget === normalizedSearch) {
+    return 1000;
+  }
+  
+  // Starts with (high priority)
+  if (targetLower.startsWith(searchLower) || normalizedTarget.startsWith(normalizedSearch)) {
+    return 500;
+  }
+  
+  // Contains as substring (medium priority)
+  if (targetLower.includes(searchLower) || normalizedTarget.includes(normalizedSearch)) {
+    return 300;
+  }
+  
+  // Token-based match (lower priority)
+  return 100;
+}
+
 export async function searchStylesAndVariables(
   searchTerm: string,
   bindingSupport: BindingSupport
 ): Promise<string[]> {
   const data = await getCachedStylesAndVariables();
   const results: Array<{score: number, text: string, collection: string, name: string}> = [];
-  const search = searchTerm.toLowerCase();
 
   // Search variables
   if (bindingSupport.variables) {
     const matchingVars = data.variables.filter(v =>
       bindingSupport.variables!.indexOf(v.type as VariableResolvedType) !== -1 &&
-      v.name.toLowerCase().indexOf(search) !== -1
+      flexibleMatch(searchTerm, v.name)
     );
     
     const localMatches = matchingVars.filter(v => !v.isLibrary).length;
@@ -434,9 +497,7 @@ export async function searchStylesAndVariables(
     }
 
     matchingVars.forEach(v => {
-      const nameLower = v.name.toLowerCase();
-      const score = nameLower === search ? 1000 :
-                    nameLower.startsWith(search) ? 500 : 100;
+      const score = calculateSearchScore(searchTerm, v.name);
       const location = v.isLibrary ? 'Library' : 'Local';
       results.push({
         score,
@@ -450,13 +511,11 @@ export async function searchStylesAndVariables(
   // Search paint styles
   if (bindingSupport.styles && bindingSupport.styles.indexOf('PAINT') !== -1) {
     const matchingStyles = data.paintStyles.filter(s =>
-      s.name.toLowerCase().indexOf(search) !== -1
+      flexibleMatch(searchTerm, s.name)
     );
 
     matchingStyles.forEach(s => {
-      const nameLower = s.name.toLowerCase();
-      const score = nameLower === search ? 1000 :
-                    nameLower.startsWith(search) ? 500 : 100;
+      const score = calculateSearchScore(searchTerm, s.name);
       const location = s.isLocal ? 'Local' : 'Library';
       results.push({
         score,
@@ -470,13 +529,11 @@ export async function searchStylesAndVariables(
   // Search text styles
   if (bindingSupport.styles && bindingSupport.styles.indexOf('TEXT') !== -1) {
     const matchingStyles = data.textStyles.filter(s =>
-      s.name.toLowerCase().indexOf(search) !== -1
+      flexibleMatch(searchTerm, s.name)
     );
 
     matchingStyles.forEach(s => {
-      const nameLower = s.name.toLowerCase();
-      const score = nameLower === search ? 1000 :
-                    nameLower.startsWith(search) ? 500 : 100;
+      const score = calculateSearchScore(searchTerm, s.name);
       const location = s.isLocal ? 'Local' : 'Library';
       results.push({
         score,
@@ -487,14 +544,17 @@ export async function searchStylesAndVariables(
     });
   }
 
-  // Sort by collection name first, then alphabetically by name (with natural number sorting)
+  // Sort by score first (highest to lowest), then by collection, then by name
   return results
     .sort((a, b) => {
-      // First, sort by collection name
+      // First, sort by score (descending)
+      if (a.score !== b.score) return b.score - a.score;
+      
+      // Then, sort by collection name
       const collectionCompare = a.collection.localeCompare(b.collection);
       if (collectionCompare !== 0) return collectionCompare;
       
-      // Then, sort alphabetically by name with natural number sorting
+      // Finally, sort alphabetically by name with natural number sorting
       return naturalSort(a.name, b.name);
     })
     .slice(0, 20)
