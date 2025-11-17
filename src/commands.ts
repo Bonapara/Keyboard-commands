@@ -1248,6 +1248,30 @@ export const COMMAND_DEFINITIONS = {
     supportedNodes: [...NODE_GROUPS.POSITIONABLE],
     specialConditions: ['IsNotInAutoLayout'],
   },
+  BringToFront: {
+    type: "commandWithoutValue",
+    alias: ['zf'],
+    suggestion: 'Bring to Front ⬆️',
+    functionWithoutParam: () => impl.reorderLayer('FRONT'),
+  },
+  BringForward: {
+    type: "commandWithoutValue",
+    alias: ['zu'],
+    suggestion: 'Bring Forward ⬆',
+    functionWithoutParam: () => impl.reorderLayer('FORWARD'),
+  },
+  SendBackward: {
+    type: "commandWithoutValue",
+    alias: ['zd'],
+    suggestion: 'Send Backward ⬇',
+    functionWithoutParam: () => impl.reorderLayer('BACKWARD'),
+  },
+  SendToBack: {
+    type: "commandWithoutValue",
+    alias: ['zb'],
+    suggestion: 'Send to Back ⬇️',
+    functionWithoutParam: () => impl.reorderLayer('BACK'),
+  },
 } satisfies Record<string, CommandWithValue | CommandWithoutValue | OptionalValueCommand>;
 
 // Create CommandName type from COMMAND_DEFINITIONS keys

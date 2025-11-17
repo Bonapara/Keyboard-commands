@@ -111,3 +111,47 @@ export function deleteSelection() {
   figma.notify('Items deleted');
 }
 
+export function reorderLayer(action: 'FRONT' | 'FORWARD' | 'BACKWARD' | 'BACK') {
+  const selection = figma.currentPage.selection;
+  
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+  
+  for (const node of selection) {
+    const parent = node.parent;
+    if (!parent || !('children' in parent)) continue;
+    
+    const currentIndex = parent.children.indexOf(node);
+    if (currentIndex === -1) continue;
+    
+    switch (action) {
+      case 'FRONT':
+        parent.appendChild(node);
+        break;
+      case 'FORWARD':
+        if (currentIndex < parent.children.length - 1) {
+          parent.insertChild(currentIndex + 2, node);
+        }
+        break;
+      case 'BACKWARD':
+        if (currentIndex > 0) {
+          parent.insertChild(currentIndex - 1, node);
+        }
+        break;
+      case 'BACK':
+        parent.insertChild(0, node);
+        break;
+    }
+  }
+  
+  const actionNames = {
+    'FRONT': 'Brought to front',
+    'FORWARD': 'Brought forward',
+    'BACKWARD': 'Sent backward',
+    'BACK': 'Sent to back'
+  };
+  
+  figma.notify(actionNames[action]);
+}
+
