@@ -632,7 +632,7 @@ export const COMMAND_DEFINITIONS = {
   },
   StrokeColor: {
     type: "optionalValueCommand",
-    alias: ['stc', 'bc'],
+    alias: ['st', 'b'],
     valueFormat: 'hex' as const,
     suggestion: 'HEX color or ?search for styles/variables',
     functionWithParam: (value: string) => impl.setBorderColor(value),

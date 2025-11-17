@@ -19,6 +19,26 @@ import {
 let originalInput = '';
 
 // ================
+// Helper Functions
+// ================
+
+/**
+ * Find command for binding mode (with ?).
+ * Special handling: 'b' and 'st' map to StrokeColor in binding mode instead of Stroke.
+ */
+function findCommandForBinding(alias: string): (typeof COMMANDS)[0] | undefined {
+  const aliasLower = alias.toLowerCase();
+  
+  // Special case: b? and st? should map to StrokeColor, not Stroke
+  if (aliasLower === 'b' || aliasLower === 'st') {
+    return COMMANDS.find(cmd => cmd.name === 'StrokeColor');
+  }
+  
+  // For all other aliases, use the normal findCommand
+  return findCommand(alias)[0];
+}
+
+// ================
 // Setup Logic
 // ================
 
@@ -42,7 +62,7 @@ function setupInputHandler() {
     
     if (bindingModeMatch) {
       const [, _previousCommandsStr, cmdAlias, searchTerm] = bindingModeMatch;
-      const matchedCommand = findCommand(cmdAlias)[0];
+      const matchedCommand = findCommandForBinding(cmdAlias);
       
       if (matchedCommand?.bindingSupport) {
         try {
@@ -69,7 +89,7 @@ function setupInputHandler() {
     
     if (simpleBindingMatch) {
       const [, cmdAlias, searchTerm] = simpleBindingMatch;
-      const matchedCommand = findCommand(cmdAlias)[0];
+      const matchedCommand = findCommandForBinding(cmdAlias);
       
       if (matchedCommand?.bindingSupport) {
         try {
@@ -389,8 +409,22 @@ async function executeCommand(cmd: string, skipNotification: boolean = false): P
   
   console.log("Cleaned command:", cleanCmd);
   
-  const command = findCommand(cleanCmd)[0];
-  console.log("Found command:", command);
+  // Check if this command has a binding value (style/variable pattern)
+  // If so, use findCommandForBinding to handle b/st -> StrokeColor routing
+  const styleVariablePattern = /^([a-z]+)\s+([^(]+)\s*\(([^)]+)\)$/i;
+  const hasBindingValue = styleVariablePattern.test(cleanCmd);
+  
+  let command;
+  if (hasBindingValue) {
+    const aliasMatch = cleanCmd.match(/^([a-z]+)/i);
+    if (aliasMatch) {
+      command = findCommandForBinding(aliasMatch[1]);
+      console.log("Found command using binding mode:", command);
+    }
+  } else {
+    command = findCommand(cleanCmd)[0];
+    console.log("Found command:", command);
+  }
   
   if (!command) {
       console.log("No command found, returning");
