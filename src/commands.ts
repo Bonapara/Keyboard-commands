@@ -594,7 +594,7 @@ export const COMMAND_DEFINITIONS = {
     type: "optionalValueCommand",
     alias: ['st','b'],
     valueFormat: 'number' as const,
-    suggestion: 'border in px (No value = toggle)',
+    suggestion: 'in px (No value = toggle) ? → styles/variables',
     functionWithParam: (value: string) => impl.setBorder('all', value),
     functionWithoutParam: () => impl.toggleBorder('all'),
   },
@@ -632,7 +632,7 @@ export const COMMAND_DEFINITIONS = {
   },
   StrokeColor: {
     type: "optionalValueCommand",
-    alias: ['st', 'b'],
+    alias: ['stc', 'bc'],
     valueFormat: 'hex' as const,
     suggestion: 'HEX color or ?search for styles/variables',
     functionWithParam: (value: string) => impl.setBorderColor(value),
