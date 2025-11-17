@@ -173,3 +173,40 @@ export function clipContent() {
   }
 }
 
+export function swapFillStroke() {
+  const selection = figma.currentPage.selection;
+  
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+  
+  for (const node of selection) {
+    // Check if node supports both fills and strokes
+    if (!('fills' in node) || !('strokes' in node)) {
+      continue;
+    }
+    
+    // Get current fills and strokes
+    const currentFills = node.fills === figma.mixed ? [] : [...(node.fills as Paint[])];
+    const currentStrokes = node.strokes === figma.mixed ? [] : [...(node.strokes as Paint[])];
+    
+    // Only swap if at least one has a solid color
+    if (currentFills.length === 0 && currentStrokes.length === 0) {
+      continue;
+    }
+    
+    // Swap fills and strokes
+    node.fills = currentStrokes.length > 0 ? currentStrokes : [];
+    node.strokes = currentFills.length > 0 ? currentFills : [];
+    
+    // Ensure stroke is visible if we just added one
+    if (currentFills.length > 0 && 'strokeWeight' in node) {
+      if (node.strokeWeight === 0) {
+        node.strokeWeight = 1; // Default to 1px if no stroke weight was set
+      }
+    }
+  }
+  
+  figma.notify('Fill and stroke swapped');
+}
+

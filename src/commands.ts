@@ -1272,6 +1272,13 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'Send to Back ⬇️',
     functionWithoutParam: () => impl.reorderLayer('BACK'),
   },
+  SwapFillStroke: {
+    type: "commandWithoutValue",
+    alias: ['sfs'],
+    suggestion: 'Swap Fill & Stroke colors ⇄',
+    functionWithoutParam: () => impl.swapFillStroke(),
+    supportedNodes: [...NODE_GROUPS.FILLS_AND_STROKES],
+  },
 } satisfies Record<string, CommandWithValue | CommandWithoutValue | OptionalValueCommand>;
 
 // Create CommandName type from COMMAND_DEFINITIONS keys
