@@ -34,7 +34,7 @@ export const NODE_GROUPS = {
     'TEXT',
     'VECTOR',
   ] as const,
-  
+
   /** Nodes supporting position (x, y) including sections */
   POSITIONABLE: [
     'BOOLEAN_OPERATION',
@@ -53,7 +53,7 @@ export const NODE_GROUPS = {
     'TEXT',
     'VECTOR',
   ] as const,
-  
+
   /** Nodes supporting fills and strokes (excludes GROUP per Figma API) */
   FILLS_AND_STROKES: [
     'BOOLEAN_OPERATION',
@@ -70,7 +70,7 @@ export const NODE_GROUPS = {
     'TEXT',
     'VECTOR',
   ] as const,
-  
+
   /** Nodes supporting corner radius (excludes GROUP, LINE, SLICE, SECTION, TEXT) */
   CORNER_RADIUS: [
     'BOOLEAN_OPERATION',
@@ -84,7 +84,7 @@ export const NODE_GROUPS = {
     'STAR',
     'VECTOR',
   ] as const,
-  
+
   /** Frame-like containers supporting padding, layout, clip content */
   FRAME_LIKE: [
     'COMPONENT',
@@ -92,13 +92,16 @@ export const NODE_GROUPS = {
     'FRAME',
     'INSTANCE',
   ] as const,
-  
+
   /** Text nodes only */
   TEXT_ONLY: ['TEXT'] as const,
-  
+
   /** Instance nodes only (for master component navigation) */
   INSTANCE_ONLY: ['INSTANCE'] as const,
-  
+
+  /** Component and ComponentSet nodes (for variant operations) */
+  COMPONENT_VARIANT_ONLY: ['COMPONENT', 'COMPONENT_SET'] as const,
+
   /** All deletable nodes */
   DELETABLE: [
     'BOOLEAN_OPERATION',
@@ -161,6 +164,33 @@ export const COMMAND_DEFINITIONS = {
     bindingSupport: {
       instanceProperties: true
     }
+  },
+  ResetInstance: {
+    type: "commandWithoutValue",
+    alias: ['ri'],
+    suggestion: 'Reset to master component 🔄',
+    functionWithoutParam: () => impl.resetInstance(),
+    supportedNodes: [...NODE_GROUPS.INSTANCE_ONLY],
+  },
+  DetachInstance: {
+    type: "commandWithoutValue",
+    alias: ['di'],
+    suggestion: 'Detach from master component ⛓️‍💥',
+    functionWithoutParam: () => impl.detachInstance(),
+    supportedNodes: [...NODE_GROUPS.INSTANCE_ONLY],
+  },
+  CreateComponent: {
+    type: "commandWithoutValue",
+    alias: ['cc'],
+    suggestion: 'Create component from selection 📦',
+    functionWithoutParam: () => impl.createComponent(),
+  },
+  AddVariant: {
+    type: "commandWithoutValue",
+    alias: ['av'],
+    suggestion: 'Add new variant (clone selected) ➕',
+    functionWithoutParam: () => impl.addVariant(),
+    supportedNodes: [...NODE_GROUPS.COMPONENT_VARIANT_ONLY],
   },
   MoveTop: {
     type: "commandWithValue",
@@ -232,7 +262,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: "Position in px from bottom",
     functionWithParam: (value: string) => impl.position(value, 'bottom'),
     supportedNodes: [...NODE_GROUPS.POSITIONABLE],
-    specialConditions: ['IsNotInAutoLayout','IsAbsoluteInAutoLayout'],
+    specialConditions: ['IsNotInAutoLayout', 'IsAbsoluteInAutoLayout'],
   },
   Delete: {
     type: "commandWithoutValue",
@@ -380,7 +410,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['p'],
     valueFormat: "number",
     suggestion: "Enter padding for all sides",
-    functionWithParam: (value: string) => impl.setPadding({paddingLeft: value, paddingRight: value, paddingTop: value, paddingBottom: value}),
+    functionWithParam: (value: string) => impl.setPadding({ paddingLeft: value, paddingRight: value, paddingTop: value, paddingBottom: value }),
     supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
   },
   PaddingHorizontal: {
@@ -388,7 +418,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['ph'],
     valueFormat: "number",
     suggestion: "Enter horizontal padding",
-    functionWithParam: (value: string) => impl.setPadding({paddingLeft: value, paddingRight: value}),
+    functionWithParam: (value: string) => impl.setPadding({ paddingLeft: value, paddingRight: value }),
     supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
   },
   PaddingVertical: {
@@ -396,7 +426,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['pv'],
     valueFormat: "number",
     suggestion: "Enter vertical padding",
-    functionWithParam: (value: string) => impl.setPadding({paddingTop: value, paddingBottom: value}),
+    functionWithParam: (value: string) => impl.setPadding({ paddingTop: value, paddingBottom: value }),
     supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
   },
   PaddingLeft: {
@@ -404,7 +434,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['pl'],
     valueFormat: "number",
     suggestion: "Enter left padding",
-    functionWithParam: (value: string) => impl.setPadding({paddingLeft: value}),
+    functionWithParam: (value: string) => impl.setPadding({ paddingLeft: value }),
     supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
   },
   PaddingTop: {
@@ -412,7 +442,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['pt'],
     valueFormat: "number",
     suggestion: "Enter top padding",
-    functionWithParam: (value: string) => impl.setPadding({paddingTop: value}),
+    functionWithParam: (value: string) => impl.setPadding({ paddingTop: value }),
     supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
   },
   PaddingRight: {
@@ -420,7 +450,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['pr'],
     valueFormat: "number",
     suggestion: "Enter right padding",
-    functionWithParam: (value: string) => impl.setPadding({paddingRight: value}),
+    functionWithParam: (value: string) => impl.setPadding({ paddingRight: value }),
     supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
   },
   PaddingBottom: {
@@ -428,7 +458,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['pb'],
     valueFormat: "number",
     suggestion: "Enter bottom padding",
-    functionWithParam: (value: string) => impl.setPadding({paddingBottom: value}),
+    functionWithParam: (value: string) => impl.setPadding({ paddingBottom: value }),
     supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
   },
   Fill: {
@@ -479,7 +509,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['rtl'],
     valueFormat: 'number' as const,
     suggestion: 'Top left radius',
-    functionWithParam: (value: string) => impl.setRadius({topLeftRadius: value}),
+    functionWithParam: (value: string) => impl.setRadius({ topLeftRadius: value }),
     supportedNodes: [...NODE_GROUPS.CORNER_RADIUS],
   },
   RadiusTopRight: {
@@ -487,7 +517,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['rtr'],
     valueFormat: 'number' as const,
     suggestion: 'Top right radius',
-    functionWithParam: (value: string) => impl.setRadius({topRightRadius: value}),
+    functionWithParam: (value: string) => impl.setRadius({ topRightRadius: value }),
     supportedNodes: [...NODE_GROUPS.CORNER_RADIUS],
   },
   RadiusBottomRight: {
@@ -495,7 +525,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['rbr'],
     valueFormat: 'number' as const,
     suggestion: 'Bottom right radius',
-    functionWithParam: (value: string) => impl.setRadius({bottomRightRadius: value}),
+    functionWithParam: (value: string) => impl.setRadius({ bottomRightRadius: value }),
     supportedNodes: [...NODE_GROUPS.CORNER_RADIUS],
   },
   RadiusBottomLeft: {
@@ -503,7 +533,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['rbl'],
     valueFormat: 'number' as const,
     suggestion: 'Bottom left radius',
-    functionWithParam: (value: string) => impl.setRadius({bottomLeftRadius: value}),
+    functionWithParam: (value: string) => impl.setRadius({ bottomLeftRadius: value }),
     supportedNodes: [...NODE_GROUPS.CORNER_RADIUS],
   },
   RadiusAll: {
@@ -592,7 +622,7 @@ export const COMMAND_DEFINITIONS = {
   },
   Stroke: {
     type: "optionalValueCommand",
-    alias: ['st','b'],
+    alias: ['st', 'b'],
     valueFormat: 'number' as const,
     suggestion: 'in px (No value = toggle) ? → styles/variables',
     functionWithParam: (value: string) => impl.setBorder('all', value),
@@ -600,7 +630,7 @@ export const COMMAND_DEFINITIONS = {
   },
   StrokeLeft: {
     type: "optionalValueCommand",
-    alias: ['stl','bl'],
+    alias: ['stl', 'bl'],
     valueFormat: 'number' as const,
     suggestion: 'border in px (No value = toggle)',
     functionWithParam: (value: string) => impl.setBorder('left', value),
@@ -608,7 +638,7 @@ export const COMMAND_DEFINITIONS = {
   },
   StrokeRight: {
     type: "optionalValueCommand",
-    alias: ['str','br'],
+    alias: ['str', 'br'],
     valueFormat: 'number' as const,
     suggestion: 'border in px (No value = toggle)',
     functionWithParam: (value: string) => impl.setBorder('right', value),
@@ -616,7 +646,7 @@ export const COMMAND_DEFINITIONS = {
   },
   StrokeTop: {
     type: "optionalValueCommand",
-    alias: ['stt','bt'],
+    alias: ['stt', 'bt'],
     valueFormat: 'number' as const,
     suggestion: 'border in px (No value = toggle)',
     functionWithParam: (value: string) => impl.setBorder('top', value),
@@ -624,7 +654,7 @@ export const COMMAND_DEFINITIONS = {
   },
   StrokeBottom: {
     type: "optionalValueCommand",
-    alias: ['stb','bb'],
+    alias: ['stb', 'bb'],
     valueFormat: 'number' as const,
     suggestion: 'border in px (No value = toggle)',
     functionWithParam: (value: string) => impl.setBorder('bottom', value),
@@ -650,13 +680,13 @@ export const COMMAND_DEFINITIONS = {
   },
   StrokeAlignInside: {
     type: "commandWithoutValue",
-    alias: ['sti','bi'],
+    alias: ['sti', 'bi'],
     suggestion: '⊖',
     functionWithoutParam: () => impl.setBorderAlign('INSIDE')
   },
   StrokeAlignOutside: {
     type: "commandWithoutValue",
-    alias: ['sto','bo'],
+    alias: ['sto', 'bo'],
     suggestion: '◯',
     functionWithoutParam: () => impl.setBorderAlign('OUTSIDE')
   },
@@ -710,7 +740,7 @@ export const COMMAND_DEFINITIONS = {
     functionWithoutParam: () => impl.AlignText({ horizontal: 'LEFT' }),
     supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
   },
-  
+
   TextAlignCenter: {
     type: "commandWithoutValue",
     alias: ['tac'],
@@ -718,7 +748,7 @@ export const COMMAND_DEFINITIONS = {
     functionWithoutParam: () => impl.AlignText({ horizontal: 'CENTER' }),
     supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
   },
-  
+
   TextAlignRight: {
     type: "commandWithoutValue",
     alias: ['tar'],
@@ -733,7 +763,7 @@ export const COMMAND_DEFINITIONS = {
     functionWithoutParam: () => impl.AlignText({ horizontal: 'JUSTIFIED' }),
     supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
   },
-  
+
   TextAlignTop: {
     type: "commandWithoutValue",
     alias: ['tat'],
@@ -741,7 +771,7 @@ export const COMMAND_DEFINITIONS = {
     functionWithoutParam: () => impl.AlignText({ vertical: 'TOP' }),
     supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
   },
-  
+
   TextAlignMiddle: {
     type: "commandWithoutValue",
     alias: ['tam'],
@@ -749,7 +779,7 @@ export const COMMAND_DEFINITIONS = {
     functionWithoutParam: () => impl.AlignText({ vertical: 'CENTER' }),
     supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
   },
-  
+
   TextAlignBottom: {
     type: "commandWithoutValue",
     alias: ['tab'],
@@ -757,7 +787,7 @@ export const COMMAND_DEFINITIONS = {
     functionWithoutParam: () => impl.AlignText({ vertical: 'BOTTOM' }),
     supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
   },
-  
+
   // Font Size Command
   FontSize: {
     type: "commandWithValue",
@@ -768,16 +798,16 @@ export const COMMAND_DEFINITIONS = {
     supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
     specialConditions: ['NoTextStyleApplied'],
   },
-  
+
   RemoveTextStyle: {
     type: "commandWithoutValue",
     alias: ['rts'],
     suggestion: 'Detach Text Style ⛓️‍💥',
-    functionWithoutParam:() => impl.removeTextStyle(),
+    functionWithoutParam: () => impl.removeTextStyle(),
     supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
     specialConditions: ['TextStyleApplied'],
-  },  
-  
+  },
+
   // Font Weight Command
   FontWeight: {
     type: "commandWithValue",
@@ -788,7 +818,7 @@ export const COMMAND_DEFINITIONS = {
     supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
     specialConditions: ['NoTextStyleApplied'],
   },
-  
+
   // Letter Spacing Command
   LetterSpacing: {
     type: "commandWithValue",
@@ -799,7 +829,7 @@ export const COMMAND_DEFINITIONS = {
     supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
     specialConditions: ['NoTextStyleApplied'],
   },
-  
+
   // Line Height Command
   LineHeight: {
     type: "optionalValueCommand",
@@ -811,8 +841,8 @@ export const COMMAND_DEFINITIONS = {
     supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
     specialConditions: ['NoTextStyleApplied'],
   },
-  
-  
+
+
   // Original Text Case
   TextCaseOriginal: {
     type: "commandWithoutValue",
@@ -822,7 +852,7 @@ export const COMMAND_DEFINITIONS = {
     supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
     specialConditions: ['NoTextStyleApplied'],
   },
-  
+
   // Uppercase Text
   TextCaseUppercase: {
     type: "commandWithoutValue",
@@ -832,7 +862,7 @@ export const COMMAND_DEFINITIONS = {
     supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
     specialConditions: ['NoTextStyleApplied'],
   },
-  
+
   // Lowercase Text
   TextCaseLowercase: {
     type: "commandWithoutValue",
@@ -842,7 +872,7 @@ export const COMMAND_DEFINITIONS = {
     supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
     specialConditions: ['NoTextStyleApplied'],
   },
-  
+
   // Title Case Text
   TextCaseTitle: {
     type: "commandWithoutValue",
@@ -852,7 +882,7 @@ export const COMMAND_DEFINITIONS = {
     supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
     specialConditions: ['NoTextStyleApplied'],
   },
-  
+
   // Small Caps Text
   TextCaseSmallCaps: {
     type: "commandWithoutValue",
@@ -862,7 +892,7 @@ export const COMMAND_DEFINITIONS = {
     supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
     specialConditions: ['NoTextStyleApplied'],
   },
-  
+
   // Small Caps Forced Text
   TextCaseSmallCapsForced: {
     type: "commandWithoutValue",
@@ -872,7 +902,7 @@ export const COMMAND_DEFINITIONS = {
     supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
     specialConditions: ['NoTextStyleApplied'],
   },
-  
+
   // Text Decoration Commands
   RemoveTextDecoration: {
     type: "commandWithoutValue",
@@ -888,7 +918,7 @@ export const COMMAND_DEFINITIONS = {
     functionWithoutParam: async () => await impl.toggleTextDecoration('UNDERLINE'),
     supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
   },
-  
+
   TextStrikethrough: {
     type: "commandWithoutValue",
     alias: ['ts'],
@@ -896,7 +926,7 @@ export const COMMAND_DEFINITIONS = {
     functionWithoutParam: async () => await impl.toggleTextDecoration('STRIKETHROUGH'),
     supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
   },
-  
+
   // List Type Commands
   TextOrderedList: {
     type: "commandWithoutValue",
@@ -905,7 +935,7 @@ export const COMMAND_DEFINITIONS = {
     functionWithoutParam: async () => await impl.setTextListOptions('ORDERED'),
     supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
   },
-  
+
   TextUnorderedList: {
     type: "commandWithoutValue",
     alias: ['tul'],
@@ -913,7 +943,7 @@ export const COMMAND_DEFINITIONS = {
     functionWithoutParam: async () => await impl.setTextListOptions('UNORDERED'),
     supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
   },
-  
+
   TextRemoveList: {
     type: "commandWithoutValue",
     alias: ['trl'],
@@ -921,68 +951,68 @@ export const COMMAND_DEFINITIONS = {
     functionWithoutParam: async () => await impl.setTextListOptions('NONE'),
     supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
   },
-  
+
   AlignTopLeft: {
     type: "commandWithoutValue",
-    alias: ['atl','alt'],
+    alias: ['atl', 'alt'],
     suggestion: 'Autolayout Align Top Left ↖',
-    functionWithoutParam: () => impl.setAutoLayoutAlignment({ primary: 'MIN', counter: 'MIN' },{ primary: 'MIN', counter: 'MIN' }),
+    functionWithoutParam: () => impl.setAutoLayoutAlignment({ primary: 'MIN', counter: 'MIN' }, { primary: 'MIN', counter: 'MIN' }),
     specialConditions: ['IsAutoLayout'],
   },
   AlignTopCenter: {
     type: "commandWithoutValue",
-    alias: ['atc','act'],
+    alias: ['atc', 'act'],
     suggestion: 'Autolayout Align Top Center ↑',
-    functionWithoutParam: () => impl.setAutoLayoutAlignment({ primary: 'CENTER', counter: 'MIN' },{ primary: 'MIN', counter: 'CENTER' }),
+    functionWithoutParam: () => impl.setAutoLayoutAlignment({ primary: 'CENTER', counter: 'MIN' }, { primary: 'MIN', counter: 'CENTER' }),
     specialConditions: ['IsAutoLayout'],
   },
   AlignTopRight: {
     type: "commandWithoutValue",
-    alias: ['atr','art'],
+    alias: ['atr', 'art'],
     suggestion: 'Autolayout Align Top Right ↗',
-    functionWithoutParam: () => impl.setAutoLayoutAlignment({ primary: 'MAX', counter: 'MIN' },{ primary: 'MIN', counter: 'MAX' }),
+    functionWithoutParam: () => impl.setAutoLayoutAlignment({ primary: 'MAX', counter: 'MIN' }, { primary: 'MIN', counter: 'MAX' }),
     specialConditions: ['IsAutoLayout'],
   },
   AlignCenterLeft: {
     type: "commandWithoutValue",
-    alias: ['acl','alc'],
+    alias: ['acl', 'alc'],
     suggestion: 'Autolayout Align Center Left ←',
-    functionWithoutParam: () => impl.setAutoLayoutAlignment({ primary: 'MIN', counter: 'CENTER' },{ primary: 'CENTER', counter: 'MIN' }),
+    functionWithoutParam: () => impl.setAutoLayoutAlignment({ primary: 'MIN', counter: 'CENTER' }, { primary: 'CENTER', counter: 'MIN' }),
     specialConditions: ['IsAutoLayout'],
   },
   AlignCenterCenter: {
     type: "commandWithoutValue",
     alias: ['acc'],
     suggestion: 'Autolayout Align Center Center ・',
-    functionWithoutParam: () => impl.setAutoLayoutAlignment({ primary: 'CENTER', counter: 'CENTER' },{ primary: 'CENTER', counter: 'CENTER' }),
+    functionWithoutParam: () => impl.setAutoLayoutAlignment({ primary: 'CENTER', counter: 'CENTER' }, { primary: 'CENTER', counter: 'CENTER' }),
     specialConditions: ['IsAutoLayout'],
   },
   AlignCenterRight: {
     type: "commandWithoutValue",
-    alias: ['acr','arc'],
+    alias: ['acr', 'arc'],
     suggestion: 'Autolayout Align Center Right →',
-    functionWithoutParam: () => impl.setAutoLayoutAlignment({ primary: 'MAX', counter: 'CENTER' },{ primary: 'CENTER', counter: 'MAX' }),
+    functionWithoutParam: () => impl.setAutoLayoutAlignment({ primary: 'MAX', counter: 'CENTER' }, { primary: 'CENTER', counter: 'MAX' }),
     specialConditions: ['IsAutoLayout'],
   },
   AlignBottomLeft: {
     type: "commandWithoutValue",
-    alias: ['abl','alb'],
+    alias: ['abl', 'alb'],
     suggestion: 'Autolayout Align Bottom Left ↙',
-    functionWithoutParam: () => impl.setAutoLayoutAlignment({ primary: 'MIN', counter: 'MAX' },{ primary: 'MAX', counter: 'MIN' }),
+    functionWithoutParam: () => impl.setAutoLayoutAlignment({ primary: 'MIN', counter: 'MAX' }, { primary: 'MAX', counter: 'MIN' }),
     specialConditions: ['IsAutoLayout'],
   },
   AlignBottomRight: {
     type: "commandWithoutValue",
-    alias: ['abr','arb'],
+    alias: ['abr', 'arb'],
     suggestion: 'Autolayout Align Bottom Right ↘',
-    functionWithoutParam: () => impl.setAutoLayoutAlignment({ primary: 'MAX', counter: 'MAX' },{ primary: 'MAX', counter: 'MAX' }),
+    functionWithoutParam: () => impl.setAutoLayoutAlignment({ primary: 'MAX', counter: 'MAX' }, { primary: 'MAX', counter: 'MAX' }),
     specialConditions: ['IsAutoLayout'],
   },
   AlignBottomCenter: {
     type: "commandWithoutValue",
-    alias: ['abc','acb'],
+    alias: ['abc', 'acb'],
     suggestion: 'Autolayout Align Bottom Center ↓',
-    functionWithoutParam: () => impl.setAutoLayoutAlignment({ primary: 'CENTER', counter: 'MAX' },{ primary: 'MAX', counter: 'CENTER' }),
+    functionWithoutParam: () => impl.setAutoLayoutAlignment({ primary: 'CENTER', counter: 'MAX' }, { primary: 'MAX', counter: 'CENTER' }),
     specialConditions: ['IsAutoLayout'],
   },
   MaxHeight: {
@@ -990,36 +1020,36 @@ export const COMMAND_DEFINITIONS = {
     alias: ['maxh'],
     valueFormat: 'number' as const,
     suggestion: '↕ in px (No value = toggle)',
-    functionWithParam: (value: string) => impl.maxDimension({value:value, type: 'max', direction: 'height', null: false}),
-    functionWithoutParam: () => impl.maxDimension({type: 'max', direction: 'height', null: true}),
-    specialConditions: ['IsInAutoLayout','IsAutoLayout'],
+    functionWithParam: (value: string) => impl.maxDimension({ value: value, type: 'max', direction: 'height', null: false }),
+    functionWithoutParam: () => impl.maxDimension({ type: 'max', direction: 'height', null: true }),
+    specialConditions: ['IsInAutoLayout', 'IsAutoLayout'],
   },
   MaxWidth: {
     type: "optionalValueCommand",
     alias: ['maxw'],
     valueFormat: 'number' as const,
     suggestion: '↔ in px (No value = toggle)',
-    functionWithParam: (value: string) => impl.maxDimension({value:value, type: 'max', direction: 'width', null: false}),
-    functionWithoutParam: () => impl.maxDimension({type: 'max', direction: 'width', null: true}),
-    specialConditions: ['IsInAutoLayout','IsAutoLayout'],
+    functionWithParam: (value: string) => impl.maxDimension({ value: value, type: 'max', direction: 'width', null: false }),
+    functionWithoutParam: () => impl.maxDimension({ type: 'max', direction: 'width', null: true }),
+    specialConditions: ['IsInAutoLayout', 'IsAutoLayout'],
   },
   MinHeight: {
     type: "optionalValueCommand",
     alias: ['minh'],
     valueFormat: 'number' as const,
     suggestion: '↓↑ in px (No value = toggle)',
-    functionWithParam: (value: string) => impl.maxDimension({value:value, type: 'min', direction: 'height', null: false}),
-    functionWithoutParam: () => impl.maxDimension({type: 'min', direction: 'height', null: true}),
-    specialConditions: ['IsInAutoLayout','IsAutoLayout'],
+    functionWithParam: (value: string) => impl.maxDimension({ value: value, type: 'min', direction: 'height', null: false }),
+    functionWithoutParam: () => impl.maxDimension({ type: 'min', direction: 'height', null: true }),
+    specialConditions: ['IsInAutoLayout', 'IsAutoLayout'],
   },
   MinWidth: {
     type: "optionalValueCommand",
     alias: ['minw'],
     valueFormat: 'number' as const,
     suggestion: '→← in px (No value = toggle)',
-    functionWithParam: (value: string) => impl.maxDimension({value:value, type: 'min', direction: 'width', null: false}),
-    functionWithoutParam: () => impl.maxDimension({type: 'min', direction: 'width', null: true}),
-    specialConditions: ['IsInAutoLayout','IsAutoLayout'],
+    functionWithParam: (value: string) => impl.maxDimension({ value: value, type: 'min', direction: 'width', null: false }),
+    functionWithoutParam: () => impl.maxDimension({ type: 'min', direction: 'width', null: true }),
+    specialConditions: ['IsInAutoLayout', 'IsAutoLayout'],
   },
   RemoveEffect: {
     type: "commandWithoutValue",
@@ -1031,57 +1061,57 @@ export const COMMAND_DEFINITIONS = {
     type: "commandWithoutValue",
     alias: ['svg'],
     suggestion: '🎨',
-    functionWithoutParam: () => impl.exportAs({format:'SVG',constraintType: 'SCALE',constraintValue: '1'}),
+    functionWithoutParam: () => impl.exportAs({ format: 'SVG', constraintType: 'SCALE', constraintValue: '1' }),
   },
   ExportPDF: {
     type: "commandWithoutValue",
     alias: ['pdf'],
     suggestion: '📄',
-    functionWithoutParam: () => impl.exportAs({format:'PDF',constraintType: 'SCALE',constraintValue: '1'}),
+    functionWithoutParam: () => impl.exportAs({ format: 'PDF', constraintType: 'SCALE', constraintValue: '1' }),
   },
   ExportPNG: {
     type: "optionalValueCommand",
     alias: ['png'],
     valueFormat: 'number' as const,
     suggestion: 'Opt: Scale (e.g. png2 = 2x)',
-    functionWithParam: (value: string) => impl.exportAs({format:'PNG',constraintType: 'SCALE',constraintValue: value}),
-    functionWithoutParam: () => impl.exportAs({format:'PNG',constraintType: 'SCALE',constraintValue: '1'}),
+    functionWithParam: (value: string) => impl.exportAs({ format: 'PNG', constraintType: 'SCALE', constraintValue: value }),
+    functionWithoutParam: () => impl.exportAs({ format: 'PNG', constraintType: 'SCALE', constraintValue: '1' }),
   },
   ExportJPG: {
     type: "optionalValueCommand",
     alias: ['jpg'],
     valueFormat: 'number' as const,
     suggestion: 'Opt: Scale (e.g. jpg2 = 2x)',
-    functionWithParam: (value: string) => impl.exportAs({format:'JPG',constraintType: 'SCALE',constraintValue: value}),
-    functionWithoutParam: () => impl.exportAs({format:'JPG',constraintType: 'SCALE',constraintValue: '1'}),
+    functionWithParam: (value: string) => impl.exportAs({ format: 'JPG', constraintType: 'SCALE', constraintValue: value }),
+    functionWithoutParam: () => impl.exportAs({ format: 'JPG', constraintType: 'SCALE', constraintValue: '1' }),
   },
   ExportPNGWidth: {
     type: "commandWithValue",
     alias: ['pngw'],
     valueFormat: 'number' as const,
     suggestion: 'Export Width in px',
-    functionWithParam: (value: string) => impl.exportAs({format:'PNG',constraintType: 'WIDTH',constraintValue: value}),
+    functionWithParam: (value: string) => impl.exportAs({ format: 'PNG', constraintType: 'WIDTH', constraintValue: value }),
   },
   ExportJPGWidth: {
     type: "commandWithValue",
     alias: ['jpgw'],
     valueFormat: 'number' as const,
     suggestion: 'Export Width in px',
-    functionWithParam: (value: string) => impl.exportAs({format:'JPG',constraintType: 'WIDTH',constraintValue: value}),
+    functionWithParam: (value: string) => impl.exportAs({ format: 'JPG', constraintType: 'WIDTH', constraintValue: value }),
   },
   ExportPNGHeight: {
     type: "commandWithValue",
     alias: ['pngh'],
     valueFormat: 'number' as const,
     suggestion: 'Export Height in px',
-    functionWithParam: (value: string) => impl.exportAs({format:'PNG',constraintType: 'HEIGHT',constraintValue: value}),
+    functionWithParam: (value: string) => impl.exportAs({ format: 'PNG', constraintType: 'HEIGHT', constraintValue: value }),
   },
   ExportJPGHeight: {
     type: "commandWithValue",
     alias: ['jpgh'],
     valueFormat: 'number' as const,
     suggestion: 'Export Height in px',
-    functionWithParam: (value: string) => impl.exportAs({format:'JPG',constraintType: 'HEIGHT',constraintValue: value}),
+    functionWithParam: (value: string) => impl.exportAs({ format: 'JPG', constraintType: 'HEIGHT', constraintValue: value }),
   },
   // Horizontal Constraints
   ConstraintLeft: {
@@ -1286,8 +1316,8 @@ export type CommandName = keyof typeof COMMAND_DEFINITIONS;
 
 // Create an array from COMMAND_DEFINITIONS
 export const COMMANDS: Array<import('./types').Command & { name: CommandName }> = (Object.keys(COMMAND_DEFINITIONS) as CommandName[])
-.map((name) => {
-  const def = COMMAND_DEFINITIONS[name];
-  return { name, ...def };
-});
+  .map((name) => {
+    const def = COMMAND_DEFINITIONS[name];
+    return { name, ...def };
+  });
 

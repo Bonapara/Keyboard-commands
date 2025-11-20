@@ -1,11 +1,59 @@
-// ================================
-// Instance Property Functions
-// ================================
 
-// Constants
+
 const PROPERTY_ID_SUFFIX_REGEX = /#\d+:\d+$/;
+const VARIANT_SPACING = 20;
+const COMPONENT_SET_PADDING = 20;
+const COMPONENT_SET_STROKE_COLOR = { r: 0x97 / 255, g: 0x47 / 255, b: 0xFF / 255 }; 
 
-// Types
+function pluralize(count: number, singular: string, plural?: string): string {
+  return count === 1 ? singular : (plural || singular + 's');
+}
+
+function generateUniqueVariantName(baseName: string, existingNames: Set<string>): string {
+  const match = baseName.match(/^(.*?)(\d+)$/);
+  const namePrefix = match ? match[1] : baseName;
+  const startNumber = match ? parseInt(match[2], 10) + 1 : 1;
+
+  let newName = `${namePrefix}${startNumber}`;
+  let counter = startNumber;
+  while (existingNames.has(newName)) {
+    counter++;
+    newName = `${namePrefix}${counter}`;
+  }
+  return newName;
+}
+
+function calculateBoundingBox(nodes: readonly ComponentNode[]) {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  for (const node of nodes) {
+    minX = Math.min(minX, node.x);
+    minY = Math.min(minY, node.y);
+    maxX = Math.max(maxX, node.x + node.width);
+    maxY = Math.max(maxY, node.y + node.height);
+  }
+
+  return { minX, minY, maxX, maxY };
+}
+
+function applyComponentSetStyling(componentSet: ComponentSetNode, padding: number = COMPONENT_SET_PADDING) {
+  componentSet.strokes = [{
+    type: 'SOLID',
+    color: COMPONENT_SET_STROKE_COLOR,
+    opacity: 1
+  }];
+  componentSet.strokeWeight = 1;
+  componentSet.strokeAlign = 'INSIDE';
+  componentSet.dashPattern = [10, 5];
+  componentSet.paddingLeft = padding;
+  componentSet.paddingRight = padding;
+  componentSet.paddingTop = padding;
+  componentSet.paddingBottom = padding;
+}
+
 interface PropertyDefinition {
   type: string;
   variantOptions?: string[];
@@ -19,9 +67,6 @@ interface PropertyData {
   propertyDef: PropertyDefinition;
 }
 
-/**
- * Helper: Get component property definitions (from ComponentSet if variant, otherwise from component)
- */
 function getComponentPropertyDefinitions(mainComponent: ComponentNode): ComponentPropertyDefinitions {
   const componentParent = mainComponent.parent;
   if (componentParent && componentParent.type === 'COMPONENT_SET') {
@@ -30,62 +75,47 @@ function getComponentPropertyDefinitions(mainComponent: ComponentNode): Componen
   return mainComponent.componentPropertyDefinitions;
 }
 
-/**
- * Helper: Clean property name by removing ID suffix
- */
 function cleanPropertyName(propertyName: string): string {
   return propertyName.replace(PROPERTY_ID_SUFFIX_REGEX, '');
 }
 
-/**
- * Helper: Find the real property key using partial matching
- * Tries: 1) exact match, 2) cleaned exact match, 3) starts with, 4) contains
- * Returns null for both key and definition if no match is found
- */
 function findPropertyKey(
   propertyName: string,
   allProperties: ComponentPropertyDefinitions
 ): { key: string | null; definition: PropertyDefinition | null } {
-  // Try exact match first
+  
   if (allProperties[propertyName]) {
     return { key: propertyName, definition: allProperties[propertyName] };
   }
-  
+
   const propertyKeys = Object.keys(allProperties);
-  
-  // Try exact cleaned name match
+
   for (const key of propertyKeys) {
     const cleanedKey = cleanPropertyName(key);
     if (cleanedKey === propertyName) {
       return { key, definition: allProperties[key] };
     }
   }
-  
-  // Try partial matching (case-insensitive)
+
   const searchLower = propertyName.toLowerCase();
-  
-  // First try "starts with" match
+
   for (const key of propertyKeys) {
     const cleanedKey = cleanPropertyName(key);
     if (cleanedKey.toLowerCase().startsWith(searchLower)) {
       return { key, definition: allProperties[key] };
     }
   }
-  
-  // Finally try "contains" match
+
   for (const key of propertyKeys) {
     const cleanedKey = cleanPropertyName(key);
     if (cleanedKey.toLowerCase().includes(searchLower)) {
       return { key, definition: allProperties[key] };
     }
   }
-  
+
   return { key: null, definition: null };
 }
 
-/**
- * Helper: Extract current property value (handles both direct values and objects with .value)
- */
 function extractPropertyValue(property: string | boolean | { value: string | boolean }): string | boolean {
   if (typeof property === 'object' && property !== null && 'value' in property) {
     return property.value;
@@ -93,70 +123,58 @@ function extractPropertyValue(property: string | boolean | { value: string | boo
   return property;
 }
 
-
-/**
- * Search for variant options of a specific property
- * Called when searchTerm is "PropertyName:" or "PropertyName:filter"
- */
 async function searchVariantOptions(instances: InstanceNode[], propertyName: string, optionFilter: string = ''): Promise<string[]> {
-  // Get the property definition from the first instance
+  
   for (const instance of instances) {
     const mainComponent = await instance.getMainComponentAsync();
     if (!mainComponent) continue;
-    
+
     const allProperties = getComponentPropertyDefinitions(mainComponent);
     const { key: realPropertyKey, definition: propertyDef } = findPropertyKey(propertyName, allProperties);
-    
+
     if (realPropertyKey && propertyDef && propertyDef.type === 'VARIANT' && propertyDef.variantOptions) {
-      // Filter options if optionFilter is provided
+      
       let options = propertyDef.variantOptions;
       if (optionFilter) {
         const filterLower = optionFilter.toLowerCase();
         options = options.filter((opt: string) => opt.toLowerCase().includes(filterLower));
       }
-      
+
       if (options.length === 0) {
         return [`No options matching "${optionFilter}" for "${propertyName}"`];
       }
-      
-      // Return filtered variant options formatted with the REAL property key
+
       return options.map((option: string) => `${realPropertyKey}:${option}`);
     }
   }
-  
+
   return [`No variant options found for "${propertyName}"`];
 }
 
-/**
- * Set a specific variant option for a property
- * Handles variant components where all variant properties must be set together
- */
 async function setVariantProperty(instances: InstanceNode[], propertyName: string, optionValue: string): Promise<void> {
   let successCount = 0;
   let errorCount = 0;
   let matchedPropertyName = '';
-  
+
   for (const instance of instances) {
     const mainComponent = await instance.getMainComponentAsync();
     if (!mainComponent) {
       errorCount++;
       continue;
     }
-    
+
     const allVariantProperties = getComponentPropertyDefinitions(mainComponent);
     const { key: realPropertyKey, definition: propertyDef } = findPropertyKey(propertyName, allVariantProperties);
-    
+
     if (!realPropertyKey || !propertyDef || propertyDef.type !== 'VARIANT') {
       errorCount++;
       continue;
     }
-    
+
     try {
-      // Build properties object with ALL variant properties
-      // This ensures we set a valid variant combination
+
       const propertiesToSet: { [key: string]: string | boolean } = {};
-      
-      // First, get all current variant property values
+
       const propKeys = Object.keys(allVariantProperties);
       for (const propName of propKeys) {
         const propDef = allVariantProperties[propName];
@@ -165,165 +183,145 @@ async function setVariantProperty(instances: InstanceNode[], propertyName: strin
           propertiesToSet[propName] = String(currentValue);
         }
       }
-      
-      // Then override the one we're changing (use the REAL property key)
+
       propertiesToSet[realPropertyKey] = optionValue;
-      
+
       instance.setProperties(propertiesToSet);
-      
-      // Store the matched property name for notification (first success only)
+
       if (successCount === 0) {
         matchedPropertyName = cleanPropertyName(realPropertyKey);
       }
-      
+
       successCount++;
     } catch (error) {
       console.error(`Error setting variant property ${propertyName}:`, error);
       errorCount++;
     }
   }
-  
+
   if (successCount > 0) {
-    // If partial match was used, show what was matched
+    
     const wasPartialMatch = matchedPropertyName.toLowerCase() !== propertyName.toLowerCase();
     const message = wasPartialMatch
       ? `Matched "${matchedPropertyName}" → set to "${optionValue}" on ${successCount} instance${successCount > 1 ? 's' : ''}`
       : `Set "${matchedPropertyName}" to "${optionValue}" on ${successCount} instance${successCount > 1 ? 's' : ''}`;
-    
+
     figma.notify(message);
   }
-  
+
   if (errorCount > 0) {
     figma.notify(`Failed to update ${errorCount} instance${errorCount > 1 ? 's' : ''}`, { error: true });
   }
 }
 
-/**
- * Set a text property value
- * Handles text component properties
- */
 async function setTextProperty(instances: InstanceNode[], propertyName: string, textValue: string): Promise<void> {
   let successCount = 0;
   let errorCount = 0;
   let matchedPropertyName = '';
-  
+
   for (const instance of instances) {
     const mainComponent = await instance.getMainComponentAsync();
     if (!mainComponent) {
       errorCount++;
       continue;
     }
-    
+
     const allProperties = getComponentPropertyDefinitions(mainComponent);
     const { key: realPropertyKey, definition: propertyDef } = findPropertyKey(propertyName, allProperties);
-    
+
     if (!realPropertyKey || !propertyDef || propertyDef.type !== 'TEXT') {
       errorCount++;
       continue;
     }
-    
+
     try {
       instance.setProperties({
         [realPropertyKey]: textValue
       });
-      
-      // Store the matched property name for notification (first success only)
+
       if (successCount === 0) {
         matchedPropertyName = cleanPropertyName(realPropertyKey);
       }
-      
+
       successCount++;
     } catch (error) {
       console.error(`Error setting text property ${propertyName}:`, error);
       errorCount++;
     }
   }
-  
+
   if (successCount > 0) {
-    // If partial match was used, show what was matched
+    
     const wasPartialMatch = matchedPropertyName.toLowerCase() !== propertyName.toLowerCase();
     const message = wasPartialMatch
       ? `Matched "${matchedPropertyName}" → set to "${textValue}" on ${successCount} instance${successCount > 1 ? 's' : ''}`
       : `Set "${matchedPropertyName}" to "${textValue}" on ${successCount} instance${successCount > 1 ? 's' : ''}`;
-    
+
     figma.notify(message);
   }
-  
+
   if (errorCount > 0) {
     figma.notify(`Failed to update ${errorCount} instance${errorCount > 1 ? 's' : ''}`, { error: true });
   }
 }
 
-/**
- * Search for available component properties on selected instances
- * Returns formatted suggestions for binding mode
- */
 export async function searchInstanceProperties(searchTerm: string): Promise<string[]> {
   const selection = figma.currentPage.selection;
   const instances = selection.filter(node => node.type === 'INSTANCE') as InstanceNode[];
-  
+
   if (instances.length === 0) {
     return ['No instances selected'];
   }
-  
-  // Check if we're in "property with value" mode (searchTerm contains :)
-  // Format: "PropertyName:" or "PropertyName:Value"
+
   const propertyWithValueMatch = searchTerm.match(/^(.+):(.*)$/);
   if (propertyWithValueMatch) {
     const propertyName = propertyWithValueMatch[1].trim();
     const value = propertyWithValueMatch[2].trim();
-    
-    // Determine the property type from the first instance
+
     for (const instance of instances) {
       const mainComponent = await instance.getMainComponentAsync();
       if (!mainComponent) continue;
-      
+
       const allProperties = getComponentPropertyDefinitions(mainComponent);
       const { key: realPropertyKey, definition: propertyDef } = findPropertyKey(propertyName, allProperties);
-      
+
       if (propertyDef) {
         if (propertyDef.type === 'VARIANT') {
-          // For variants, show filtered options
+          
           return await searchVariantOptions(instances, propertyName, value);
         } else if (propertyDef.type === 'TEXT') {
-          // For text properties, return the input as a ready-to-execute command
-          // Use the original propertyName (not realPropertyKey) since setTextProperty will do the matching
+
           if (value) {
             return [`${propertyName}:${value}`];
           } else {
-            // Just the colon, show a hint with the cleaned property name
+            
             const cleanName = realPropertyKey ? cleanPropertyName(realPropertyKey) : propertyName;
             return [`${cleanName}: type your text value`];
           }
         }
       }
-      
-      // If we found a property definition, break (no need to check other instances)
+
       if (propertyDef) break;
     }
-    
-    // Fallback: assume it's a variant search
+
     return await searchVariantOptions(instances, propertyName, value);
   }
-  
-  // Collect all unique properties from selected instances
+
   const propertiesMap = new Map<string, PropertyData>();
-  
+
   for (const instance of instances) {
     const mainComponent = await instance.getMainComponentAsync();
     if (!mainComponent) continue;
-    
+
     const allProperties = getComponentPropertyDefinitions(mainComponent);
-    
-    // Collect property information
+
     const propKeys = Object.keys(allProperties);
     for (const propName of propKeys) {
       const propDef = allProperties[propName];
       if (!propDef) continue;
-      
-      // Skip INSTANCE_SWAP properties
+
       if (propDef.type === 'INSTANCE_SWAP') continue;
-      
+
       if (!propertiesMap.has(propName)) {
         propertiesMap.set(propName, {
           type: propDef.type,
@@ -331,8 +329,7 @@ export async function searchInstanceProperties(searchTerm: string): Promise<stri
           propertyDef: propDef
         });
       }
-      
-      // Get current value from instance
+
       const currentProp = instance.componentProperties[propName];
       if (currentProp !== undefined) {
         const actualValue = extractPropertyValue(currentProp);
@@ -340,38 +337,31 @@ export async function searchInstanceProperties(searchTerm: string): Promise<stri
       }
     }
   }
-  
-  // Filter properties by search term
+
   const searchLower = searchTerm.toLowerCase();
-  const matchingProperties: Array<{name: string; data: PropertyData}> = [];
-  
-  // Add matching properties
+  const matchingProperties: Array<{ name: string; data: PropertyData }> = [];
+
   for (const [propName, data] of propertiesMap.entries()) {
     if (propName.toLowerCase().includes(searchLower)) {
       matchingProperties.push({ name: propName, data });
     }
   }
-  
+
   if (matchingProperties.length === 0) {
     return ['No matching properties found'];
   }
-  
-  // Format suggestions for binding mode
+
   return await Promise.all(matchingProperties.map(async ({ name, data }) => {
     return await formatPropertySuggestion(name, data);
   }));
 }
 
-/**
- * Helper: Format property suggestion for display
- * Format: "PropertyName (Type - option1, option2, option3, +N)"
- */
 async function formatPropertySuggestion(propertyName: string, data: PropertyData): Promise<string> {
   const cleanName = cleanPropertyName(propertyName);
   const typeDisplay = data.type.charAt(0) + data.type.slice(1).toLowerCase();
-  
+
   let optionsDisplay = '';
-  
+
   switch (data.type) {
     case 'BOOLEAN':
       optionsDisplay = 'true, false';
@@ -403,56 +393,45 @@ async function formatPropertySuggestion(propertyName: string, data: PropertyData
     default:
       optionsDisplay = 'Value';
   }
-  
-  // For variant and text properties, append ":" to indicate value input is needed
+
   const displayName = (data.type === 'VARIANT' || data.type === 'TEXT') ? `${cleanName}:` : cleanName;
-  
+
   return `${displayName} (${typeDisplay} - ${optionsDisplay})`;
 }
 
-/**
- * Set instance property based on binding mode selection
- * Parses the property reference and applies changes to all selected instances
- */
 export async function setInstanceProperty(propertyReference: string) {
   const selection = figma.currentPage.selection;
   const instances = selection.filter(node => node.type === 'INSTANCE') as InstanceNode[];
-  
+
   if (instances.length === 0) {
     throw new Error('No instances selected');
   }
-  
-  // Check if this is a variant property with description (format: "PropertyName: (Variant - ...)")
-  // This means user selected from first menu - extract property name and continue to submenu
+
   const variantWithDescMatch = propertyReference.match(/^([^:]+):\s*\(Variant\s*-/);
   if (variantWithDescMatch) {
     const propertyName = variantWithDescMatch[1].trim();
     figma.notify(`💡 Type "ip?${propertyName}:" in the command bar to see all available options for this variant`);
     return;
   }
-  
-  // Check if this is a text property with description (format: "PropertyName: (Text - ...)")
+
   const textWithDescMatch = propertyReference.match(/^([^:]+):\s*\(Text\s*-/);
   if (textWithDescMatch) {
     const propertyName = textWithDescMatch[1].trim();
     figma.notify(`💡 Type "ip?${propertyName}:Your text here" to set the text value`);
     return;
   }
-  
-  // Check if this is a property with value (format: "PropertyName:Value")
-  // This handles both variant options and text values
+
   const propertyWithValueMatch = propertyReference.match(/^([^:]+):(.+)$/);
   if (propertyWithValueMatch) {
     const propertyName = propertyWithValueMatch[1].trim();
     const value = propertyWithValueMatch[2].trim();
-    
-    // Determine property type from the first instance to route correctly
+
     const firstInstance = instances[0];
     const mainComponent = await firstInstance.getMainComponentAsync();
     if (mainComponent) {
       const allProperties = getComponentPropertyDefinitions(mainComponent);
       const { definition: propertyDef } = findPropertyKey(propertyName, allProperties);
-      
+
       if (propertyDef) {
         if (propertyDef.type === 'VARIANT') {
           return await setVariantProperty(instances, propertyName, value);
@@ -461,47 +440,40 @@ export async function setInstanceProperty(propertyReference: string) {
         }
       }
     }
-    
-    // Fallback: try variant first, then text
+
     return await setVariantProperty(instances, propertyName, value);
   }
-  
-  // Parse property reference
-  // Format: "PropertyName (TYPE - Current: value)" or just "PropertyName"
+
   const match = propertyReference.match(/^([^(]+?)(?:\s*\([^)]+\))?$/);
   if (!match) {
     throw new Error('Invalid property reference format');
   }
-  
+
   const propertyName = match[1].trim();
-  
-  // For now, we need to prompt for the new value
-  // In binding mode, the user will need to provide the value separately
-  // Let's handle different property types
-  
+
   let successCount = 0;
   let errorCount = 0;
-  
+
   for (const instance of instances) {
     const mainComponent = await instance.getMainComponentAsync();
     if (!mainComponent) {
       errorCount++;
       continue;
     }
-    
+
     const allProperties = getComponentPropertyDefinitions(mainComponent);
     const { key: realPropertyKey, definition: propertyDef } = findPropertyKey(propertyName, allProperties);
-    
+
     if (!realPropertyKey || !propertyDef) {
       errorCount++;
       continue;
     }
-    
+
     try {
-      // Handle different property types
+      
       switch (propertyDef.type) {
         case 'BOOLEAN': {
-          // Toggle boolean value
+          
           const currentValue = extractPropertyValue(instance.componentProperties[realPropertyKey]) as boolean;
           instance.setProperties({
             [realPropertyKey]: !currentValue
@@ -520,19 +492,196 @@ export async function setInstanceProperty(propertyReference: string) {
           errorCount++;
           continue;
       }
-      
+
       successCount++;
     } catch (error) {
       console.error(`Error setting property ${propertyName}:`, error);
       errorCount++;
     }
   }
-  
+
   if (successCount > 0) {
     figma.notify(`Updated "${propertyName}" on ${successCount} instance${successCount > 1 ? 's' : ''}`);
   }
-  
+
   if (errorCount > 0) {
     figma.notify(`Failed to update ${errorCount} instance${errorCount > 1 ? 's' : ''}`, { error: true });
   }
+}
+
+export function resetInstance() {
+  const selection = figma.currentPage.selection;
+  const instances = selection.filter(node => node.type === 'INSTANCE') as InstanceNode[];
+
+  if (instances.length === 0) {
+    throw new Error('No instances selected');
+  }
+
+  let successCount = 0;
+
+  for (const instance of instances) {
+    try {
+      instance.resetOverrides();
+      successCount++;
+    } catch (error) {
+      console.error('Error resetting instance:', error);
+    }
+  }
+
+  if (successCount > 0) {
+    figma.notify(`Reset ${successCount} ${pluralize(successCount, 'instance')} to master component state`);
+  } else {
+    figma.notify('Failed to reset instances', { error: true });
+  }
+}
+
+export function detachInstance() {
+  const selection = figma.currentPage.selection;
+  const instances = selection.filter(node => node.type === 'INSTANCE') as InstanceNode[];
+
+  if (instances.length === 0) {
+    throw new Error('No instances selected');
+  }
+
+  const detachedFrames: FrameNode[] = [];
+
+  for (const instance of instances) {
+    try {
+      const frame = instance.detachInstance();
+      detachedFrames.push(frame);
+    } catch (error) {
+      console.error('Error detaching instance:', error);
+    }
+  }
+
+  if (detachedFrames.length > 0) {
+    figma.currentPage.selection = detachedFrames;
+    figma.notify(`Detached ${detachedFrames.length} ${pluralize(detachedFrames.length, 'instance')} to ${pluralize(detachedFrames.length, 'frame')}`);
+  } else {
+    figma.notify('Failed to detach instances', { error: true });
+  }
+}
+
+export function createComponent() {
+  const selection = figma.currentPage.selection;
+
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+
+  const components: ComponentNode[] = [];
+
+  for (const node of selection) {
+    
+    if ('type' in node && node.type !== 'SLICE') {
+      try {
+        const component = figma.createComponentFromNode(node as SceneNode);
+        components.push(component);
+      } catch (error) {
+        console.error(`Error creating component from ${node.name}:`, error);
+      }
+    }
+  }
+
+  if (components.length > 0) {
+    figma.currentPage.selection = components;
+    figma.notify(`Created ${components.length} ${pluralize(components.length, 'component')}`);
+  } else {
+    figma.notify('Failed to create components', { error: true });
+  }
+}
+
+export function addVariant() {
+  const selection = figma.currentPage.selection;
+
+  if (selection.length === 0) {
+    throw new Error('No component or variant selected');
+  }
+
+  const selected = selection[0];
+  let baseComponent: ComponentNode | null = null;
+  let parent: ComponentSetNode | null = null;
+
+  if (selected.type === 'COMPONENT_SET') {
+    const componentSet = selected as ComponentSetNode;
+    baseComponent = componentSet.defaultVariant;
+    parent = componentSet;
+  }
+  
+  else if (selected.type === 'COMPONENT') {
+    const component = selected as ComponentNode;
+
+    if (component.parent && component.parent.type === 'COMPONENT_SET') {
+      baseComponent = component;
+      parent = component.parent as ComponentSetNode;
+    } else {
+      
+      const componentParent = component.parent;
+      const componentIndex = componentParent && 'children' in componentParent
+        ? componentParent.children.indexOf(component)
+        : undefined;
+
+      const originalX = component.x;
+      const originalY = component.y;
+
+      parent = figma.combineAsVariants([component], componentParent!, componentIndex);
+      baseComponent = parent.defaultVariant;
+
+      applyComponentSetStyling(parent, COMPONENT_SET_PADDING);
+
+      baseComponent.x = COMPONENT_SET_PADDING;
+      baseComponent.y = COMPONENT_SET_PADDING;
+
+      parent.x = originalX - COMPONENT_SET_PADDING;
+      parent.y = originalY - COMPONENT_SET_PADDING;
+
+      figma.notify('Converted to variant set');
+    }
+  } else {
+    throw new Error('Please select a component set or a component');
+  }
+
+  if (!baseComponent || !parent) {
+    throw new Error('Could not find base variant to clone');
+  }
+
+  const newVariant = baseComponent.clone();
+
+  const existingNames = new Set(
+    (parent.children as ComponentNode[]).map(child => child.name)
+  );
+  newVariant.name = generateUniqueVariantName(baseComponent.name, existingNames);
+
+  parent.appendChild(newVariant);
+
+  const allVariants = parent.children as ComponentNode[];
+  let bottommostY = 0;
+  let bottomVariantX = baseComponent.x;
+
+  for (const variant of allVariants) {
+    if (variant !== newVariant) { 
+      const variantBottom = variant.y + variant.height;
+      if (variantBottom > bottommostY) {
+        bottommostY = variantBottom;
+        bottomVariantX = variant.x; 
+      }
+    }
+  }
+
+  newVariant.x = bottomVariantX;
+  newVariant.y = bottommostY + VARIANT_SPACING;
+
+  const children = parent.children as ComponentNode[];
+  if (children.length > 0) {
+    const bounds = calculateBoundingBox(children);
+    const padding = parent.paddingLeft || 0;
+    parent.resize(
+      bounds.maxX - bounds.minX + (padding * 2),
+      bounds.maxY - bounds.minY + (padding * 2)
+    );
+  }
+
+  figma.currentPage.selection = [newVariant];
+
+  figma.notify(`Added new variant "${newVariant.name}" based on "${baseComponent.name}"`);
 }
