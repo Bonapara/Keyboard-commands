@@ -1,14 +1,22 @@
 {
   "compilerOptions": {
     "target": "es6",
-    "lib": ["es6"],
+    "lib": [
+      "es6"
+    ],
     "strict": true,
     "typeRoots": [
       "./node_modules/@types",
       "./node_modules/@figma"
     ],
-    "outDir": "dist"
+    "outDir": "dist",
+    "moduleResolution": "node"
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["ui.ts", "node_modules"]
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "ui.ts",
+    "node_modules"
+  ]
 }
