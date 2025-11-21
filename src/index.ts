@@ -15,6 +15,7 @@ import {
   searchStylesAndVariables
 } from './utils';
 import { searchLibraries } from './implementations/library';
+import * as impl from './implementations';
 
 // Global state
 let originalInput = '';
@@ -67,11 +68,15 @@ function setupInputHandler() {
 
       if (matchedCommand?.bindingSupport) {
         try {
-          let suggestions: string[] = [];
+          let suggestions: Array<string | { name: string; data: unknown }> = [];
 
           // Handle library search
           if (matchedCommand.bindingSupport.libraries) {
             suggestions = await searchLibraries(searchTerm);
+          } else if (matchedCommand.bindingSupport.instanceProperties) {
+            suggestions = await impl.searchInstanceProperties(searchTerm);
+          } else if (matchedCommand.bindingSupport.instanceSwap) {
+            suggestions = await impl.searchComponentsForSwap(searchTerm);
           } else {
             suggestions = await searchStylesAndVariables(
               searchTerm,
@@ -104,11 +109,15 @@ function setupInputHandler() {
 
       if (matchedCommand?.bindingSupport) {
         try {
-          let suggestions: string[] = [];
+          let suggestions: Array<string | { name: string; data: unknown }> = [];
 
           // Handle library search
           if (matchedCommand.bindingSupport.libraries) {
             suggestions = await searchLibraries(searchTerm);
+          } else if (matchedCommand.bindingSupport.instanceProperties) {
+            suggestions = await impl.searchInstanceProperties(searchTerm);
+          } else if (matchedCommand.bindingSupport.instanceSwap) {
+            suggestions = await impl.searchComponentsForSwap(searchTerm);
           } else {
             suggestions = await searchStylesAndVariables(
               searchTerm,
@@ -382,9 +391,12 @@ figma.on('run', async (parameters) => {
 
       const isStyleVariableBinding = styleVariablePattern.test(commandToExecute);
       const isInstancePropertyBinding = instancePropertyPattern.test(commandToExecute);
-      const isBindingValue = isStyleVariableBinding || isInstancePropertyBinding;
+      // In binding mode, we should trust the binding alias if we have one, 
+      // regardless of whether the value matches a specific pattern (which can be brittle with complex library names)
+      const shouldReconstruct = (isBindingMode && bindingCommandAlias) &&
+        !commandToExecute.startsWith(bindingCommandAlias + ' ');
 
-      if (isBindingValue) {
+      if (shouldReconstruct || isStyleVariableBinding || isInstancePropertyBinding) {
         // This is a binding mode value
         if (isBindingMode && bindingCommandAlias) {
           // Reconstruct full command: alias + space + value

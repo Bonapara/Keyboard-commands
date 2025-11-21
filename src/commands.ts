@@ -155,9 +155,18 @@ export const COMMAND_DEFINITIONS = {
     functionWithoutParam: () => impl.selectMasterComponent(),
     supportedNodes: [...NODE_GROUPS.INSTANCE_ONLY],
   },
+  InstanceSwap: {
+    type: 'commandWithValue',
+    alias: ['is'],
+    valueFormat: 'string' as const,
+    suggestion: '?swap instance with component',
+    functionWithParam: (value: string) => impl.swapInstance(value),
+    supportedNodes: [...NODE_GROUPS.INSTANCE_ONLY],
+    bindingSupport: { instanceSwap: true }
+  },
   InstanceProperty: {
     type: "commandWithValue",
-    alias: ['ip'],
+    alias: ['i', "ip"],
     valueFormat: 'hex' as const,
     suggestion: '?search for instance properties',
     functionWithParam: (value: string) => impl.setInstanceProperty(value),

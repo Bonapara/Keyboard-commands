@@ -158,9 +158,17 @@ export async function publishLibrary() {
 
         // Add components to items
         components.forEach(c => {
-            if (c.type === 'COMPONENT_SET' || c.type === 'COMPONENT') {
-                items.push([c.name, c.key, 'COMPONENT']);
+            if (c.type === 'COMPONENT_SET') {
+                // Store the key of the DEFAULT VARIANT, not the set itself.
+                // This ensures importComponentByKeyAsync retrieves a ComponentNode, avoiding 404s with Sets.
+                items.push([c.name, c.defaultVariant.key, 'COMPONENT']);
                 totalComponentsFound++;
+            } else if (c.type === 'COMPONENT') {
+                // Only add components that are NOT part of a component set (variants)
+                if (c.parent?.type !== 'COMPONENT_SET') {
+                    items.push([c.name, c.key, 'COMPONENT']);
+                    totalComponentsFound++;
+                }
             }
         });
     }
@@ -348,7 +356,7 @@ export async function monitorStorage() {
     const libraries = await getStoredLibraries();
     const active = await getActiveLibraries();
 
-    const json = JSON.stringify(libraries);
+    // const json = JSON.stringify(libraries);
     // Approximation: 1 char = 1 byte (for ASCII) or 2 bytes (UTF-16). 
     // clientStorage limit is usually about string length.
     // Let's just use string length as a proxy for "usage".

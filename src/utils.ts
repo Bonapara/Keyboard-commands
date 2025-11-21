@@ -484,7 +484,7 @@ function calculateSearchScore(searchTerm: string, targetName: string): number {
 export async function searchStylesAndVariables(
   searchTerm: string,
   bindingSupport: BindingSupport
-): Promise<string[]> {
+): Promise<Array<string | { name: string; data: unknown }>> {
   // Handle instance properties separately
   if (bindingSupport.instanceProperties) {
     return await searchInstanceProperties(searchTerm);

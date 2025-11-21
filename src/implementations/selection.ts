@@ -1,4 +1,4 @@
-import { pluralize } from './instance';
+
 
 function getHierarchySignature(node: SceneNode, rootNode: SceneNode): string[] {
   const signature: string[] = [];
@@ -12,7 +12,7 @@ function getHierarchySignature(node: SceneNode, rootNode: SceneNode): string[] {
   return signature;
 }
 
-function findNodesBySignature(rootNode: SceneNode, signature: string[], targetType: string): SceneNode[] {
+function findNodesBySignature(rootNode: SceneNode, signature: string[]): SceneNode[] {
   const results: SceneNode[] = [];
 
   function traverse(node: SceneNode, depth: number) {
@@ -65,7 +65,7 @@ export async function selectSimilar() {
   }
 
   const signature = getHierarchySignature(targetNode, rootNode as SceneNode);
-  const results = findNodesBySignature(rootNode as SceneNode, signature, targetNode.type);
+  const results = findNodesBySignature(rootNode as SceneNode, signature);
 
   if (results.length > 0) {
     figma.currentPage.selection = results;

@@ -15,7 +15,10 @@ export interface BindingSupport {
   styles?: StyleBindingType[];
   variables?: VariableResolvedType[];
   instanceProperties?: boolean;
-  libraries?: boolean;  // Enable library name search
+  instanceSwap?: boolean;
+  libraries?: boolean;
+  libraryStyles?: boolean;
+  libraryComponents?: boolean;
 }
 
 export type CommandWithValue = {
