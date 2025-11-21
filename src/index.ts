@@ -12,6 +12,7 @@ import {
   checkSpecialConditions,
   VALUE_FORMAT_REGEX,
   COMMAND_SPLITTER_REGEX,
+  COMMAND_BREAK_PATTERN,
   searchStylesAndVariables
 } from './utils';
 import { searchLibraries } from './implementations/library';
@@ -58,9 +59,15 @@ function setupInputHandler() {
     if (key !== 'command') return;
     originalInput = query;
 
-    // Check for binding mode BEFORE splitting by spaces
-    // This allows variable/style names with spaces to work properly
-    const bindingModeMatch = query.match(/^(.*?)\s+([a-z]+)\?(.*)$/i);
+    // Split by double space to support command chaining
+    // This allows "ip?icon:user  f? color primary" to work
+    const segments = query.split(COMMAND_BREAK_PATTERN);
+    const currentSegment = segments[segments.length - 1];
+    const previousSegments = segments.slice(0, -1);
+
+    // Check for binding mode in the current segment
+    // Pattern: "cmd?" or "previous commands cmd?"
+    const bindingModeMatch = currentSegment.match(/^(.*?)\s+([a-z]+)\?(.*)$/i);
 
     if (bindingModeMatch) {
       const [, _previousCommandsStr, cmdAlias, searchTerm] = bindingModeMatch;
@@ -104,8 +111,8 @@ function setupInputHandler() {
       }
     }
 
-    // Check for binding mode at the start of the query (no previous commands)
-    const simpleBindingMatch = query.match(/^([a-z]+)\?(.*)$/i);
+    // Check for binding mode at the start of the current segment (no previous commands in segment)
+    const simpleBindingMatch = currentSegment.match(/^([a-z]+)\?(.*)$/i);
 
     if (simpleBindingMatch) {
       const [, cmdAlias, searchTerm] = simpleBindingMatch;
@@ -149,11 +156,84 @@ function setupInputHandler() {
       }
     }
 
-    const parts = query.split(' ');
+    // Normal mode: split current segment by spaces for simple commands
+    const parts = currentSegment.split(' ');
     const currentPart = parts[parts.length - 1];
 
-    // Track previous commands
+    // Track previous commands from ALL segments (including previous segments)
     const previousCommands: Record<string, string> = {};
+
+    // Process previous segments
+    previousSegments.forEach(segment => {
+      const trimmedSegment = segment.trim();
+      if (!trimmedSegment) return;
+
+      // Check if this segment is a binding command
+      const bindingMatch = trimmedSegment.match(/^(.*?)\s*([a-z]+)\?(.*)$/i);
+
+      if (bindingMatch) {
+        // This is a binding command - extract and track it
+        const [, previousInSegment, cmdAlias, value] = bindingMatch;
+
+        // First process any simple commands before the binding command
+        if (previousInSegment.trim()) {
+          const prevParts = previousInSegment.trim().split(COMMAND_SPLITTER_REGEX).filter(Boolean);
+          prevParts.forEach(part => {
+            const matchedCommand = findCommand(part)[0];
+            if (matchedCommand) {
+              if (matchedCommand.type === 'commandWithoutValue') {
+                previousCommands[matchedCommand.name] = '';
+              } else {
+                const hasHex = VALUE_FORMAT_REGEX.hex.exec(part);
+                const hasNumber = VALUE_FORMAT_REGEX.number.exec(part);
+                if (hasHex && matchedCommand.valueFormat === 'hex') {
+                  previousCommands[matchedCommand.name] = hasHex[0];
+                } else if (hasNumber) {
+                  try {
+                    const computedValue = calculateExpression(hasNumber[0]);
+                    previousCommands[matchedCommand.name] = computedValue.toString();
+                  } catch {
+                    previousCommands[matchedCommand.name] = hasNumber[0];
+                  }
+                }
+              }
+            }
+          });
+        }
+
+        // Now track the binding command itself
+        const matchedBindingCmd = findCommandForBinding(cmdAlias);
+        if (matchedBindingCmd) {
+          previousCommands[matchedBindingCmd.name] = value.trim();
+        }
+      } else {
+        // Normal segment with only simple commands
+        const segmentParts = trimmedSegment.split(COMMAND_SPLITTER_REGEX).filter(Boolean);
+        segmentParts.forEach(part => {
+          const matchedCommand = findCommand(part)[0];
+          if (matchedCommand) {
+            if (matchedCommand.type === 'commandWithoutValue') {
+              previousCommands[matchedCommand.name] = '';
+            } else {
+              const hasHex = VALUE_FORMAT_REGEX.hex.exec(part);
+              const hasNumber = VALUE_FORMAT_REGEX.number.exec(part);
+              if (hasHex && matchedCommand.valueFormat === 'hex') {
+                previousCommands[matchedCommand.name] = hasHex[0];
+              } else if (hasNumber) {
+                try {
+                  const computedValue = calculateExpression(hasNumber[0]);
+                  previousCommands[matchedCommand.name] = computedValue.toString();
+                } catch {
+                  previousCommands[matchedCommand.name] = hasNumber[0];
+                }
+              }
+            }
+          }
+        });
+      }
+    });
+
+    // Process previous commands in current segment
     parts.slice(0, -1).forEach(part => {
       const matchedCommand = findCommand(part)[0];
       if (matchedCommand) {
@@ -182,48 +262,10 @@ function setupInputHandler() {
       return;
     }
 
-    // Summarize previously defined commands (not used below except for display)
-    const completeCommands = parts.slice(0, -1).map((part) => {
-      const matchedCommand = findCommand(part)[0];
-      if (!matchedCommand) {
-        return "Not Found";
-      }
-
-      const { name, type } = matchedCommand;
-
-      // Process hex or number value if present
-      const processValue = (): string | null => {
-        const hasHex = VALUE_FORMAT_REGEX.hex.exec(part);
-        if (hasHex) {
-          return hasHex[0];
-        }
-
-        const hasNumber = VALUE_FORMAT_REGEX.number.exec(part);
-        if (hasNumber) {
-          try {
-            return calculateExpression(hasNumber[0]);
-          } catch {
-            return hasNumber[0];
-          }
-        }
-
-        return null;
-      };
-
-      // Format command with optional value
-      const formatCommand = (value: string | null): string => {
-        return value ? `${name}:${value}` : name;
-      };
-
-      const value = processValue();
-
-      if (type === 'commandWithValue') {
-        return value ? formatCommand(value) : undefined;
-      } else if (type === 'optionalValueCommand') {
-        return formatCommand(value);
-      } else {
-        return name;
-      }
+    // Build the complete command summary from ALL segments
+    // The previousCommands object already includes ALL commands from all segments
+    const completeCommands: (string | undefined)[] = Object.entries(previousCommands).map(([name, value]) => {
+      return value ? `${name}:${value}` : name;
     });
 
 
@@ -345,85 +387,155 @@ figma.on('run', async (parameters) => {
   console.log("parameters", parameters);
   console.log("originalInput", originalInput);
 
-  // Check for binding mode BEFORE splitting by spaces
-  // Patterns: "cmd?" or "prev commands cmd?" 
-  const bindingModeMatch = commandString.match(/^(.*?)\s*([a-z]+)\?(.*)$/i);
+  // Split by double space to handle command chaining
+  const segments = commandString.split(COMMAND_BREAK_PATTERN);
 
-  let commands: string[];
-  let isBindingMode = false;
-  let bindingCommandAlias = '';
+  // Track all simple commands and binding commands from all segments
+  const allSimpleCommands: string[] = [];
+  const bindingSegments: Array<{ segment: string, alias: string }> = [];
 
-  if (bindingModeMatch) {
-    isBindingMode = true;
-    const [, previousCommandsStr, cmdAlias, searchTerm] = bindingModeMatch;
-    bindingCommandAlias = cmdAlias;
+  // Process each segment to identify binding commands and simple commands
+  segments.forEach(segment => {
+    const trimmedSegment = segment.trim();
+    if (!trimmedSegment) return;
 
-    console.log("Binding mode detected");
-    console.log("Previous commands:", previousCommandsStr);
-    console.log("Binding command alias:", cmdAlias);
-    console.log("Search term:", searchTerm);
+    // Check if this segment contains a binding command
+    const bindingModeMatch = trimmedSegment.match(/^(.*?)\s*([a-z]+)\?(.*)$/i);
 
-    // Split only the previous commands part (before the binding command)
-    if (previousCommandsStr.trim()) {
-      commands = previousCommandsStr.trim().split(COMMAND_SPLITTER_REGEX).filter(Boolean);
+    if (bindingModeMatch) {
+      const [, previousCommandsStr, cmdAlias, searchTerm] = bindingModeMatch;
+
+      console.log("Binding mode detected in segment");
+      console.log("Previous commands in segment:", previousCommandsStr);
+      console.log("Binding command alias:", cmdAlias);
+      console.log("Search term:", searchTerm);
+
+      // Add any simple commands that come before the binding command in this segment
+      if (previousCommandsStr.trim()) {
+        const prevCmds = previousCommandsStr.trim().split(COMMAND_SPLITTER_REGEX).filter(Boolean);
+        allSimpleCommands.push(...prevCmds);
+      }
+
+      // Store this binding segment for later execution
+      bindingSegments.push({ segment: trimmedSegment, alias: cmdAlias });
     } else {
-      commands = [];
+      // Normal mode: this segment contains only simple commands
+      const cmds = trimmedSegment.split(COMMAND_SPLITTER_REGEX).filter(Boolean);
+      allSimpleCommands.push(...cmds);
     }
-    // Don't include the binding command itself in the commands array
-  } else {
-    // Normal mode: split all commands by spaces
-    commands = commandString.split(COMMAND_SPLITTER_REGEX).filter(Boolean);
-  }
+  });
 
-  console.log("commands", commands);
+  console.log("allSimpleCommands", allSimpleCommands);
+  console.log("bindingSegments", bindingSegments);
 
   try {
     // Group all command executions into a single undo step for better UX
     // This allows users to undo all commands at once with Cmd+Z
-    if (parameters.parameters?.command && !parameters.parameters.command.includes('|')) {
-      // Execute all commands (which won't include the binding command part)
-      for (let i = 0; i < commands.length; i++) {
-        const cmd = commands[i];
-        await executeCommand(cmd, true);
-      }
 
-      console.log("parameters.parameters.command", parameters.parameters.command);
+    // Execute all simple commands first
+    for (const cmd of allSimpleCommands) {
+      console.log("Executing simple command:", cmd);
+      await executeCommand(cmd, true);
+    }
 
-      // Check if this is a binding mode value that needs reconstruction
-      // Formats:
-      // - Style/Variable: "Name (Collection - Location)" or "Name (Location)"
-      // - Instance Property: "PropertyName:OptionValue"
-      let commandToExecute = parameters.parameters.command;
-      const styleVariablePattern = /^([^(]+)\s*\(([^)]+)\)$/;
-      const instancePropertyPattern = /^([^:]+):(.+)$/;
+    // Now handle binding commands
+    // For each binding segment, extract the full command (alias + value) and execute it
+    if (bindingSegments.length > 0) {
+      console.log(`Executing ${bindingSegments.length} binding command(s)`);
 
-      const isStyleVariableBinding = styleVariablePattern.test(commandToExecute);
-      const isInstancePropertyBinding = instancePropertyPattern.test(commandToExecute);
-      // In binding mode, we should trust the binding alias if we have one, 
-      // regardless of whether the value matches a specific pattern (which can be brittle with complex library names)
-      const shouldReconstruct = (isBindingMode && bindingCommandAlias) &&
-        !commandToExecute.startsWith(bindingCommandAlias + ' ');
+      for (const bindingSegment of bindingSegments) {
+        const { segment, alias } = bindingSegment;
 
-      if (shouldReconstruct || isStyleVariableBinding || isInstancePropertyBinding) {
-        // This is a binding mode value
-        if (isBindingMode && bindingCommandAlias) {
-          // Reconstruct full command: alias + space + value
-          // The space is needed so findCommand regex can extract just the alias
-          commandToExecute = bindingCommandAlias + ' ' + commandToExecute;
-          console.log("Reconstructed binding command:", commandToExecute);
+        // Parse the binding segment to extract the value
+        // Format: "cmd?value" or "previous cmds cmd?value"
+        const bindingMatch = segment.match(/^(.*?)\s*([a-z]+)\?(.*)$/i);
+
+        if (bindingMatch) {
+          const [, , cmdAlias, rawValue] = bindingMatch;
+          const matchedCommand = findCommandForBinding(cmdAlias);
+
+          // The rawValue might be a search term or a direct value
+          // If parameters.parameters.command exists and matches this segment's context,
+          // use that (it's from the dropdown selection)
+          // Otherwise, use the typed value directly
+          let valueToUse = rawValue.trim();
+          let isDropdownSelection = false;
+
+          // Check if this is the segment that triggered the dropdown
+          // (when only one binding segment, or the last one, Figma returns the selected value)
+          if (parameters.parameters?.command &&
+            bindingSegments.length === 1) {
+            const dropdownValue = parameters.parameters.command;
+            // Make sure it's not the summary string (which contains pipes)
+            if (!dropdownValue.includes('|')) {
+              valueToUse = dropdownValue;
+              isDropdownSelection = true;
+            }
+          } else if (parameters.parameters?.command &&
+            bindingSegment === bindingSegments[bindingSegments.length - 1]) {
+            // Last binding segment - might be the dropdown value
+            const dropdownValue = parameters.parameters.command;
+            // Check if it looks like a selection (not a search term or summary string)
+            const isSelection = dropdownValue &&
+              (dropdownValue.includes(':') || dropdownValue.includes('(')) &&
+              !dropdownValue.includes('|'); // Exclude summary strings
+            if (isSelection) {
+              valueToUse = dropdownValue;
+              isDropdownSelection = true;
+            }
+          }
+
+          // If no dropdown selection was made and this is a style/variable/component binding,
+          // auto-search and use the first result
+          if (!isDropdownSelection && matchedCommand?.bindingSupport) {
+            console.log(`No dropdown selection, searching for: "${valueToUse}"`);
+
+            try {
+              let suggestions: Array<string | { name: string; data: unknown }> = [];
+
+              // Handle different binding types
+              if (matchedCommand.bindingSupport.libraries) {
+                suggestions = await searchLibraries(valueToUse);
+              } else if (matchedCommand.bindingSupport.instanceSwap) {
+                suggestions = await impl.searchComponentsForSwap(valueToUse);
+              } else if (!matchedCommand.bindingSupport.instanceProperties) {
+                // For styles/variables (not instance properties)
+                suggestions = await searchStylesAndVariables(
+                  valueToUse,
+                  matchedCommand.bindingSupport,
+                  {
+                    getStoredLibraries: impl.getStoredLibraries,
+                    getActiveLibraries: impl.getActiveLibraries
+                  }
+                );
+              }
+
+              // Use the first result if available
+              if (suggestions.length > 0) {
+                const firstResult = suggestions[0];
+                if (typeof firstResult === 'object' && 'name' in firstResult) {
+                  valueToUse = firstResult.name;
+                  console.log(`Auto-selected first result: "${valueToUse}"`);
+                } else if (typeof firstResult === 'string') {
+                  valueToUse = firstResult;
+                  console.log(`Auto-selected first result: "${valueToUse}"`);
+                }
+              } else {
+                console.log(`No results found for search term: "${valueToUse}"`);
+              }
+            } catch (error) {
+              console.error('Error searching for auto-select:', error);
+            }
+          }
+
+          // Construct the full command: alias + value
+          const fullCommand = `${cmdAlias} ${valueToUse}`;
+          console.log(`Executing binding command: ${fullCommand}`);
+          await executeCommand(fullCommand, true);
         }
-        await executeCommand(commandToExecute, true);
-      } else if (isBindingMode) {
-        // In binding mode but not a binding value pattern, still execute it
-        await executeCommand(commandToExecute, true);
-      }
-      // If not in binding mode and not a binding value, skip (already executed in loop above)
-    } else {
-      for (const cmd of commands) {
-        console.log("cmd", cmd);
-        await executeCommand(cmd, true);
       }
     }
+
     figma.closePlugin();
   } catch (error) {
     figma.notify(error instanceof Error ? error.message : 'An unknown error occurred');

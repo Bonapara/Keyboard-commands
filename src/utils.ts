@@ -6,6 +6,7 @@ import type { Command, SpecialCondition, ValueFormat, BindingSupport, VariableRe
 import { COMMANDS, type CommandName } from './commands';
 import {
   COMMAND_SPLITTER_REGEX,
+  COMMAND_BREAK_PATTERN,
   COMMAND_PART_REGEX,
   VALUE_FORMAT_REGEX,
   CACHE_DURATION
@@ -13,7 +14,7 @@ import {
 import { searchInstanceProperties } from './implementations/instance';
 
 // Re-export constants for backwards compatibility
-export { COMMAND_SPLITTER_REGEX, COMMAND_PART_REGEX, VALUE_FORMAT_REGEX };
+export { COMMAND_SPLITTER_REGEX, COMMAND_BREAK_PATTERN, COMMAND_PART_REGEX, VALUE_FORMAT_REGEX };
 
 // Helper Functions
 

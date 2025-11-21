@@ -4,7 +4,11 @@
 
 // Regex Constants
 export const COMMAND_SPLITTER_REGEX = /[\s,]+/;
-export const COMMAND_PART_REGEX = /^(-(?![\d])|(-)?[\p{L}]+(-[\p{L}]+)*?)(?=\s|[\d]|-[\d]|-$|$|#|:|\$|@)/u;
+export const COMMAND_PART_REGEX = /^(-(?![\d])|(-)?[\p{L}]+(-[\p{L}]+)*?)(?=\s|[\d]|-[\d]|-$|$|#|:|$|@)/u;
+
+// Double space pattern for command chaining
+// Allows chaining binding commands while preserving single-space separation for simple commands
+export const COMMAND_BREAK_PATTERN = /\s{2,}/;
 
 export const VALUE_FORMAT_REGEX = {
   number: /-?\s*\(?(\d+(\.\d+)?(?:\s*[-+*/x]\s*\(?-?\d+(\.\d+)?\)?)*\)?%?)/,
