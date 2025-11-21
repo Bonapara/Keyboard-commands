@@ -802,13 +802,25 @@ export const COMMAND_DEFINITIONS = {
     functionWithoutParam: () => impl.AlignText({ vertical: 'CENTER' }),
     supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
   },
-
   TextAlignBottom: {
     type: "commandWithoutValue",
     alias: ['tab'],
     suggestion: 'Align Text to Bottom',
     functionWithoutParam: () => impl.AlignText({ vertical: 'BOTTOM' }),
     supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
+  },
+  Font: {
+    type: "optionalValueCommand",
+    alias: ['ft'],
+    valueFormat: 'string' as const,
+    suggestion: 'Type ? to apply a font style',
+    functionWithoutParam: () => { /* No toggle action for now, maybe list styles? */ },
+    functionWithParam: (value: string) => impl.applyLibraryStyle(value, 'TEXT'),
+    supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
+    bindingSupport: {
+      styles: ['TEXT'],
+      libraryStyles: true
+    }
   },
 
   // Font Size Command

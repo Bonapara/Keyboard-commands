@@ -69,3 +69,10 @@ export interface PaintResolution {
   color?: RGB;
 }
 
+export type LibraryItemType = 'PAINT' | 'TEXT' | 'EFFECT' | 'COMPONENT';
+// [Name, Key, Type]
+export type LibraryItem = [string, string, LibraryItemType];
+
+// Map<LibraryName, LibraryItem[]>
+export type LibraryData = Record<string, LibraryItem[]>;
+

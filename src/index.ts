@@ -80,7 +80,11 @@ function setupInputHandler() {
           } else {
             suggestions = await searchStylesAndVariables(
               searchTerm,
-              matchedCommand.bindingSupport
+              matchedCommand.bindingSupport,
+              {
+                getStoredLibraries: impl.getStoredLibraries,
+                getActiveLibraries: impl.getActiveLibraries
+              }
             );
           }
 
@@ -121,7 +125,11 @@ function setupInputHandler() {
           } else {
             suggestions = await searchStylesAndVariables(
               searchTerm,
-              matchedCommand.bindingSupport
+              matchedCommand.bindingSupport,
+              {
+                getStoredLibraries: impl.getStoredLibraries,
+                getActiveLibraries: impl.getActiveLibraries
+              }
             );
           }
 

@@ -2,7 +2,7 @@
 // Helper Functions & Constants
 // ===============
 
-import type { Command, SpecialCondition, ValueFormat, BindingSupport, VariableResolvedType, PaintResolution } from './types';
+import type { Command, SpecialCondition, ValueFormat, BindingSupport, VariableResolvedType, PaintResolution, StyleBindingType } from './types';
 import { COMMANDS, type CommandName } from './commands';
 import {
   COMMAND_SPLITTER_REGEX,
@@ -481,9 +481,15 @@ function calculateSearchScore(searchTerm: string, targetName: string): number {
   return 100;
 }
 
+import { LibraryData } from './types';
+
 export async function searchStylesAndVariables(
   searchTerm: string,
-  bindingSupport: BindingSupport
+  bindingSupport: BindingSupport,
+  libraryFunctions?: {
+    getStoredLibraries: () => Promise<LibraryData>;
+    getActiveLibraries: () => Promise<string[]>;
+  }
 ): Promise<Array<string | { name: string; data: unknown }>> {
   // Handle instance properties separately
   if (bindingSupport.instanceProperties) {
@@ -553,6 +559,33 @@ export async function searchStylesAndVariables(
         name: s.name
       });
     });
+  }
+
+  // Search library styles (from plugin storage)
+  if (bindingSupport.libraryStyles && bindingSupport.styles && libraryFunctions) {
+    const libraries = await libraryFunctions.getStoredLibraries();
+    const activeLibraries = await libraryFunctions.getActiveLibraries();
+
+    for (const libName of activeLibraries) {
+      const items = libraries[libName] || [];
+
+      // Filter items based on requested types
+      const matchingItems = items.filter(item => {
+        const [name, , type] = item;
+        return bindingSupport.styles!.indexOf(type as unknown as StyleBindingType) !== -1 && flexibleMatch(searchTerm, name);
+      });
+
+      matchingItems.forEach(item => {
+        const [name] = item;
+        const score = calculateSearchScore(searchTerm, name);
+        results.push({
+          score,
+          text: `${name} (${libName})`,
+          collection: libName,
+          name: name
+        });
+      });
+    }
   }
 
   // Sort by score first (highest to lowest), then by collection, then by name

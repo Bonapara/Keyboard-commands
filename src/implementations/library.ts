@@ -1,14 +1,10 @@
 import * as LZString from 'lz-string';
 import { notify } from '../utils';
+import { LibraryItem, LibraryItemType } from '../types';
 
 // ==================================
 // Types & Constants
 // ==================================
-
-export type LibraryItemType = 'PAINT' | 'TEXT' | 'EFFECT' | 'COMPONENT';
-
-// [Name, Key, Type]
-export type LibraryItem = [string, string, LibraryItemType];
 
 // Map<LibraryName, LibraryItem[]>
 export type LibraryData = Record<string, LibraryItem[]>;
@@ -378,4 +374,57 @@ export async function monitorStorage() {
         `(${usagePercent.toFixed(1)}% of ~5MB). ` +
         `Active: ${active.length}`
     );
+}
+
+export async function applyLibraryStyle(value: string, type: LibraryItemType) {
+    // value format: "StyleName (LibraryName)"
+    const match = value.match(/^(.+?)\s+\((.+?)\)$/);
+    if (!match) {
+        notify('❌ Invalid style format');
+        return;
+    }
+
+    const styleName = match[1];
+    const libraryName = match[2];
+
+    const libraries = await getStoredLibraries();
+    const libraryItems = libraries[libraryName];
+
+    if (!libraryItems) {
+        notify(`❌ Library "${libraryName}" not found`);
+        return;
+    }
+
+    const item = libraryItems.find(i => i[0] === styleName && i[2] === type);
+    if (!item) {
+        notify(`❌ Style "${styleName}" not found in "${libraryName}"`);
+        return;
+    }
+
+    const key = item[1];
+    const selection = figma.currentPage.selection;
+
+    if (selection.length === 0) {
+        notify('⚠️ Select a layer first');
+        return;
+    }
+
+    try {
+        const style = await figma.importStyleByKeyAsync(key);
+
+        for (const node of selection) {
+            if (type === 'TEXT' && node.type === 'TEXT') {
+                await node.setTextStyleIdAsync(style.id);
+            } else if (type === 'PAINT' && 'fillStyleId' in node) {
+                await node.setFillStyleIdAsync(style.id);
+            } else if (type === 'EFFECT' && 'effectStyleId' in node) {
+                await node.setEffectStyleIdAsync(style.id);
+            }
+        }
+
+        notify(`✅ Applied "${styleName}"`);
+    } catch (e) {
+        console.error(e);
+        notify(`❌ Failed to apply style: ${e}`);
+    }
 }
