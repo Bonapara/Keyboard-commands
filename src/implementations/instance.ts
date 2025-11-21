@@ -1,5 +1,7 @@
 
 
+import { getStoredLibraries, getActiveLibraries } from './library';
+
 const PROPERTY_ID_SUFFIX_REGEX = /#\d+:\d+$/;
 const VARIANT_SPACING = 20;
 const COMPONENT_SET_PADDING = 20;
@@ -265,6 +267,38 @@ async function setTextProperty(instances: InstanceNode[], propertyName: string, 
   }
 }
 
+async function searchLibraryComponents(searchTerm: string, limit: number = 100, libraryFilter?: string): Promise<Array<{ name: string; key: string; library: string }>> {
+  const libraries = await getStoredLibraries();
+  const activeLibraries = await getActiveLibraries();
+  const results: Array<{ name: string; key: string; library: string }> = [];
+  const searchLower = searchTerm.toLowerCase();
+
+  // If a filter is provided, only search that library (if it's active)
+  const librariesToSearch = libraryFilter
+    ? (activeLibraries.includes(libraryFilter) ? [libraryFilter] : [])
+    : activeLibraries;
+
+  for (const libName of librariesToSearch) {
+    const items = libraries[libName];
+    if (!items) continue;
+
+    for (const item of items) {
+      // Item format: [Name, Key, Type]
+      if (item[2] === 'COMPONENT') {
+        if (searchLower === '' || item[0].toLowerCase().includes(searchLower)) {
+          results.push({
+            name: item[0],
+            key: item[1],
+            library: libName
+          });
+        }
+      }
+    }
+  }
+
+  return results.slice(0, limit);
+}
+
 export async function searchInstanceProperties(searchTerm: string): Promise<string[]> {
   const selection = figma.currentPage.selection;
   const instances = selection.filter(node => node.type === 'INSTANCE') as InstanceNode[];
@@ -287,17 +321,75 @@ export async function searchInstanceProperties(searchTerm: string): Promise<stri
 
       if (propertyDef) {
         if (propertyDef.type === 'VARIANT') {
-
           return await searchVariantOptions(instances, propertyName, value);
         } else if (propertyDef.type === 'TEXT') {
-
           if (value) {
             return [`${propertyName}:${value}`];
           } else {
-
             const cleanName = realPropertyKey ? cleanPropertyName(realPropertyKey) : propertyName;
             return [`${cleanName}: type your text value`];
           }
+        } else if (propertyDef.type === 'INSTANCE_SWAP') {
+          // Determine context library from current value
+          let currentLibrary: string | undefined;
+
+          if (realPropertyKey && instance.componentProperties[realPropertyKey]) {
+            const currentId = instance.componentProperties[realPropertyKey].value;
+            if (typeof currentId === 'string') {
+              try {
+                const node = await figma.getNodeByIdAsync(currentId);
+                if (node && (node.type === 'COMPONENT' || node.type === 'COMPONENT_SET')) {
+                  // Find which library has this key
+                  // We need to check all libraries? Or is there a faster way?
+                  // We have to check all stored libraries.
+                  const libraries = await getStoredLibraries();
+                  const activeLibs = await getActiveLibraries();
+
+                  // Check active libraries first
+                  for (const libName of activeLibs) {
+                    const items = libraries[libName];
+                    if (items) {
+                      // item[1] is key
+                      // We need the node's key.
+                      // Wait, node.key is available on ComponentNode? Yes.
+                      // But `key` property on ComponentNode is only available if it's a published component?
+                      // Local components have keys too.
+                      // Let's assume we can access .key
+                      const componentKey = (node as any).key;
+                      if (componentKey) {
+                        const match = items.find(item => item[1] === componentKey);
+                        if (match) {
+                          currentLibrary = libName;
+                          break;
+                        }
+                      }
+                    }
+                  }
+                }
+              } catch (e) {
+                // Ignore error resolving node
+              }
+            }
+          }
+
+          // If value is empty, use the current library as filter
+          // If value is not empty, search globally (or maybe prioritize? User said "default suggestion")
+          // "Default suggestion" usually means empty search state.
+
+          const filter = (value === '' && currentLibrary) ? currentLibrary : undefined;
+
+          const components = await searchLibraryComponents(value, 100, filter);
+
+          if (components.length === 0) {
+            if (filter) {
+              // If filtered search returned nothing (maybe library empty?), try global?
+              // But user wanted "part of the same library".
+              // Let's just return empty or maybe a message.
+              return [`No components found in "${filter}"`];
+            }
+            return [`No components found matching "${value}"`];
+          }
+          return components.map(c => `${propertyName}:${c.name} (${c.library})`);
         }
       }
 
@@ -320,7 +412,7 @@ export async function searchInstanceProperties(searchTerm: string): Promise<stri
       const propDef = allProperties[propName];
       if (!propDef) continue;
 
-      if (propDef.type === 'INSTANCE_SWAP') continue;
+      // Removed INSTANCE_SWAP skip
 
       if (!propertiesMap.has(propName)) {
         propertiesMap.set(propName, {
@@ -390,11 +482,89 @@ async function formatPropertySuggestion(propertyName: string, data: PropertyData
       }
       break;
     }
+    case 'INSTANCE_SWAP': {
+      // Get current component name(s)
+      const currentValues = Array.from(data.values);
+      let currentDisplay = '';
+
+      // Since values are component IDs or keys, we might want to try to resolve them to names if possible
+      // But for now, let's assume we can't easily resolve ID to name without a lookup
+      // However, the value stored in componentProperties for INSTANCE_SWAP is the ID.
+      // We can try to find the node if it's local, or just show "Current"
+      // Actually, let's try to get the node name if possible, but it might be async and slow for many items.
+      // For now, let's just show the count or "Mixed" if multiple.
+      // Wait, the prompt requested: "Current: ComponentName"
+
+      // Let's try to resolve the name for the first value if it's a local ID
+      // Note: This is a bit tricky as we don't have the node here, just the ID string.
+      // We'll skip complex resolution for now to keep it fast, or maybe just show "Current Selection"
+
+      // Actually, we can get the preferred values
+      const preferred = data.propertyDef.preferredValues;
+      let preferredDisplay = '';
+
+      if (preferred && preferred.length > 0) {
+        // preferredValues are [{ type: 'COMPONENT', key: string }, ...]
+        // We can't easily get names from keys without looking them up in our library storage or Figma
+        // Let's try to look up in our library storage
+        const libraries = await getStoredLibraries();
+        const activeLibraries = await getActiveLibraries();
+        const preferredNames: string[] = [];
+
+        for (const pref of preferred) {
+          // Try to find name in active libraries
+          let foundName = '';
+          for (const libName of activeLibraries) {
+            const items = libraries[libName];
+            if (items) {
+              const match = items.find(item => item[1] === pref.key);
+              if (match) {
+                foundName = match[0];
+                break;
+              }
+            }
+          }
+          if (foundName) preferredNames.push(foundName);
+        }
+
+        if (preferredNames.length > 0) {
+          const maxDisplay = 3;
+          if (preferredNames.length <= maxDisplay) {
+            preferredDisplay = ` | Preferred: ${preferredNames.join(', ')}`;
+          } else {
+            preferredDisplay = ` | Preferred: ${preferredNames.slice(0, maxDisplay).join(', ')}, +${preferredNames.length - maxDisplay}`;
+          }
+        }
+      }
+
+      // For current value, we can try to find the node if it exists in the document
+      // But `data.values` contains IDs. 
+      // Let's try to resolve one
+      let currentName = 'Current Selection';
+      if (currentValues.length === 1) {
+        // It's an ID. 
+        // We can't easily resolve it here without being async and potentially slow.
+        // But wait, formatPropertySuggestion is async.
+        try {
+          const node = await figma.getNodeByIdAsync(currentValues[0]);
+          if (node && 'name' in node) {
+            currentName = node.name;
+          }
+        } catch (e) {
+          // Ignore
+        }
+      } else if (currentValues.length > 1) {
+        currentName = 'Mixed';
+      }
+
+      optionsDisplay = `Current: ${currentName}${preferredDisplay} → type :search`;
+      break;
+    }
     default:
       optionsDisplay = 'Value';
   }
 
-  const displayName = (data.type === 'VARIANT' || data.type === 'TEXT') ? `${cleanName}:` : cleanName;
+  const displayName = (data.type === 'VARIANT' || data.type === 'TEXT' || data.type === 'INSTANCE_SWAP') ? `${cleanName}:` : cleanName;
 
   return `${displayName} (${typeDisplay} - ${optionsDisplay})`;
 }
@@ -421,6 +591,13 @@ export async function setInstanceProperty(propertyReference: string) {
     return;
   }
 
+  const instanceSwapWithDescMatch = propertyReference.match(/^([^:]+):\s*\(Instance_swap\s*-/);
+  if (instanceSwapWithDescMatch) {
+    const propertyName = instanceSwapWithDescMatch[1].trim();
+    figma.notify(`💡 Type "ip?${propertyName}:" to search for components to swap`);
+    return;
+  }
+
   const propertyWithValueMatch = propertyReference.match(/^([^:]+):(.+)$/);
   if (propertyWithValueMatch) {
     const propertyName = propertyWithValueMatch[1].trim();
@@ -437,6 +614,132 @@ export async function setInstanceProperty(propertyReference: string) {
           return await setVariantProperty(instances, propertyName, value);
         } else if (propertyDef.type === 'TEXT') {
           return await setTextProperty(instances, propertyName, value);
+        } else if (propertyDef.type === 'INSTANCE_SWAP') {
+          // Handle Instance Swap
+          // Value might be "ComponentName (LibraryName)" or just "ComponentName"
+
+          const libraries = await getStoredLibraries();
+          const activeLibraries = await getActiveLibraries();
+
+          let componentName = value;
+          let targetLibrary: string | null = null;
+
+          // Robust parsing: Check if the value ends with " (LibraryName)" for any active library
+          // Sort libraries by length descending to match the longest possible library name first
+          // This handles cases where one library name is a suffix of another
+          const sortedLibraries = [...activeLibraries].sort((a, b) => b.length - a.length);
+
+          for (const libName of sortedLibraries) {
+            const suffix = ` (${libName})`;
+            if (value.endsWith(suffix)) {
+              targetLibrary = libName;
+              componentName = value.substring(0, value.length - suffix.length).trim();
+              break;
+            }
+          }
+
+          // Fallback for when parsing fails or no library suffix found (e.g. manual typing without library)
+          if (!targetLibrary) {
+            // Try the simple parse as a backup, or just treat the whole thing as the name
+            const lastParenIndex = value.lastIndexOf(' (');
+            if (lastParenIndex > 0 && value.endsWith(')')) {
+              // Only use this if we didn't match a known library, maybe it's a library we don't have loaded?
+              // But for now, let's just log it.
+              console.log(`[InstanceSwap] No active library matched suffix. Trying heuristic parse.`);
+              const potentialLib = value.substring(lastParenIndex + 2, value.length - 1);
+              // We won't enforce it as a targetLibrary if it's not in activeLibraries, 
+              // but we can use it to strip the name.
+              componentName = value.substring(0, lastParenIndex).trim();
+              // We don't set targetLibrary because we can't look it up if it's not active/stored.
+            }
+          }
+
+          console.log(`[InstanceSwap] Parsed: Name="${componentName}", Library="${targetLibrary || 'N/A'}"`);
+
+          let componentKey: string | null = null;
+
+          if (targetLibrary && libraries[targetLibrary]) {
+            // 1. Try exact match in the specified library
+            const items = libraries[targetLibrary];
+            const match = items.find(item => item[0] === componentName && item[2] === 'COMPONENT');
+            if (match) {
+              componentKey = match[1];
+              console.log(`[InstanceSwap] Found in target library "${targetLibrary}": ${componentKey}`);
+            }
+          }
+
+          if (!componentKey) {
+            // 2. Fallback: Search in all active libraries
+            // If we had a targetLibrary but didn't find it there (maybe name mismatch?), we could try others?
+            // Or if we didn't have a targetLibrary.
+
+            for (const libName of activeLibraries) {
+              // If we had a targetLibrary and it wasn't this one, skip? 
+              // No, maybe the user typed the wrong library name but right component name?
+              // But if we parsed the library name from the string, we should probably trust it.
+              // However, if the component wasn't found in that library, maybe we shouldn't give up.
+
+              const items = libraries[libName];
+              if (items) {
+                const match = items.find(item => item[0] === componentName && item[2] === 'COMPONENT');
+                if (match) {
+                  componentKey = match[1];
+                  console.log(`[InstanceSwap] Found in active library "${libName}": ${componentKey}`);
+                  break;
+                }
+              }
+            }
+          }
+
+          if (!componentKey) {
+            // 3. Try partial match search if exact match failed
+            console.log(`[InstanceSwap] Exact match failed, trying partial search for "${componentName}"`);
+            const components = await searchLibraryComponents(componentName, 1);
+            if (components.length > 0) {
+              componentKey = components[0].key;
+              figma.notify(`Found "${components[0].name}" in "${components[0].library}"`);
+              console.log(`[InstanceSwap] Partial match found: ${componentKey}`);
+            }
+          }
+
+          if (componentKey) {
+            try {
+              console.log(`[InstanceSwap] Importing component key: ${componentKey}`);
+              const component = await figma.importComponentByKeyAsync(componentKey);
+              if (component) {
+                console.log(`[InstanceSwap] Imported component: ${component.name} (${component.id})`);
+
+                // Apply to all instances
+                let successCount = 0;
+                for (const inst of instances) {
+                  const main = await inst.getMainComponentAsync();
+                  if (!main) continue;
+                  const props = getComponentPropertyDefinitions(main);
+                  const { key: realKey } = findPropertyKey(propertyName, props);
+
+                  if (realKey) {
+                    console.log(`[InstanceSwap] Setting property "${realKey}" on instance "${inst.name}"`);
+                    inst.setProperties({ [realKey]: component.id });
+                    successCount++;
+                  } else {
+                    console.warn(`[InstanceSwap] Property "${propertyName}" not found on instance "${inst.name}"`);
+                  }
+                }
+                if (successCount > 0) {
+                  figma.notify(`Swapped "${propertyName}" to "${component.name}" on ${successCount} instance${successCount > 1 ? 's' : ''}`);
+                } else {
+                  figma.notify(`Failed to set property on selected instances`, { error: true });
+                }
+              }
+            } catch (e) {
+              console.error('[InstanceSwap] Error importing component:', e);
+              figma.notify(`Failed to import component "${componentName}"`, { error: true });
+            }
+          } else {
+            console.warn(`[InstanceSwap] Component "${componentName}" not found`);
+            figma.notify(`Component "${componentName}" not found in active libraries`, { error: true });
+          }
+          return;
         }
       }
     }
@@ -486,6 +789,10 @@ export async function setInstanceProperty(propertyReference: string) {
         }
         case 'VARIANT': {
           figma.notify('💡 Type ":" after the variant name to see all available options (e.g., ip?Type:)');
+          return;
+        }
+        case 'INSTANCE_SWAP': {
+          figma.notify('💡 Type ":" after the property name to search for components (e.g., ip?Icon:Search)');
           return;
         }
         default:
