@@ -9,6 +9,7 @@ export const COMMAND_PART_REGEX = /^(-(?![\d])|(-)?[\p{L}]+(-[\p{L}]+)*?)(?=\s|[
 export const VALUE_FORMAT_REGEX = {
   number: /-?\s*\(?(\d+(\.\d+)?(?:\s*[-+*/x]\s*\(?-?\d+(\.\d+)?\)?)*\)?%?)/,
   hex: /#[0-9a-fA-F]{0,6}/,
+  string: /.+/,
 } as const;
 
 // Cache Configuration

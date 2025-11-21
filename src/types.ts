@@ -5,7 +5,7 @@
 export type SupportedNodeType = SceneNode['type'];
 export type SpecialCondition = 'IsAutoLayout' | 'IsInAutoLayout' | 'IsAbsoluteInAutoLayout' | 'IsAutoLayoutWrap' | 'TextStyleApplied' | 'NoTextStyleApplied' | 'IsNotInAutoLayout';
 
-export type ValueFormat = 'number' | 'hex';
+export type ValueFormat = 'number' | 'hex' | 'string';
 
 // Style and variable binding support
 export type StyleBindingType = 'PAINT' | 'TEXT' | 'EFFECT';
@@ -15,6 +15,7 @@ export interface BindingSupport {
   styles?: StyleBindingType[];
   variables?: VariableResolvedType[];
   instanceProperties?: boolean;
+  libraries?: boolean;  // Enable library name search
 }
 
 export type CommandWithValue = {
@@ -32,7 +33,7 @@ export type CommandWithoutValue = {
   type: "commandWithoutValue";
   alias: Array<string>;
   functionWithoutParam: () => void;
-  suggestion: string;  
+  suggestion: string;
   supportedNodes?: SupportedNodeType[];
   specialConditions?: SpecialCondition[];
   bindingSupport?: BindingSupport;

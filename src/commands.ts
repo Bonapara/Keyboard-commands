@@ -4,6 +4,7 @@
 
 import type { CommandWithValue, CommandWithoutValue, OptionalValueCommand } from './types';
 import * as impl from './implementations';
+import { notify } from './utils';
 
 // ==================================
 // Node Type Groups (Figma API v1)
@@ -1321,6 +1322,47 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'Swap Fill & Stroke colors ⇄',
     functionWithoutParam: () => impl.swapFillStroke(),
     supportedNodes: [...NODE_GROUPS.FILLS_AND_STROKES],
+  },
+  PublishLibrary: {
+    type: "commandWithoutValue",
+    alias: ['plib'],
+    suggestion: 'Publish current file as Library 📚',
+    functionWithoutParam: () => impl.publishLibrary(),
+  },
+  ToggleLibrary: {
+    type: "optionalValueCommand",
+    alias: ['tlib'],
+    valueFormat: 'string' as const,
+    suggestion: '?search for libraries to toggle',
+    functionWithoutParam: async () => {
+      const suggestions = await impl.getLibrarySuggestions();
+      if (suggestions.length === 0) {
+        notify('⚠️ No libraries found. Use plib to publish a library first.');
+      } else {
+        notify(`📚 Available Libraries:\n${suggestions.join('\n')}\n\nUse: tlib? to search`);
+      }
+    },
+    functionWithParam: (value: string) => impl.toggleLibraryByName(value),
+    bindingSupport: {
+      libraries: true
+    }
+  },
+  RemoveLibrary: {
+    type: "optionalValueCommand",
+    alias: ['rlib'],
+    valueFormat: 'string' as const,
+    suggestion: '?search for libraries to delete',
+    functionWithoutParam: () => impl.removeLibrary(),
+    functionWithParam: (value: string) => impl.removeLibraryByName(value),
+    bindingSupport: {
+      libraries: true
+    }
+  },
+  MonitorStorage: {
+    type: "commandWithoutValue",
+    alias: ['ms'],
+    suggestion: 'Monitor Plugin Storage 📊',
+    functionWithoutParam: () => impl.monitorStorage(),
   },
 } satisfies Record<string, CommandWithValue | CommandWithoutValue | OptionalValueCommand>;
 

@@ -4,16 +4,17 @@
 
 import type { ValueFormat } from './types';
 import { COMMANDS } from './commands';
-import { 
-  findCommand, 
-  getCommandSuggestions, 
-  extractValue, 
+import {
+  findCommand,
+  getCommandSuggestions,
+  extractValue,
   calculateExpression,
   checkSpecialConditions,
   VALUE_FORMAT_REGEX,
   COMMAND_SPLITTER_REGEX,
   searchStylesAndVariables
 } from './utils';
+import { searchLibraries } from './implementations/library';
 
 // Global state
 let originalInput = '';
@@ -28,12 +29,12 @@ let originalInput = '';
  */
 function findCommandForBinding(alias: string): (typeof COMMANDS)[0] | undefined {
   const aliasLower = alias.toLowerCase();
-  
+
   // Special case: b? and st? should map to StrokeColor, not Stroke
   if (aliasLower === 'b' || aliasLower === 'st') {
     return COMMANDS.find(cmd => cmd.name === 'StrokeColor');
   }
-  
+
   // For all other aliases, use the normal findCommand
   return findCommand(alias)[0];
 }
@@ -50,70 +51,90 @@ function setupInputHandler() {
   if (currentInputHandler) {
     figma.parameters.off('input', currentInputHandler);
   }
-  
+
   // Define a new handler
   currentInputHandler = async ({ key, query, result }) => {
     if (key !== 'command') return;
     originalInput = query;
-    
+
     // Check for binding mode BEFORE splitting by spaces
     // This allows variable/style names with spaces to work properly
     const bindingModeMatch = query.match(/^(.*?)\s+([a-z]+)\?(.*)$/i);
-    
+
     if (bindingModeMatch) {
       const [, _previousCommandsStr, cmdAlias, searchTerm] = bindingModeMatch;
       const matchedCommand = findCommandForBinding(cmdAlias);
-      
+
       if (matchedCommand?.bindingSupport) {
         try {
-          const suggestions = await searchStylesAndVariables(
-            searchTerm,
-            matchedCommand.bindingSupport
-          );
-          
+          let suggestions: string[] = [];
+
+          // Handle library search
+          if (matchedCommand.bindingSupport.libraries) {
+            suggestions = await searchLibraries(searchTerm);
+          } else {
+            suggestions = await searchStylesAndVariables(
+              searchTerm,
+              matchedCommand.bindingSupport
+            );
+          }
+
           if (suggestions.length > 0) {
             result.setSuggestions(suggestions);
             return;
           } else {
-            result.setSuggestions(['No matching styles or variables found']);
+            const message = matchedCommand.bindingSupport.libraries
+              ? 'No matching libraries found'
+              : 'No matching styles or variables found';
+            result.setSuggestions([message]);
             return;
           }
         } catch (error) {
-          console.error('Error searching styles/variables:', error);
+          console.error('Error searching:', error);
         }
       }
     }
-    
+
     // Check for binding mode at the start of the query (no previous commands)
     const simpleBindingMatch = query.match(/^([a-z]+)\?(.*)$/i);
-    
+
     if (simpleBindingMatch) {
       const [, cmdAlias, searchTerm] = simpleBindingMatch;
       const matchedCommand = findCommandForBinding(cmdAlias);
-      
+
       if (matchedCommand?.bindingSupport) {
         try {
-          const suggestions = await searchStylesAndVariables(
-            searchTerm,
-            matchedCommand.bindingSupport
-          );
-          
+          let suggestions: string[] = [];
+
+          // Handle library search
+          if (matchedCommand.bindingSupport.libraries) {
+            suggestions = await searchLibraries(searchTerm);
+          } else {
+            suggestions = await searchStylesAndVariables(
+              searchTerm,
+              matchedCommand.bindingSupport
+            );
+          }
+
           if (suggestions.length > 0) {
             result.setSuggestions(suggestions);
             return;
           } else {
-            result.setSuggestions(['No matching styles or variables found']);
+            const message = matchedCommand.bindingSupport.libraries
+              ? 'No matching libraries found'
+              : 'No matching styles or variables found';
+            result.setSuggestions([message]);
             return;
           }
         } catch (error) {
-          console.error('Error searching styles/variables:', error);
+          console.error('Error searching:', error);
         }
       }
     }
-    
+
     const parts = query.split(' ');
     const currentPart = parts[parts.length - 1];
-    
+
     // Track previous commands
     const previousCommands: Record<string, string> = {};
     parts.slice(0, -1).forEach(part => {
@@ -137,29 +158,29 @@ function setupInputHandler() {
         }
       }
     });
-    
+
     // If query is empty or ends with space, show all commands
     if (!query || query.endsWith(' ')) {
       result.setSuggestions(getCommandSuggestions(COMMANDS, '', undefined, true, previousCommands));
       return;
     }
-    
+
     // Summarize previously defined commands (not used below except for display)
     const completeCommands = parts.slice(0, -1).map((part) => {
       const matchedCommand = findCommand(part)[0];
       if (!matchedCommand) {
         return "Not Found";
       }
-      
+
       const { name, type } = matchedCommand;
-      
+
       // Process hex or number value if present
       const processValue = (): string | null => {
         const hasHex = VALUE_FORMAT_REGEX.hex.exec(part);
         if (hasHex) {
           return hasHex[0];
         }
-        
+
         const hasNumber = VALUE_FORMAT_REGEX.number.exec(part);
         if (hasNumber) {
           try {
@@ -168,17 +189,17 @@ function setupInputHandler() {
             return hasNumber[0];
           }
         }
-        
+
         return null;
       };
-      
+
       // Format command with optional value
       const formatCommand = (value: string | null): string => {
         return value ? `${name}:${value}` : name;
       };
-      
+
       const value = processValue();
-      
+
       if (type === 'commandWithValue') {
         return value ? formatCommand(value) : undefined;
       } else if (type === 'optionalValueCommand') {
@@ -187,36 +208,36 @@ function setupInputHandler() {
         return name;
       }
     });
-    
-    
+
+
     // Process current (last) command
     const matchedCommand = findCommand(currentPart)[0];
     const hasNumber = VALUE_FORMAT_REGEX.number.exec(currentPart);
     const hasHex = VALUE_FORMAT_REGEX.hex.exec(currentPart);
-    
+
     if (matchedCommand) {
       const isValidValue =
-      (matchedCommand.type === "commandWithValue" || matchedCommand.type === "optionalValueCommand") &&
-      'valueFormat' in matchedCommand && (
-        matchedCommand.valueFormat === 'hex' ? hasHex :
-        matchedCommand.valueFormat === 'number' ? hasNumber :
-        true
-      );
-      
+        (matchedCommand.type === "commandWithValue" || matchedCommand.type === "optionalValueCommand") &&
+        'valueFormat' in matchedCommand && (
+          matchedCommand.valueFormat === 'hex' ? hasHex :
+            matchedCommand.valueFormat === 'number' ? hasNumber :
+              true
+        );
+
       let suggestions: string[] = [];
-      
+
       // Manage already matched commands
       if (
         matchedCommand.name.toLowerCase().includes(currentPart.toLowerCase()) ||
         matchedCommand.alias.some(alias => alias.toLowerCase().includes(currentPart.toLowerCase()))
       ) {
         const previousCommand = previousCommands[matchedCommand.name];
-        const suggestion = previousCommand 
-        ? `ℹ️ already set to '${previousCommand}'`
-        : matchedCommand.suggestion;
+        const suggestion = previousCommand
+          ? `ℹ️ already set to '${previousCommand}'`
+          : matchedCommand.suggestion;
         suggestions.push(`${matchedCommand.alias.join(', ')} · ${matchedCommand.name} -- ${suggestion}`);
       }
-      
+
       // Handle valid values
       if (isValidValue && (hasHex || hasNumber)) {
         if (matchedCommand.valueFormat === 'hex' && hasHex) {
@@ -233,7 +254,7 @@ function setupInputHandler() {
           }
         }
       }
-      
+
       if (matchedCommand.type === 'commandWithoutValue') {
         // Modified logic here: Show suggestion in summary only if it's the first command
         if (completeCommands.length === 0 && matchedCommand.suggestion) {
@@ -243,11 +264,11 @@ function setupInputHandler() {
         }
         suggestions[0] = completeCommands.join(' | ');
       }
-      
+
       // Add related suggestions
       const relatedSuggestions = getCommandSuggestions(COMMANDS, currentPart, matchedCommand, false, previousCommands);
       suggestions = [...suggestions, ...relatedSuggestions];
-      
+
       result.setSuggestions(suggestions);
     } else {
       // first try to see if a command by that name exists at all
@@ -259,7 +280,7 @@ function setupInputHandler() {
           cmd.alias.some(alias => alias.toLowerCase().includes(cmdLower))
         );
       });
-      
+
       // If no command by that name
       if (allMatchingCommands.length === 0) {
         result.setSuggestions([`No command found for "${currentPart}"`]);
@@ -267,16 +288,16 @@ function setupInputHandler() {
         // If commands exist but none are valid for current selection
         const availableCommands = allMatchingCommands.filter(cmd => {
           const selection = figma.currentPage.selection;
-          
+
           const supportsNodeTypes = !cmd.supportedNodes || selection.length === 0 ||
-          selection.every(node => cmd.supportedNodes!.indexOf(node.type) !== -1);
-          
+            selection.every(node => cmd.supportedNodes!.indexOf(node.type) !== -1);
+
           const meetsSpecialConditions = !cmd.specialConditions || selection.length === 0 ||
-          selection.every(node => checkSpecialConditions(node, cmd.specialConditions!));
-          
+            selection.every(node => checkSpecialConditions(node, cmd.specialConditions!));
+
           return supportsNodeTypes && meetsSpecialConditions;
         });
-        
+
         if (availableCommands.length === 0) {
           const suggestions = allMatchingCommands.map(cmd => `'${cmd.name}' not available on selection`);
           result.setSuggestions(suggestions);
@@ -286,7 +307,7 @@ function setupInputHandler() {
       }
     }
   };
-  
+
   // Register the new handler
   figma.parameters.on('input', currentInputHandler);
 }
@@ -303,28 +324,28 @@ setupInputHandler();
 // ===================
 figma.on('run', async (parameters) => {
   const commandString = originalInput.trim();
-  
+
   console.log("parameters", parameters);
   console.log("originalInput", originalInput);
-  
+
   // Check for binding mode BEFORE splitting by spaces
   // Patterns: "cmd?" or "prev commands cmd?" 
   const bindingModeMatch = commandString.match(/^(.*?)\s*([a-z]+)\?(.*)$/i);
-  
+
   let commands: string[];
   let isBindingMode = false;
   let bindingCommandAlias = '';
-  
+
   if (bindingModeMatch) {
     isBindingMode = true;
     const [, previousCommandsStr, cmdAlias, searchTerm] = bindingModeMatch;
     bindingCommandAlias = cmdAlias;
-    
+
     console.log("Binding mode detected");
     console.log("Previous commands:", previousCommandsStr);
     console.log("Binding command alias:", cmdAlias);
     console.log("Search term:", searchTerm);
-    
+
     // Split only the previous commands part (before the binding command)
     if (previousCommandsStr.trim()) {
       commands = previousCommandsStr.trim().split(COMMAND_SPLITTER_REGEX).filter(Boolean);
@@ -336,9 +357,9 @@ figma.on('run', async (parameters) => {
     // Normal mode: split all commands by spaces
     commands = commandString.split(COMMAND_SPLITTER_REGEX).filter(Boolean);
   }
-  
+
   console.log("commands", commands);
-  
+
   try {
     // Group all command executions into a single undo step for better UX
     // This allows users to undo all commands at once with Cmd+Z
@@ -348,9 +369,9 @@ figma.on('run', async (parameters) => {
         const cmd = commands[i];
         await executeCommand(cmd, true);
       }
-      
+
       console.log("parameters.parameters.command", parameters.parameters.command);
-      
+
       // Check if this is a binding mode value that needs reconstruction
       // Formats:
       // - Style/Variable: "Name (Collection - Location)" or "Name (Location)"
@@ -358,11 +379,11 @@ figma.on('run', async (parameters) => {
       let commandToExecute = parameters.parameters.command;
       const styleVariablePattern = /^([^(]+)\s*\(([^)]+)\)$/;
       const instancePropertyPattern = /^([^:]+):(.+)$/;
-      
+
       const isStyleVariableBinding = styleVariablePattern.test(commandToExecute);
       const isInstancePropertyBinding = instancePropertyPattern.test(commandToExecute);
       const isBindingValue = isStyleVariableBinding || isInstancePropertyBinding;
-      
+
       if (isBindingValue) {
         // This is a binding mode value
         if (isBindingMode && bindingCommandAlias) {
@@ -396,24 +417,24 @@ figma.on('run', async (parameters) => {
 async function executeCommand(cmd: string, skipNotification: boolean = false): Promise<void> {
   console.log("=== executeCommand START ===");
   console.log("Input cmd:", cmd);
-  
+
   if (!cmd) {
     console.log("Empty command, returning");
     return;
   }
-  
+
   // Clean the command string by removing suggestions and aliases
   const cleanCmd = cmd.split('•')[0]  // Remove everything after the bullet point
-                     .split(',')[0]    // Take only the first part before any comma
-                     .trim();          // Remove whitespace
-  
+    .split(',')[0]    // Take only the first part before any comma
+    .trim();          // Remove whitespace
+
   console.log("Cleaned command:", cleanCmd);
-  
+
   // Check if this command has a binding value (style/variable pattern)
   // If so, use findCommandForBinding to handle b/st -> StrokeColor routing
   const styleVariablePattern = /^([a-z]+)\s+([^(]+)\s*\(([^)]+)\)$/i;
   const hasBindingValue = styleVariablePattern.test(cleanCmd);
-  
+
   let command;
   if (hasBindingValue) {
     const aliasMatch = cleanCmd.match(/^([a-z]+)/i);
@@ -425,21 +446,21 @@ async function executeCommand(cmd: string, skipNotification: boolean = false): P
     command = findCommand(cleanCmd)[0];
     console.log("Found command:", command);
   }
-  
+
   if (!command) {
-      console.log("No command found, returning");
-      return;
+    console.log("No command found, returning");
+    return;
   }
 
   console.log("execute cleaned command:", cleanCmd);
   console.log("execute matched command:", command);
-  
+
   const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
   const loadingNotification = skipNotification ? null : figma.notify(`Executing command(s)...`, { timeout: 0 });
-  
+
   try {
     await delay(1);
-    
+
     // Execute command based on type
     if (command.type === 'commandWithoutValue') {
       console.log("Executing commandWithoutValue");
@@ -448,7 +469,7 @@ async function executeCommand(cmd: string, skipNotification: boolean = false): P
       const value = extractValue(cmd, command.valueFormat as ValueFormat);
       console.log("Extracted value:", value);
       console.log("Command type:", command.type);
-      
+
       if (command.type === 'commandWithValue') {
         if (!value) {
           console.log("No value for commandWithValue");
@@ -471,7 +492,7 @@ async function executeCommand(cmd: string, skipNotification: boolean = false): P
   } catch (error) {
     console.error('=== executeCommand END (error) ===');
     console.error('Error executing command:', error);
-    
+
     // Improve error messages for common failures
     if (error instanceof Error) {
       if (error.message.includes('font')) {
