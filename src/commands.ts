@@ -179,6 +179,19 @@ export const COMMAND_DEFINITIONS = {
     functionWithoutParam: () => impl.detachInstance(),
     supportedNodes: [...NODE_GROUPS.INSTANCE_ONLY],
   },
+  SelectSimilar: {
+    type: "commandWithoutValue",
+    alias: ['ss'],
+    suggestion: 'Select all similar instances 👯',
+    functionWithoutParam: () => impl.selectSimilar(),
+  },
+  PushOverrides: {
+    type: "commandWithoutValue",
+    alias: ['po'],
+    suggestion: 'Push overrides to main component ⬆️',
+    functionWithoutParam: () => impl.pushOverridesToMain(),
+    supportedNodes: [...NODE_GROUPS.INSTANCE_ONLY],
+  },
   CreateComponent: {
     type: "commandWithoutValue",
     alias: ['cc'],

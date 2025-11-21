@@ -3,9 +3,9 @@
 const PROPERTY_ID_SUFFIX_REGEX = /#\d+:\d+$/;
 const VARIANT_SPACING = 20;
 const COMPONENT_SET_PADDING = 20;
-const COMPONENT_SET_STROKE_COLOR = { r: 0x97 / 255, g: 0x47 / 255, b: 0xFF / 255 }; 
+const COMPONENT_SET_STROKE_COLOR = { r: 0x97 / 255, g: 0x47 / 255, b: 0xFF / 255 };
 
-function pluralize(count: number, singular: string, plural?: string): string {
+export function pluralize(count: number, singular: string, plural?: string): string {
   return count === 1 ? singular : (plural || singular + 's');
 }
 
@@ -83,7 +83,7 @@ function findPropertyKey(
   propertyName: string,
   allProperties: ComponentPropertyDefinitions
 ): { key: string | null; definition: PropertyDefinition | null } {
-  
+
   if (allProperties[propertyName]) {
     return { key: propertyName, definition: allProperties[propertyName] };
   }
@@ -124,7 +124,7 @@ function extractPropertyValue(property: string | boolean | { value: string | boo
 }
 
 async function searchVariantOptions(instances: InstanceNode[], propertyName: string, optionFilter: string = ''): Promise<string[]> {
-  
+
   for (const instance of instances) {
     const mainComponent = await instance.getMainComponentAsync();
     if (!mainComponent) continue;
@@ -133,7 +133,7 @@ async function searchVariantOptions(instances: InstanceNode[], propertyName: str
     const { key: realPropertyKey, definition: propertyDef } = findPropertyKey(propertyName, allProperties);
 
     if (realPropertyKey && propertyDef && propertyDef.type === 'VARIANT' && propertyDef.variantOptions) {
-      
+
       let options = propertyDef.variantOptions;
       if (optionFilter) {
         const filterLower = optionFilter.toLowerCase();
@@ -200,7 +200,7 @@ async function setVariantProperty(instances: InstanceNode[], propertyName: strin
   }
 
   if (successCount > 0) {
-    
+
     const wasPartialMatch = matchedPropertyName.toLowerCase() !== propertyName.toLowerCase();
     const message = wasPartialMatch
       ? `Matched "${matchedPropertyName}" → set to "${optionValue}" on ${successCount} instance${successCount > 1 ? 's' : ''}`
@@ -251,7 +251,7 @@ async function setTextProperty(instances: InstanceNode[], propertyName: string, 
   }
 
   if (successCount > 0) {
-    
+
     const wasPartialMatch = matchedPropertyName.toLowerCase() !== propertyName.toLowerCase();
     const message = wasPartialMatch
       ? `Matched "${matchedPropertyName}" → set to "${textValue}" on ${successCount} instance${successCount > 1 ? 's' : ''}`
@@ -287,14 +287,14 @@ export async function searchInstanceProperties(searchTerm: string): Promise<stri
 
       if (propertyDef) {
         if (propertyDef.type === 'VARIANT') {
-          
+
           return await searchVariantOptions(instances, propertyName, value);
         } else if (propertyDef.type === 'TEXT') {
 
           if (value) {
             return [`${propertyName}:${value}`];
           } else {
-            
+
             const cleanName = realPropertyKey ? cleanPropertyName(realPropertyKey) : propertyName;
             return [`${cleanName}: type your text value`];
           }
@@ -470,10 +470,10 @@ export async function setInstanceProperty(propertyReference: string) {
     }
 
     try {
-      
+
       switch (propertyDef.type) {
         case 'BOOLEAN': {
-          
+
           const currentValue = extractPropertyValue(instance.componentProperties[realPropertyKey]) as boolean;
           instance.setProperties({
             [realPropertyKey]: !currentValue
@@ -572,7 +572,7 @@ export function createComponent() {
   const components: ComponentNode[] = [];
 
   for (const node of selection) {
-    
+
     if ('type' in node && node.type !== 'SLICE') {
       try {
         const component = figma.createComponentFromNode(node as SceneNode);
@@ -607,7 +607,7 @@ export function addVariant() {
     baseComponent = componentSet.defaultVariant;
     parent = componentSet;
   }
-  
+
   else if (selected.type === 'COMPONENT') {
     const component = selected as ComponentNode;
 
@@ -615,7 +615,7 @@ export function addVariant() {
       baseComponent = component;
       parent = component.parent as ComponentSetNode;
     } else {
-      
+
       const componentParent = component.parent;
       const componentIndex = componentParent && 'children' in componentParent
         ? componentParent.children.indexOf(component)
@@ -659,11 +659,11 @@ export function addVariant() {
   let bottomVariantX = baseComponent.x;
 
   for (const variant of allVariants) {
-    if (variant !== newVariant) { 
+    if (variant !== newVariant) {
       const variantBottom = variant.y + variant.height;
       if (variantBottom > bottommostY) {
         bottommostY = variantBottom;
-        bottomVariantX = variant.x; 
+        bottomVariantX = variant.x;
       }
     }
   }
@@ -684,4 +684,80 @@ export function addVariant() {
   figma.currentPage.selection = [newVariant];
 
   figma.notify(`Added new variant "${newVariant.name}" based on "${baseComponent.name}"`);
+}
+
+export async function selectMasterComponent() {
+  const selection = figma.currentPage.selection;
+  const instances = selection.filter(node => node.type === 'INSTANCE') as InstanceNode[];
+
+  if (instances.length === 0) {
+    throw new Error('No instances selected');
+  }
+
+  const mainComponents: ComponentNode[] = [];
+
+  for (const instance of instances) {
+    const main = await instance.getMainComponentAsync();
+    if (main) {
+      mainComponents.push(main);
+    }
+  }
+
+  if (mainComponents.length > 0) {
+    figma.currentPage.selection = mainComponents;
+    figma.viewport.scrollAndZoomIntoView(mainComponents);
+    figma.notify(`Selected ${mainComponents.length} main component${mainComponents.length > 1 ? 's' : ''}`);
+  } else {
+    figma.notify('No main components found');
+  }
+}
+
+export async function pushOverridesToMain() {
+  const selection = figma.currentPage.selection;
+  if (selection.length === 0) {
+    throw new Error('Please select an instance');
+  }
+
+  const instance = selection[0];
+  if (instance.type !== 'INSTANCE') {
+    throw new Error('Selected item is not an instance');
+  }
+
+  const mainComponent = await instance.getMainComponentAsync();
+  if (!mainComponent) {
+    throw new Error('Main component not found');
+  }
+
+  if ((instance.fills as any) !== figma.mixed) {
+    mainComponent.fills = instance.fills;
+  }
+
+  if ((instance.strokes as any) !== figma.mixed) {
+    mainComponent.strokes = instance.strokes;
+  }
+  if ((instance.strokeWeight as any) !== figma.mixed) {
+    mainComponent.strokeWeight = instance.strokeWeight;
+  }
+  if ((instance.strokeAlign as any) !== figma.mixed) {
+    mainComponent.strokeAlign = instance.strokeAlign;
+  }
+  if ((instance.dashPattern as any) !== figma.mixed) {
+    mainComponent.dashPattern = instance.dashPattern;
+  }
+
+  if ((instance.effects as any) !== figma.mixed) {
+    mainComponent.effects = instance.effects;
+  }
+
+  if ('cornerRadius' in instance && (instance.cornerRadius as any) !== figma.mixed) {
+    mainComponent.cornerRadius = instance.cornerRadius;
+  }
+  if ('topLeftRadius' in instance) {
+    mainComponent.topLeftRadius = instance.topLeftRadius;
+    mainComponent.topRightRadius = instance.topRightRadius;
+    mainComponent.bottomLeftRadius = instance.bottomLeftRadius;
+    mainComponent.bottomRightRadius = instance.bottomRightRadius;
+  }
+
+  figma.notify('Pushed supported overrides (Fills, Strokes, Effects, Radius) to Main Component');
 }
