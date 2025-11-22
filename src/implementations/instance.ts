@@ -323,11 +323,19 @@ export async function searchInstanceProperties(searchTerm: string): Promise<Arra
         if (propertyDef.type === 'VARIANT') {
           return await searchVariantOptions(instances, propertyName, value);
         } else if (propertyDef.type === 'TEXT') {
+          const cleanName = realPropertyKey ? cleanPropertyName(realPropertyKey) : propertyName;
           if (value) {
-            return [`${propertyName}:${value}`];
+            return [`${cleanName}: ${value}`];
           } else {
-            const cleanName = realPropertyKey ? cleanPropertyName(realPropertyKey) : propertyName;
-            return [`${cleanName}: type your text value`];
+            // Get current value to show in suggestion
+            let currentValue = 'current value';
+            if (realPropertyKey && instance.componentProperties[realPropertyKey]) {
+              const currentProp = extractPropertyValue(instance.componentProperties[realPropertyKey]);
+              if (currentProp && typeof currentProp === 'string') {
+                currentValue = currentProp;
+              }
+            }
+            return [`${cleanName}: Type what you want to replace '${currentValue}' with`];
           }
         } else if (propertyDef.type === 'INSTANCE_SWAP') {
           // Determine context library from current value
@@ -458,22 +466,39 @@ async function formatPropertySuggestion(propertyName: string, data: PropertyData
   let optionsDisplay = '';
 
   switch (data.type) {
-    case 'BOOLEAN':
-      optionsDisplay = 'true, false';
+    case 'BOOLEAN': {
+      const currentValues = Array.from(data.values);
+      if (currentValues.length === 1) {
+        // Capitalize the boolean value for display
+        const currentValue = currentValues[0] === 'true' ? 'True' : 'False';
+        optionsDisplay = `${currentValue} → Toggle`;
+      } else if (currentValues.length > 1) {
+        optionsDisplay = 'Mixed → Toggle';
+      } else {
+        optionsDisplay = 'true, false';
+      }
       break;
-    case 'VARIANT':
-      if (data.propertyDef.variantOptions) {
+    }
+    case 'VARIANT': {
+      const currentValues = Array.from(data.values);
+      if (currentValues.length === 1) {
+        optionsDisplay = `${currentValues[0]} → type: to change`;
+      } else if (currentValues.length > 1) {
+        optionsDisplay = 'Mixed → type: to change';
+      } else if (data.propertyDef.variantOptions) {
+        // Fallback: show options if no current value
         const options = data.propertyDef.variantOptions;
         const maxDisplay = 3;
         if (options.length <= maxDisplay) {
-          optionsDisplay = options.join(', ');
+          optionsDisplay = `${options.join(', ')} → type: to change`;
         } else {
           const displayedOptions = options.slice(0, maxDisplay).join(', ');
           const remaining = options.length - maxDisplay;
-          optionsDisplay = `${displayedOptions}, +${remaining}`;
+          optionsDisplay = `${displayedOptions}, +${remaining} → type: to change`;
         }
       }
       break;
+    }
     case 'TEXT': {
       const currentValues = Array.from(data.values);
       if (currentValues.length === 1) {
@@ -543,7 +568,7 @@ async function formatPropertySuggestion(propertyName: string, data: PropertyData
       // For current value, we can try to find the node if it exists in the document
       // But `data.values` contains IDs. 
       // Let's try to resolve one
-      let currentName = 'Current Selection';
+      let currentName = 'None';
       if (currentValues.length === 1) {
         // It's an ID. 
         // We can't easily resolve it here without being async and potentially slow.
@@ -560,7 +585,7 @@ async function formatPropertySuggestion(propertyName: string, data: PropertyData
         currentName = 'Mixed';
       }
 
-      optionsDisplay = `Current: ${currentName}${preferredDisplay} → type :search`;
+      optionsDisplay = `${currentName} → type: to change`;
       break;
     }
     default:
@@ -631,7 +656,6 @@ export async function setInstanceProperty(propertyReference: string) {
               const { key: realKey } = findPropertyKey(propertyName, props);
 
               if (realKey) {
-                console.log(`[InstanceSwap] Setting property "${realKey}" on instance "${inst.name}"`);
                 inst.setProperties({ [realKey]: component.id });
                 successCount++;
               } else {
@@ -997,12 +1021,9 @@ async function findAndImportComponent(value: string): Promise<{ component: Compo
   if (!targetLibrary) {
     const lastParenIndex = value.lastIndexOf(' (');
     if (lastParenIndex > 0 && value.endsWith(')')) {
-      console.log(`[FindComponent] No active library matched suffix. Trying heuristic parse.`);
       componentName = value.substring(0, lastParenIndex).trim();
     }
   }
-
-  console.log(`[FindComponent] Parsed: Name="${componentName}", Library="${targetLibrary || 'N/A'}"`);
 
   let componentKey: string | null = null;
 
@@ -1012,7 +1033,6 @@ async function findAndImportComponent(value: string): Promise<{ component: Compo
     const match = items.find(item => item[0] === componentName && item[2] === 'COMPONENT');
     if (match) {
       componentKey = match[1];
-      console.log(`[FindComponent] Found in target library "${targetLibrary}": ${componentKey}`);
     }
   }
 
@@ -1024,21 +1044,18 @@ async function findAndImportComponent(value: string): Promise<{ component: Compo
         const match = items.find(item => item[0] === componentName && item[2] === 'COMPONENT');
         if (match) {
           componentKey = match[1];
-          console.log(`[FindComponent] Found in active library "${libName}": ${componentKey}`);
           break;
         }
       }
     }
   }
 
-  // 3. Partial match
+  // Partial match
   if (!componentKey) {
-    console.log(`[FindComponent] Exact match failed, trying partial search for "${componentName}"`);
     const components = await searchLibraryComponents(componentName, 1);
     if (components.length > 0) {
       componentKey = components[0].key;
       figma.notify(`Found "${components[0].name}" in "${components[0].library}"`);
-      console.log(`[FindComponent] Partial match found: ${componentKey}`);
     }
   }
 
@@ -1064,18 +1081,13 @@ async function findAndImportComponent(value: string): Promise<{ component: Compo
       let node: ComponentNode | ComponentSetNode | null = null;
 
       if (isLocal) {
-        console.log(`[FindComponent] Component is in local file "${sourceLibrary}". Searching locally...`);
         // Search locally by key
-        // We use findOne for performance, assuming keys are unique enough or we just take the first one.
-        // Note: findOne traverses the entire tree, which can be slow for huge files.
-        // But it's necessary since we don't have the ID.
         await figma.loadAllPagesAsync();
         const found = figma.root.findOne(n => (n.type === 'COMPONENT' || n.type === 'COMPONENT_SET') && n.key === componentKey);
         if (found && (found.type === 'COMPONENT' || found.type === 'COMPONENT_SET')) {
           node = found;
         }
       } else {
-        console.log(`[FindComponent] Importing component key: ${componentKey} from remote library`);
         node = await figma.importComponentByKeyAsync(componentKey);
       }
 
@@ -1083,14 +1095,12 @@ async function findAndImportComponent(value: string): Promise<{ component: Compo
         let componentToUse: ComponentNode | null = null;
 
         if (node.type === 'COMPONENT_SET') {
-          console.log(`[FindComponent] Found ComponentSet: ${node.name}. Using default variant.`);
           componentToUse = node.defaultVariant;
         } else if (node.type === 'COMPONENT') {
           componentToUse = node;
         }
 
         if (componentToUse) {
-          console.log(`[FindComponent] Resolved component: ${componentToUse.name} (${componentToUse.id})`);
           return { component: componentToUse, name: componentName };
         } else {
           console.warn(`[FindComponent] Could not determine component to use from node type: ${node.type}`);
@@ -1109,10 +1119,7 @@ async function findAndImportComponent(value: string): Promise<{ component: Compo
 }
 
 export async function searchComponentsForSwap(searchTerm: string): Promise<string[]> {
-  console.log(`[SearchComponentsForSwap] Searching for "${searchTerm}"`);
-
   const components = await searchLibraryComponents(searchTerm);
-  console.log(`[SearchComponentsForSwap] Found ${components.length} components`);
 
   if (components.length === 0) {
     return [`No components found matching "${searchTerm}"`];

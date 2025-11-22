@@ -167,7 +167,7 @@ export const COMMAND_DEFINITIONS = {
   InstanceProperty: {
     type: "commandWithValue",
     alias: ['i', "ip"],
-    valueFormat: 'hex' as const,
+    valueFormat: 'string' as const,
     suggestion: '?search for instance properties',
     functionWithParam: (value: string) => impl.setInstanceProperty(value),
     supportedNodes: [...NODE_GROUPS.INSTANCE_ONLY],
@@ -296,13 +296,13 @@ export const COMMAND_DEFINITIONS = {
   },
   AutoLayout: {
     type: "commandWithoutValue",
-    alias: ['a'],
+    alias: ['alh'],
     suggestion: 'Create Horizontal Auto-Layout →',
     functionWithoutParam: () => impl.createAutoLayout('HORIZONTAL'),
   },
   AutoLayoutVertical: {
     type: "commandWithoutValue",
-    alias: ['av'],
+    alias: ['alv'],
     suggestion: "Create Vertical Auto-Layout ↓",
     functionWithoutParam: () => impl.createAutoLayout('VERTICAL'),
   },

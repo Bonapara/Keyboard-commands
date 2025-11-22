@@ -65,14 +65,14 @@ async function setActiveLibraries(active: string[]): Promise<void> {
 
 export async function publishLibrary() {
     console.clear();
-    console.log('🚀 [PublishLibrary] Starting...');
+    console.log('🚀 Publishing library...');
 
     const libraryName = figma.root.name;
     if (!libraryName) {
         notify('❌ File must be saved to publish as a library');
         return;
     }
-    console.log(`📚 Library name: "${libraryName}"`);
+    console.log(`📚 "${libraryName}"`);
 
     const startTime = Date.now();
 
@@ -81,43 +81,24 @@ export async function publishLibrary() {
         return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
     };
 
-    // 1. Collect Styles (file-level, available from all pages)
-    console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('📊 FETCHING STYLES');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
-    console.log('⏳ Fetching paint styles...');
+    // Collect Styles (file-level, available from all pages)
     const paintStyles = await figma.getLocalPaintStylesAsync();
-    console.log(`✅ Paint styles: ${fmt(paintStyles.length)}`);
-
-    console.log('⏳ Fetching text styles...');
     const textStyles = await figma.getLocalTextStylesAsync();
-    console.log(`✅ Text styles: ${fmt(textStyles.length)}`);
-
-    console.log('⏳ Fetching effect styles...');
     const effectStyles = await figma.getLocalEffectStylesAsync();
-    console.log(`✅ Effect styles: ${fmt(effectStyles.length)}`);
 
     const items: LibraryItem[] = [];
 
-    console.log('\n⏳ Processing styles...');
     paintStyles.forEach(s => items.push([s.name, s.key, 'PAINT']));
     textStyles.forEach(s => items.push([s.name, s.key, 'TEXT']));
     effectStyles.forEach(s => items.push([s.name, s.key, 'EFFECT']));
-    console.log(`✅ Processed ${fmt(items.length)} styles total`);
+    console.log(`✅ ${fmt(items.length)} styles`);
 
-    // 2. Collect Components from ALL pages
-    console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('🔍 SCANNING COMPONENTS');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
-    console.log('⏳ Loading all pages...');
+    // Collect Components from ALL pages
     await figma.loadAllPagesAsync();
     const pages = figma.root.children;
-    console.log(`✅ Loaded ${fmt(pages.length)} pages\n`);
+    console.log(`🔍 Scanning ${fmt(pages.length)} pages...\n`);
 
-    // Show notification about scanning (console has details)
-    notify(`🔍 Scanning ${pages.length} pages... (check console F12 for progress)`, { timeout: Infinity });
+    notify(`🔍 Scanning ${pages.length} pages... (see console F12)`, { timeout: Infinity });
 
     let totalComponentsFound = 0;
     let totalNodesScanned = 0;
@@ -126,11 +107,8 @@ export async function publishLibrary() {
         const page = pages[i];
         const pageNum = i + 1;
 
-        console.log(`📄 Page ${pageNum}/${pages.length}: "${page.name}"`);
-        console.log(`   ⏳ Scanning for components...`);
-
-        // Update notification for current page
-        notify(`📄 Scanning page ${pageNum}/${pages.length}: "${page.name}"...`, { timeout: Infinity });
+        console.log(`📄 ${pageNum}/${pages.length}: "${page.name}"`);
+        notify(`📄 ${pageNum}/${pages.length}: "${page.name}"`, { timeout: Infinity });
 
         let pageNodesScanned = 0;
         const pageStartTime = Date.now();
@@ -139,18 +117,16 @@ export async function publishLibrary() {
             pageNodesScanned++;
             totalNodesScanned++;
 
-            // Log every 1000 nodes to show progress without overwhelming console
-            if (pageNodesScanned % 1000 === 0) {
-                console.log(`   [Scanned: ${fmt(pageNodesScanned)} nodes...]`);
+            // Log every 5000 nodes to show progress
+            if (pageNodesScanned % 5000 === 0) {
+                console.log(`   ${fmt(pageNodesScanned)} nodes...`);
             }
 
             return node.type === 'COMPONENT' || node.type === 'COMPONENT_SET';
         }) as (ComponentNode | ComponentSetNode)[];
 
         const pageDuration = ((Date.now() - pageStartTime) / 1000).toString().replace('.', ',');
-
-        console.log(`   ✅ Found ${fmt(components.length)} components in ${pageDuration}s`);
-        console.log(`   📊 Scanned ${fmt(pageNodesScanned)} nodes total\n`);
+        console.log(`   ✅ ${fmt(components.length)} components, ${fmt(pageNodesScanned)} nodes (${pageDuration}s)\n`);
 
         // Add components to items
         components.forEach(c => {
@@ -169,46 +145,29 @@ export async function publishLibrary() {
         });
     }
 
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('📦 COMPONENT SCAN SUMMARY');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log(`🔍  Total nodes scanned  : ${fmt(totalNodesScanned)}`);
-    console.log(`📦  Components collected : ${fmt(totalComponentsFound)}`);
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+    console.log(`\n📦 ${fmt(totalComponentsFound)} components from ${fmt(totalNodesScanned)} nodes`);
 
     if (items.length === 0) {
         notify('⚠️ No styles or components found to publish');
         return;
     }
 
-    // 3. Save to Storage
-    console.log('💾 Saving to storage...');
+    // Save to Storage
     const libraries = await getStoredLibraries();
     libraries[libraryName] = items;
     await saveLibraries(libraries);
-    console.log('✅ Saved to storage');
 
     // Auto-enable the library
-    console.log('⏳ Updating active libraries...');
     const active = await getActiveLibraries();
     if (active.indexOf(libraryName) === -1) {
         active.push(libraryName);
         await setActiveLibraries(active);
     }
-    console.log('✅ Library activated');
 
     const totalDuration = ((Date.now() - startTime) / 1000).toString().replace('.', ',');
 
-    console.log('\n🏁 OPERATION COMPLETE');
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log(`⏱️  Total time    : ${totalDuration} s`);
-    console.log(`📚  Library name  : "${libraryName}"`);
-    console.log(`📦  Total items   : ${fmt(items.length)}`);
-    console.log(`   - Paint styles : ${fmt(paintStyles.length)}`);
-    console.log(`   - Text styles  : ${fmt(textStyles.length)}`);
-    console.log(`   - Effect styles: ${fmt(effectStyles.length)}`);
-    console.log(`   - Components   : ${fmt(totalComponentsFound)}`);
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log(`\n✅ Published ${fmt(items.length)} items (${totalDuration}s)`);
+    console.log(`   ${fmt(paintStyles.length)} paint, ${fmt(textStyles.length)} text, ${fmt(effectStyles.length)} effect, ${fmt(totalComponentsFound)} components`);
 
     notify(`✅ Published "${libraryName}" with ${fmt(items.length)} items in ${totalDuration}s`);
 }

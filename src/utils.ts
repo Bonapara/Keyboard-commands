@@ -255,8 +255,6 @@ export function getCommandSuggestions(
 }
 
 export function extractValue(text: string, format: ValueFormat): string | null {
-  console.log("extract value", text);
-
   // Check for instance property format: "PropertyName:Value"
   // This is used for instance property binding mode
   const instancePropertyMatch = text.match(/^([a-z]+)\s+([^:]+):(.+)$/i);
@@ -282,7 +280,6 @@ export function extractValue(text: string, format: ValueFormat): string | null {
   }
 
   const match = text.match(VALUE_FORMAT_REGEX[format]);
-  console.log("extract value", match);
   if (!match) return null;
 
   if (format === 'hex') {
@@ -375,8 +372,6 @@ export async function getCachedStylesAndVariables(): Promise<StyleVariableCache>
   } catch (e) {
     console.warn('Failed to fetch library variable collections:', e);
   }
-
-  console.log(`📚 Loaded ${variablesData.length} variables (${variablesData.filter(v => !v.isLibrary).length} local, ${variablesData.filter(v => v.isLibrary).length} library)`);
 
   cache = {
     paintStyles: paintStylesData,
@@ -509,10 +504,6 @@ export async function searchStylesAndVariables(
 
     const localMatches = matchingVars.filter(v => !v.isLibrary).length;
     const libraryMatches = matchingVars.filter(v => v.isLibrary).length;
-
-    if (matchingVars.length > 0) {
-      console.log(`🔍 Found ${matchingVars.length} variables matching "${searchTerm}" (${localMatches} local, ${libraryMatches} library)`);
-    }
 
     matchingVars.forEach(v => {
       const score = calculateSearchScore(searchTerm, v.name);
