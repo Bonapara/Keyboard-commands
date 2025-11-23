@@ -99,9 +99,9 @@ export async function publishLibrary() {
 
                     // Resolve VARIABLE_ALIAS
                     let attempts = 0;
-                    while (value && typeof value === 'object' && 'type' in value && (value as any).type === 'VARIABLE_ALIAS' && attempts < 10) {
+                    while (value && typeof value === 'object' && 'type' in value && (value as { type: string }).type === 'VARIABLE_ALIAS' && attempts < 10) {
                         attempts++;
-                        const aliasId = (value as any).id;
+                        const aliasId = (value as { id: string }).id;
 
                         try {
                             const aliasedVar = await figma.variables.getVariableByIdAsync(aliasId);

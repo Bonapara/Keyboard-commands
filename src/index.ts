@@ -181,7 +181,7 @@ async function executeBindingCommand(
   isOnlySegment: boolean,
   isLastSegment: boolean
 ): Promise<void> {
-  const { segment, alias } = bindingSegment;
+  const { segment, alias: _alias } = bindingSegment;
 
   const bindingMatch = segment.match(/^(.*?)\s*([a-z]+)\?(.*)$/i);
   if (!bindingMatch) return;

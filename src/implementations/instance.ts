@@ -363,7 +363,7 @@ export async function searchInstanceProperties(searchTerm: string): Promise<Arra
                       // But `key` property on ComponentNode is only available if it's a published component?
                       // Local components have keys too.
                       // Let's assume we can access .key
-                      const componentKey = (node as any).key;
+                      const componentKey = (node as ComponentNode | ComponentSetNode).key;
                       if (componentKey) {
                         const match = items.find(item => item[1] === componentKey);
                         if (match) {
@@ -513,7 +513,6 @@ async function formatPropertySuggestion(propertyName: string, data: PropertyData
     case 'INSTANCE_SWAP': {
       // Get current component name(s)
       const currentValues = Array.from(data.values);
-      let currentDisplay = '';
 
       // Since values are component IDs or keys, we might want to try to resolve them to names if possible
       // But for now, let's assume we can't easily resolve ID to name without a lookup
@@ -529,7 +528,7 @@ async function formatPropertySuggestion(propertyName: string, data: PropertyData
 
       // Actually, we can get the preferred values
       const preferred = data.propertyDef.preferredValues;
-      let preferredDisplay = '';
+      let _preferredDisplay = '';
 
       if (preferred && preferred.length > 0) {
         // preferredValues are [{ type: 'COMPONENT', key: string }, ...]
@@ -558,9 +557,9 @@ async function formatPropertySuggestion(propertyName: string, data: PropertyData
         if (preferredNames.length > 0) {
           const maxDisplay = 3;
           if (preferredNames.length <= maxDisplay) {
-            preferredDisplay = ` | Preferred: ${preferredNames.join(', ')}`;
+            _preferredDisplay = ` | Preferred: ${preferredNames.join(', ')}`;
           } else {
-            preferredDisplay = ` | Preferred: ${preferredNames.slice(0, maxDisplay).join(', ')}, +${preferredNames.length - maxDisplay}`;
+            _preferredDisplay = ` | Preferred: ${preferredNames.slice(0, maxDisplay).join(', ')}, +${preferredNames.length - maxDisplay}`;
           }
         }
       }
@@ -644,7 +643,7 @@ export async function setInstanceProperty(propertyReference: string) {
           return await setTextProperty(instances, propertyName, value);
         } else if (propertyDef.type === 'INSTANCE_SWAP') {
           // Handle Instance Swap
-          const { component, name } = await findAndImportComponent(value);
+          const { component, name: _name } = await findAndImportComponent(value);
 
           if (component) {
             // Apply to all instances
@@ -964,28 +963,28 @@ export async function pushOverridesToMain() {
     throw new Error('Main component not found');
   }
 
-  if ((instance.fills as any) !== figma.mixed) {
+  if ((instance.fills as typeof figma.mixed | Paint[]) !== figma.mixed) {
     mainComponent.fills = instance.fills;
   }
 
-  if ((instance.strokes as any) !== figma.mixed) {
+  if ((instance.strokes as typeof figma.mixed | Paint[]) !== figma.mixed) {
     mainComponent.strokes = instance.strokes;
   }
-  if ((instance.strokeWeight as any) !== figma.mixed) {
+  if ((instance.strokeWeight as typeof figma.mixed | number) !== figma.mixed) {
     mainComponent.strokeWeight = instance.strokeWeight;
   }
-  if ((instance.strokeAlign as any) !== figma.mixed) {
+  if ((instance.strokeAlign as typeof figma.mixed | 'CENTER' | 'INSIDE' | 'OUTSIDE') !== figma.mixed) {
     mainComponent.strokeAlign = instance.strokeAlign;
   }
-  if ((instance.dashPattern as any) !== figma.mixed) {
+  if ((instance.dashPattern as typeof figma.mixed | number[]) !== figma.mixed) {
     mainComponent.dashPattern = instance.dashPattern;
   }
 
-  if ((instance.effects as any) !== figma.mixed) {
+  if ((instance.effects as typeof figma.mixed | Effect[]) !== figma.mixed) {
     mainComponent.effects = instance.effects;
   }
 
-  if ('cornerRadius' in instance && (instance.cornerRadius as any) !== figma.mixed) {
+  if ('cornerRadius' in instance && (instance.cornerRadius as typeof figma.mixed | number) !== figma.mixed) {
     mainComponent.cornerRadius = instance.cornerRadius;
   }
   if ('topLeftRadius' in instance) {

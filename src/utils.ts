@@ -312,7 +312,11 @@ function createColorSwatchSVG(color: RGB | string): string {
     hexColor = `#${toHex(color.r)}${toHex(color.g)}${toHex(color.b)}`;
   }
 
-  return `<svg width="16" height="16" xmlns="http://www.w3.org/2000/svg"><rect width="16" height="16" fill="white"/><rect x="1" y="1" width="14" height="14" fill="${hexColor}"/><rect x="0.5" y="0.5" width="15" height="15" stroke="#00000033" stroke-opacity="0.2"/></svg>`;
+  return `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="16" height="16" fill="white"/>
+  <rect x="1" y="1" width="14" height="14" fill="${hexColor}"/>
+  <rect x="0.5" y="0.5" width="15" height="15" stroke="#00000033" stroke-opacity="0.2"/>
+</svg>`;
 }
 
 export async function getCachedStylesAndVariables(): Promise<StyleVariableCache> {
