@@ -388,20 +388,10 @@ export async function getCachedStylesAndVariables(): Promise<StyleVariableCache>
                 const aliasedModeId = Object.keys(aliasedVar.valuesByMode)[0];
                 if (aliasedModeId) {
                   value = aliasedVar.valuesByMode[aliasedModeId];
-                } else {
-                  console.warn(`No modes found for aliased var ${aliasedVar.name}`);
-                  break;
                 }
-              } else {
-                console.warn(`Aliased var ${aliasedVar.name} is not COLOR`);
-                break;
               }
-            } else {
-              console.warn(`Aliased var not found: ${aliasId}`);
-              break;
             }
           } catch (e) {
-            console.error(`Error resolving alias:`, e);
             break;
           }
         }
@@ -454,12 +444,11 @@ export async function getCachedStylesAndVariables(): Promise<StyleVariableCache>
           });
         });
       } catch (e) {
-        console.warn(`Failed to fetch variables from library collection ${libCollection.name}:`, e);
       }
 
     }
   } catch (e) {
-    console.warn('Failed to fetch library variable collections:', e);
+    // Failed to fetch library variable collections
   }
 
   cache = {
@@ -531,6 +520,10 @@ function flexibleMatch(searchTerm: string, targetName: string): boolean {
 }
 
 function calculateSearchScore(searchTerm: string, targetName: string): number {
+  if (!searchTerm || searchTerm.trim() === '') {
+    return 100;
+  }
+
   const normalizeString = (str: string) =>
     str.toLowerCase().replace(/[/\-_]/g, ' ').replace(/\s+/g, ' ').trim();
 
@@ -554,7 +547,6 @@ function calculateSearchScore(searchTerm: string, targetName: string): number {
     return 300;
   }
 
-  // Token-based match (lower priority)
   return 100;
 }
 
@@ -620,6 +612,7 @@ export async function searchStylesAndVariables(
     matchingStyles.forEach(s => {
       const score = calculateSearchScore(searchTerm, s.name);
       const location = s.isLocal ? 'Local' : 'Library';
+
       resultsMap.set(s.name, {
         score,
         text: `${s.name} (${location})`,
@@ -687,9 +680,8 @@ export async function searchStylesAndVariables(
       });
 
       matchingItems.forEach(item => {
-        if (resultsMap.size >= 100) return;
-
         const [name, , itemType, colorHex] = item;
+
         const score = calculateSearchScore(searchTerm, name);
 
         // Format text: Only add " - Library" for variables so resolvePaintValue detects them as variables
@@ -701,7 +693,6 @@ export async function searchStylesAndVariables(
           text,
           collection: libName,
           name: name,
-          color: colorHex ? { r: 0, g: 0, b: 0 } : undefined, // Dummy RGB object
           hexColor: colorHex
         });
       });
@@ -709,7 +700,7 @@ export async function searchStylesAndVariables(
   }
 
   // Sort by score first (highest to lowest), then by collection, then by name
-  return Array.from(resultsMap.values())
+  const finalResults = Array.from(resultsMap.values())
     .sort((a, b) => {
       // First, sort by score (descending)
       if (a.score !== b.score) return b.score - a.score;
@@ -723,8 +714,6 @@ export async function searchStylesAndVariables(
     })
     .slice(0, 20)
     .map(r => {
-      // Return object with icon if color is available
-      // Check for hexColor (from library items) or color (from local items)
       const hexColor = r.hexColor;
 
       if (hexColor) {
@@ -740,9 +729,10 @@ export async function searchStylesAndVariables(
           icon: createColorSwatchSVG(r.color)
         };
       }
-      // Return plain string for items without color (text styles, library items)
       return r.text;
     });
+
+  return finalResults;
 }
 
 export async function resolvePaintValue(rawValue: string): Promise<PaintResolution> {
