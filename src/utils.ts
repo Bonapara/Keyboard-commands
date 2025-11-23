@@ -312,11 +312,7 @@ function createColorSwatchSVG(color: RGB | string): string {
     hexColor = `#${toHex(color.r)}${toHex(color.g)}${toHex(color.b)}`;
   }
 
-  return `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="16" height="16" fill="white"/>
-  <rect x="1" y="1" width="14" height="14" fill="${hexColor}"/>
-  <rect x="0.5" y="0.5" width="15" height="15" stroke="#00000033" stroke-opacity="0.2"/>
-</svg>`;
+  return `<svg width="16" height="16" xmlns="http://www.w3.org/2000/svg"><rect width="16" height="16" fill="white"/><rect x="1" y="1" width="14" height="14" fill="${hexColor}"/><rect x="0.5" y="0.5" width="15" height="15" stroke="#00000033" stroke-opacity="0.2"/></svg>`;
 }
 
 export async function getCachedStylesAndVariables(): Promise<StyleVariableCache> {
@@ -412,44 +408,6 @@ export async function getCachedStylesAndVariables(): Promise<StyleVariableCache>
       color
     };
   }));
-
-  // Fetch library variables
-  try {
-    const libraryCollections = await figma.teamLibrary.getAvailableLibraryVariableCollectionsAsync();
-
-    for (const libCollection of libraryCollections) {
-      try {
-        const libVars = await figma.teamLibrary.getVariablesInLibraryCollectionAsync(libCollection.key);
-
-        libVars.forEach(libVar => {
-          let color: RGB | undefined;
-
-          // Try to extract color for COLOR type library variables
-          // Note: Library variables have limited data; we'd need to import them for full access
-          // Check if defaultModeValue is available (it may be in some API responses)
-          if (libVar.resolvedType === 'COLOR' && 'defaultModeValue' in libVar) {
-            const value = (libVar as any).defaultModeValue;
-            if (value && typeof value === 'object' && 'r' in value && 'g' in value && 'b' in value) {
-              color = value as RGB;
-            }
-          }
-
-          variablesData.push({
-            id: libVar.key,
-            name: libVar.name,
-            type: libVar.resolvedType,
-            collection: libCollection.name,
-            isLibrary: true,
-            color
-          });
-        });
-      } catch (e) {
-      }
-
-    }
-  } catch (e) {
-    // Failed to fetch library variable collections
-  }
 
   cache = {
     paintStyles: paintStylesData,
@@ -586,9 +544,6 @@ export async function searchStylesAndVariables(
       bindingSupport.variables!.indexOf(v.type as VariableResolvedType) !== -1 &&
       flexibleMatch(searchTerm, v.name)
     );
-
-    const localMatches = matchingVars.filter(v => !v.isLibrary).length;
-    const libraryMatches = matchingVars.filter(v => v.isLibrary).length;
 
     matchingVars.forEach(v => {
       const score = calculateSearchScore(searchTerm, v.name);
