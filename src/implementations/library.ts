@@ -1,4 +1,4 @@
-import * as LZString from 'lz-string';
+
 import { notify } from '../utils';
 import { LibraryItem, LibraryItemType } from '../types';
 
@@ -9,55 +9,21 @@ import { LibraryItem, LibraryItemType } from '../types';
 // Map<LibraryName, LibraryItem[]>
 export type LibraryData = Record<string, LibraryItem[]>;
 
-const STORAGE_KEY = 'KB_COMMANDS_LIBRARY_DATA';
-const ACTIVE_LIBRARIES_KEY = 'KB_COMMANDS_ACTIVE_LIBRARIES';
+import {
+    getStoredLibraries,
+    saveLibraries,
+    getActiveLibraries,
+    setActiveLibraries,
+    STORAGE_KEY
+} from '../storage';
 
-// ==================================
-// Storage Helpers
-// ==================================
-
-let cachedLibraries: LibraryData | null = null;
-let cachedActiveLibraries: string[] | null = null;
-
-export async function getStoredLibraries(): Promise<LibraryData> {
-    if (cachedLibraries) return cachedLibraries;
-
-    const compressed = await figma.clientStorage.getAsync(STORAGE_KEY);
-    if (!compressed) {
-        cachedLibraries = {};
-        return {};
-    }
-
-    try {
-        const decompressed = LZString.decompressFromUTF16(compressed);
-        cachedLibraries = decompressed ? JSON.parse(decompressed) : {};
-        return cachedLibraries!;
-    } catch (e) {
-        console.error('Failed to decompress library data', e);
-        cachedLibraries = {};
-        return {};
-    }
-}
-
-async function saveLibraries(data: LibraryData): Promise<void> {
-    cachedLibraries = data; // Update cache
-    const stringified = JSON.stringify(data);
-    const compressed = LZString.compressToUTF16(stringified);
-    await figma.clientStorage.setAsync(STORAGE_KEY, compressed);
-}
-
-export async function getActiveLibraries(): Promise<string[]> {
-    if (cachedActiveLibraries) return cachedActiveLibraries;
-
-    const active = await figma.clientStorage.getAsync(ACTIVE_LIBRARIES_KEY);
-    cachedActiveLibraries = active || [];
-    return cachedActiveLibraries!;
-}
-
-async function setActiveLibraries(active: string[]): Promise<void> {
-    cachedActiveLibraries = active; // Update cache
-    await figma.clientStorage.setAsync(ACTIVE_LIBRARIES_KEY, active);
-}
+export {
+    getStoredLibraries,
+    saveLibraries,
+    getActiveLibraries,
+    setActiveLibraries,
+    STORAGE_KEY
+};
 
 // ==================================
 // Core Functions
@@ -81,17 +47,113 @@ export async function publishLibrary() {
         return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
     };
 
+    // Helper to convert RGB to Hex
+    const rgbToHex = (c: RGB): string => {
+        const toHex = (n: number) => {
+            const hex = Math.round(n * 255).toString(16);
+            return hex.length === 1 ? '0' + hex : hex;
+        };
+        return `${toHex(c.r)}${toHex(c.g)}${toHex(c.b)}`;
+    };
+
     // Collect Styles (file-level, available from all pages)
     const paintStyles = await figma.getLocalPaintStylesAsync();
     const textStyles = await figma.getLocalTextStylesAsync();
     const effectStyles = await figma.getLocalEffectStylesAsync();
 
+    // Collect Variables
+    const variables = await figma.variables.getLocalVariablesAsync();
+
     const items: LibraryItem[] = [];
 
-    paintStyles.forEach(s => items.push([s.name, s.key, 'PAINT']));
+    paintStyles.forEach(s => {
+        let colorHex: string | undefined;
+        // Extract color from the first paint that has a color
+        for (const paint of s.paints) {
+            if (paint.type === 'SOLID' && paint.visible !== false) {
+                colorHex = rgbToHex(paint.color);
+                break;
+            } else if ((paint.type === 'GRADIENT_LINEAR' || paint.type === 'GRADIENT_RADIAL' || paint.type === 'GRADIENT_ANGULAR' || paint.type === 'GRADIENT_DIAMOND') && paint.visible !== false) {
+                if (paint.gradientStops && paint.gradientStops.length > 0) {
+                    colorHex = rgbToHex(paint.gradientStops[0].color);
+                    break;
+                }
+            }
+        }
+        items.push([s.name, s.key, 'PAINT', colorHex]);
+    });
+
     textStyles.forEach(s => items.push([s.name, s.key, 'TEXT']));
     effectStyles.forEach(s => items.push([s.name, s.key, 'EFFECT']));
-    console.log(`✅ ${fmt(items.length)} styles`);
+
+    // Process Variables
+    for (const v of variables) {
+        // Only index supported types
+        if (v.resolvedType === 'COLOR' || v.resolvedType === 'FLOAT' || v.resolvedType === 'STRING' || v.resolvedType === 'BOOLEAN') {
+            let colorHex: string | undefined;
+
+            if (v.resolvedType === 'COLOR') {
+                const modeId = Object.keys(v.valuesByMode)[0];
+                if (modeId) {
+                    let value = v.valuesByMode[modeId];
+
+                    // Resolve VARIABLE_ALIAS
+                    let attempts = 0;
+                    while (value && typeof value === 'object' && 'type' in value && (value as any).type === 'VARIABLE_ALIAS' && attempts < 10) {
+                        attempts++;
+                        const aliasId = (value as any).id;
+
+                        try {
+                            const aliasedVar = await figma.variables.getVariableByIdAsync(aliasId);
+                            if (aliasedVar) {
+                                if (aliasedVar.resolvedType === 'COLOR') {
+                                    const aliasedModeId = Object.keys(aliasedVar.valuesByMode)[0];
+
+                                    if (aliasedModeId) {
+                                        value = aliasedVar.valuesByMode[aliasedModeId];
+                                    } else {
+                                        console.warn(`No modes found for aliased var ${aliasedVar.name}`);
+                                        break;
+                                    }
+                                } else {
+                                    console.warn(`Aliased var ${aliasedVar.name} is not COLOR`);
+                                    break;
+                                }
+                            } else {
+                                console.warn(`Aliased var not found: ${aliasId}`);
+                                break;
+                            }
+                        } catch (e) {
+                            console.error(`Error resolving alias:`, e);
+                            break;
+                        }
+                    }
+
+                    if (value && typeof value === 'object' && 'r' in value && 'g' in value && 'b' in value) {
+                        colorHex = rgbToHex(value as RGB);
+                    }
+                }
+            }
+
+            // Use key for variables so they can be imported later if needed (though we mostly use them by ID if local, or key if library)
+            // Ideally we store key, but getLocalVariablesAsync returns objects with .key? No, .id and .key (if remote).
+            // Local variables have .key too.
+
+            // Map resolvedType to LibraryItemType
+            let itemType: LibraryItemType;
+            switch (v.resolvedType) {
+                case 'COLOR': itemType = 'VARIABLE_COLOR'; break;
+                case 'FLOAT': itemType = 'VARIABLE_FLOAT'; break;
+                case 'STRING': itemType = 'VARIABLE_STRING'; break;
+                case 'BOOLEAN': itemType = 'VARIABLE_BOOLEAN'; break;
+                default: itemType = 'VARIABLE_COLOR'; // Should not happen due to if check above
+            }
+
+            items.push([v.name, v.key, itemType, colorHex]);
+        }
+    }
+
+    console.log(`✅ ${fmt(items.length)} items (styles + variables)`);
 
     // Collect Components from ALL pages
     await figma.loadAllPagesAsync();

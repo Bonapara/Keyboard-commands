@@ -1,13 +1,6 @@
-// ==========================
-// Constants
-// ==========================
-
-// Regex Constants
 export const COMMAND_SPLITTER_REGEX = /[\s,]+/;
 export const COMMAND_PART_REGEX = /^(-(?![\d])|(-)?[\p{L}]+(-[\p{L}]+)*?)(?=\s|[\d]|-[\d]|-$|$|#|:|$|@)/u;
 
-// Double space pattern for command chaining
-// Allows chaining binding commands while preserving single-space separation for simple commands
 export const COMMAND_BREAK_PATTERN = /\s{2,}/;
 
 export const VALUE_FORMAT_REGEX = {
@@ -16,13 +9,9 @@ export const VALUE_FORMAT_REGEX = {
   string: /.+/,
 } as const;
 
-// Cache Configuration
-export const CACHE_DURATION = 60_000; // 60 seconds
+export const CACHE_DURATION = 300_000;
 
-// Notification Timeouts
-export const EXPORT_TIMEOUT = 10_000; // 10 seconds
+export const EXPORT_TIMEOUT = 10_000;
 
-// Default Values
 export const DEFAULT_BORDER_WIDTH = 1;
 export const MIN_SCALE_FACTOR = 0.01;
-

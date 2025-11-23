@@ -494,7 +494,8 @@ export const COMMAND_DEFINITIONS = {
     supportedNodes: [...NODE_GROUPS.FILLS_AND_STROKES],
     bindingSupport: {
       styles: ['PAINT'],
-      variables: ['COLOR']
+      variables: ['COLOR'],
+      libraryStyles: true
     }
   },
   Rotate: {
@@ -692,7 +693,8 @@ export const COMMAND_DEFINITIONS = {
     functionWithoutParam: () => impl.toggleBorder('all'),
     bindingSupport: {
       styles: ['PAINT'],
-      variables: ['COLOR']
+      variables: ['COLOR'],
+      libraryStyles: true
     }
   },
   StrokeAlignCenter: {

@@ -1,12 +1,3 @@
-// ==========================
-// Figma Keyboard Commands Plugin
-// ==========================
-// Main entry point for command parsing, suggestion generation, and execution.
-// Supports:
-//   - Simple commands (e.g., "w100" for width)
-//   - Binding mode with live search (e.g., "f?sky" for fill styles matching "sky")
-//   - Command chaining with double-space delimiter (e.g., "w100  h200  f?blue")
-
 import type { ValueFormat } from './types';
 import { COMMANDS } from './commands';
 import {
@@ -23,23 +14,8 @@ import {
 import { searchLibraries } from './implementations/library';
 import * as impl from './implementations';
 
-// Store original user input for command execution
 let originalInput = '';
 
-// ================
-// Helper Functions
-// ================
-
-
-
-/**
- * Generate suggestions for binding mode commands (commands with "?" suffix).
- * Routes to appropriate search based on binding support:
- *   - libraries: Search stored libraries by name
- *   - instanceProperties: Search component properties (variants, text, instance swap)
- *   - instanceSwap: Search components for swapping
- *   - styles/variables: Search local and library styles/variables
- */
 async function generateBindingSuggestions(
   matchedCommand: (typeof COMMANDS)[0],
   searchTerm: string
@@ -75,11 +51,6 @@ async function generateBindingSuggestions(
   }
 }
 
-/**
- * Extract and track executed commands from a segment for summary display.
- * Maps command names to their values (e.g., {"Width": "100", "Fill": "#ff0000"}).
- * Used to show "already set" indicators and build command summaries.
- */
 function trackCommandsFromSegment(
   segment: string,
   isBindingSegment: boolean,
@@ -137,11 +108,6 @@ function trackCommandsFromSegment(
   return commands;
 }
 
-/**
- * Parse command segments into simple and binding commands.
- * Simple commands: Direct execution (e.g., "w100", "abs")
- * Binding commands: Interactive search mode with "?" (e.g., "f?blue", "ip?Icon")
- */
 interface SegmentParseResult {
   simpleCommands: string[];
   bindingSegments: Array<{ segment: string; alias: string }>;
@@ -178,13 +144,6 @@ function parseCommandSegments(segments: string[]): SegmentParseResult {
   return { simpleCommands, bindingSegments };
 }
 
-/**
- * Determine if the user selected a suggestion from the dropdown.
- * Differentiates between:
- *   - Dropdown selection (formatted suggestion)
- *   - User-typed value (raw search term)
- * Returns selected value or null to trigger auto-search.
- */
 function getDropdownValue(
   parameters: { command?: string },
   isOnlySegment: boolean,
@@ -216,12 +175,6 @@ function getDropdownValue(
   return null;
 }
 
-/**
- * Execute a binding command with intelligent value resolution.
- * 1. Use dropdown selection if available
- * 2. Otherwise auto-select first search result for typed value
- * 3. Execute the resolved command
- */
 async function executeBindingCommand(
   bindingSegment: { segment: string; alias: string },
   parameters: { command?: string },
@@ -265,13 +218,6 @@ async function executeBindingCommand(
   await executeCommand(fullCommand, true);
 }
 
-// ================
-// Input Handler Setup
-// ================
-// Manages the suggestion system as user types commands.
-// Handles both normal mode (simple commands) and binding mode (interactive search).
-
-// Track current handler for cleanup
 let currentInputHandler: ((event: ParameterInputEvent) => void) | null = null;
 
 function setupInputHandler() {
@@ -467,15 +413,8 @@ function setupInputHandler() {
   figma.parameters.on('input', currentInputHandler);
 }
 
-// Initialize input handler on plugin load
 setupInputHandler();
 
-// Note: Handler checks selection dynamically, so no recreation needed on selection change
-
-// ===================
-// Command Execution Entry Point
-// ===================
-// Triggered when user presses Enter to execute commands
 figma.on('run', async (parameters) => {
   const commandString = originalInput.trim();
 
@@ -515,10 +454,6 @@ figma.on('run', async (parameters) => {
   }
 });
 
-// =================
-// Command Executor
-// =================
-// Core execution logic for all command types
 async function executeCommand(cmd: string, skipNotification: boolean = false): Promise<void> {
   if (!cmd) {
     return;

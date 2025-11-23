@@ -1,13 +1,8 @@
-// ==========================
-// Type Definitions
-// ==========================
-
 export type SupportedNodeType = SceneNode['type'];
 export type SpecialCondition = 'IsAutoLayout' | 'IsInAutoLayout' | 'IsAbsoluteInAutoLayout' | 'IsAutoLayoutWrap' | 'TextStyleApplied' | 'NoTextStyleApplied' | 'IsNotInAutoLayout';
 
 export type ValueFormat = 'number' | 'hex' | 'string';
 
-// Style and variable binding support
 export type StyleBindingType = 'PAINT' | 'TEXT' | 'EFFECT';
 export type VariableResolvedType = 'BOOLEAN' | 'COLOR' | 'FLOAT' | 'STRING';
 
@@ -59,20 +54,16 @@ export type Command = {
   type: "commandWithValue" | "commandWithoutValue" | "optionalValueCommand"
 } & (CommandWithValue | CommandWithoutValue | OptionalValueCommand);
 
-// Resolution result
 export interface PaintResolution {
   type: 'style' | 'variable' | 'literal';
-  styleKey?: string;      // For library import
+  styleKey?: string;
   variableId?: string;
-  variableName?: string;  // For error messages
-  isLibraryVariable?: boolean; // Flag for library variables that need importing
+  variableName?: string;
+  isLibraryVariable?: boolean;
   color?: RGB;
 }
 
-export type LibraryItemType = 'PAINT' | 'TEXT' | 'EFFECT' | 'COMPONENT';
-// [Name, Key, Type]
-export type LibraryItem = [string, string, LibraryItemType];
+export type LibraryItemType = 'PAINT' | 'TEXT' | 'EFFECT' | 'COMPONENT' | 'VARIABLE_COLOR' | 'VARIABLE_FLOAT' | 'VARIABLE_STRING' | 'VARIABLE_BOOLEAN';
+export type LibraryItem = [string, string, LibraryItemType, string?];
 
-// Map<LibraryName, LibraryItem[]>
 export type LibraryData = Record<string, LibraryItem[]>;
-
