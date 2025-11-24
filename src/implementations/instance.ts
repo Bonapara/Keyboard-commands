@@ -7,6 +7,18 @@ const VARIANT_SPACING = 20;
 const COMPONENT_SET_PADDING = 20;
 const COMPONENT_SET_STROKE_COLOR = { r: 0x97 / 255, g: 0x47 / 255, b: 0xFF / 255 };
 
+// Cache for main component lookups to avoid repeated async calls
+const mainComponentCache = new WeakMap<InstanceNode, ComponentNode | null>();
+
+async function getCachedMainComponent(instance: InstanceNode): Promise<ComponentNode | null> {
+  if (mainComponentCache.has(instance)) {
+    return mainComponentCache.get(instance)!;
+  }
+  const mainComponent = await instance.getMainComponentAsync();
+  mainComponentCache.set(instance, mainComponent);
+  return mainComponent;
+}
+
 export function pluralize(count: number, singular: string, plural?: string): string {
   return count === 1 ? singular : (plural || singular + 's');
 }
@@ -128,7 +140,7 @@ function extractPropertyValue(property: string | boolean | { value: string | boo
 async function searchVariantOptions(instances: InstanceNode[], propertyName: string, optionFilter: string = ''): Promise<string[]> {
 
   for (const instance of instances) {
-    const mainComponent = await instance.getMainComponentAsync();
+    const mainComponent = await getCachedMainComponent(instance);
     if (!mainComponent) continue;
 
     const allProperties = getComponentPropertyDefinitions(mainComponent);
@@ -166,7 +178,7 @@ async function applyToExposedInstances(
   }
 
   for (const exposedInstance of instance.exposedInstances) {
-    const exposedMainComponent = await exposedInstance.getMainComponentAsync();
+    const exposedMainComponent = await getCachedMainComponent(exposedInstance);
     if (!exposedMainComponent) continue;
 
     const exposedProperties = getComponentPropertyDefinitions(exposedMainComponent);
@@ -189,7 +201,7 @@ async function findPropertyInInstanceOrExposed(
   instance: InstanceNode,
   propertyName: string
 ): Promise<{ definition: PropertyDefinition | null; keyInMain: string | null }> {
-  const mainComponent = await instance.getMainComponentAsync();
+  const mainComponent = await getCachedMainComponent(instance);
   if (mainComponent) {
     const allProperties = getComponentPropertyDefinitions(mainComponent);
     const result = findPropertyKey(propertyName, allProperties);
@@ -200,7 +212,7 @@ async function findPropertyInInstanceOrExposed(
 
   if (instance.exposedInstances) {
     for (const exposedInstance of instance.exposedInstances) {
-      const exposedMainComponent = await exposedInstance.getMainComponentAsync();
+      const exposedMainComponent = await getCachedMainComponent(exposedInstance);
       if (!exposedMainComponent) continue;
 
       const exposedProperties = getComponentPropertyDefinitions(exposedMainComponent);
@@ -221,7 +233,7 @@ async function setVariantProperty(instances: InstanceNode[], propertyName: strin
   let matchedPropertyName = '';
 
   for (const instance of instances) {
-    const mainComponent = await instance.getMainComponentAsync();
+    const mainComponent = await getCachedMainComponent(instance);
     if (mainComponent) {
       const allVariantProperties = getComponentPropertyDefinitions(mainComponent);
       const { key: realPropertyKey, definition: propertyDef } = findPropertyKey(propertyName, allVariantProperties);
@@ -257,7 +269,7 @@ async function setVariantProperty(instances: InstanceNode[], propertyName: strin
     }
 
     const exposedCount = await applyToExposedInstances(instance, propertyName, 'VARIANT', async (exposedInstance, key) => {
-      const exposedMainComponent = await exposedInstance.getMainComponentAsync();
+      const exposedMainComponent = await getCachedMainComponent(exposedInstance);
       if (!exposedMainComponent) return;
 
       const exposedProperties = getComponentPropertyDefinitions(exposedMainComponent);
@@ -304,7 +316,7 @@ async function setTextProperty(instances: InstanceNode[], propertyName: string, 
   let matchedPropertyName = '';
 
   for (const instance of instances) {
-    const mainComponent = await instance.getMainComponentAsync();
+    const mainComponent = await getCachedMainComponent(instance);
     if (mainComponent) {
       const allProperties = getComponentPropertyDefinitions(mainComponent);
       const { key: realPropertyKey, definition: propertyDef } = findPropertyKey(propertyName, allProperties);
@@ -354,8 +366,10 @@ async function setTextProperty(instances: InstanceNode[], propertyName: string, 
 }
 
 async function searchLibraryComponents(searchTerm: string, limit: number = 100, libraryFilter?: string): Promise<Array<{ name: string; key: string; library: string }>> {
-  const libraries = await getStoredLibraries();
-  const activeLibraries = await getActiveLibraries();
+  const [libraries, activeLibraries] = await Promise.all([
+    getStoredLibraries(),
+    getActiveLibraries()
+  ]);
   const results: Array<{ name: string; key: string; library: string }> = [];
   const searchLower = searchTerm.toLowerCase();
 
@@ -399,7 +413,7 @@ export async function searchInstanceProperties(searchTerm: string): Promise<Arra
     const value = propertyWithValueMatch[2].trim();
 
     for (const instance of instances) {
-      const mainComponent = await instance.getMainComponentAsync();
+      const mainComponent = await getCachedMainComponent(instance);
       if (!mainComponent) continue;
 
       const allProperties = getComponentPropertyDefinitions(mainComponent);
@@ -434,10 +448,10 @@ export async function searchInstanceProperties(searchTerm: string): Promise<Arra
                 const node = await figma.getNodeByIdAsync(currentId);
                 if (node && (node.type === 'COMPONENT' || node.type === 'COMPONENT_SET')) {
                   // Find which library has this key
-                  // We need to check all libraries? Or is there a faster way?
-                  // We have to check all stored libraries.
-                  const libraries = await getStoredLibraries();
-                  const activeLibs = await getActiveLibraries();
+                  const [libraries, activeLibs] = await Promise.all([
+                    getStoredLibraries(),
+                    getActiveLibraries()
+                  ]);
 
                   // Check active libraries first
                   for (const libName of activeLibs) {
@@ -495,7 +509,7 @@ export async function searchInstanceProperties(searchTerm: string): Promise<Arra
       // If not found in main component, check exposed instances
       if (instance.exposedInstances && instance.exposedInstances.length > 0) {
         for (const exposedInstance of instance.exposedInstances) {
-          const exposedMainComponent = await exposedInstance.getMainComponentAsync();
+          const exposedMainComponent = await getCachedMainComponent(exposedInstance);
           if (!exposedMainComponent) continue;
 
           const exposedProperties = getComponentPropertyDefinitions(exposedMainComponent);
@@ -545,7 +559,7 @@ export async function searchInstanceProperties(searchTerm: string): Promise<Arra
   const seenCleanedNames = new Set<string>();
 
   for (const instance of instances) {
-    const mainComponent = await instance.getMainComponentAsync();
+    const mainComponent = await getCachedMainComponent(instance);
     if (!mainComponent) continue;
 
     const allProperties = getComponentPropertyDefinitions(mainComponent);
@@ -579,7 +593,7 @@ export async function searchInstanceProperties(searchTerm: string): Promise<Arra
     // Add exposed properties from nested instances
     if (instance.exposedInstances && instance.exposedInstances.length > 0) {
       for (const exposedInstance of instance.exposedInstances) {
-        const exposedMainComponent = await exposedInstance.getMainComponentAsync();
+        const exposedMainComponent = await getCachedMainComponent(exposedInstance);
         if (!exposedMainComponent) continue;
 
         const exposedProperties = getComponentPropertyDefinitions(exposedMainComponent);
@@ -685,74 +699,18 @@ async function formatPropertySuggestion(propertyName: string, data: PropertyData
       break;
     }
     case 'INSTANCE_SWAP': {
-      // Get current component name(s)
       const currentValues = Array.from(data.values);
-
-      // Since values are component IDs or keys, we might want to try to resolve them to names if possible
-      // But for now, let's assume we can't easily resolve ID to name without a lookup
-      // However, the value stored in componentProperties for INSTANCE_SWAP is the ID.
-      // We can try to find the node if it's local, or just show "Current"
-      // Actually, let's try to get the node name if possible, but it might be async and slow for many items.
-      // For now, let's just show the count or "Mixed" if multiple.
-      // Wait, the prompt requested: "Current: ComponentName"
-
-      // Let's try to resolve the name for the first value if it's a local ID
-      // Note: This is a bit tricky as we don't have the node here, just the ID string.
-      // We'll skip complex resolution for now to keep it fast, or maybe just show "Current Selection"
-
-      // Actually, we can get the preferred values
-      const preferred = data.propertyDef.preferredValues;
-      let _preferredDisplay = '';
-
-      if (preferred && preferred.length > 0) {
-        // preferredValues are [{ type: 'COMPONENT', key: string }, ...]
-        // We can't easily get names from keys without looking them up in our library storage or Figma
-        // Let's try to look up in our library storage
-        const libraries = await getStoredLibraries();
-        const activeLibraries = await getActiveLibraries();
-        const preferredNames: string[] = [];
-
-        for (const pref of preferred) {
-          // Try to find name in active libraries
-          let foundName = '';
-          for (const libName of activeLibraries) {
-            const items = libraries[libName];
-            if (items) {
-              const match = items.find(item => item[1] === pref.key);
-              if (match) {
-                foundName = match[0];
-                break;
-              }
-            }
-          }
-          if (foundName) preferredNames.push(foundName);
-        }
-
-        if (preferredNames.length > 0) {
-          const maxDisplay = 3;
-          if (preferredNames.length <= maxDisplay) {
-            _preferredDisplay = ` | Preferred: ${preferredNames.join(', ')}`;
-          } else {
-            _preferredDisplay = ` | Preferred: ${preferredNames.slice(0, maxDisplay).join(', ')}, +${preferredNames.length - maxDisplay}`;
-          }
-        }
-      }
-
-      // For current value, we can try to find the node if it exists in the document
-      // But `data.values` contains IDs. 
-      // Let's try to resolve one
+      
+      // Resolve current component name from ID
       let currentName = 'None';
       if (currentValues.length === 1) {
-        // It's an ID. 
-        // We can't easily resolve it here without being async and potentially slow.
-        // But wait, formatPropertySuggestion is async.
         try {
           const node = await figma.getNodeByIdAsync(currentValues[0]);
           if (node && 'name' in node) {
             currentName = node.name;
           }
-        } catch (e) {
-          // Ignore
+        } catch {
+          // Ignore resolution errors
         }
       } else if (currentValues.length > 1) {
         currentName = 'Mixed';
@@ -813,12 +771,12 @@ export async function setInstanceProperty(propertyReference: string) {
       } else if (propertyDef.type === 'TEXT') {
         return await setTextProperty(instances, propertyName, value);
       } else if (propertyDef.type === 'INSTANCE_SWAP') {
-        const { component, name: _name } = await findAndImportComponent(value);
+        const { component } = await findAndImportComponent(value);
 
         if (component) {
           let successCount = 0;
           for (const inst of instances) {
-            const main = await inst.getMainComponentAsync();
+            const main = await getCachedMainComponent(inst);
             if (main) {
               const props = getComponentPropertyDefinitions(main);
               const { key: realKey } = findPropertyKey(propertyName, props);
@@ -1111,7 +1069,7 @@ export async function pushOverridesToMain() {
     throw new Error('Selected item is not an instance');
   }
 
-  const mainComponent = await instance.getMainComponentAsync();
+  const mainComponent = await getCachedMainComponent(instance);
   if (!mainComponent) {
     throw new Error('Main component not found');
   }
@@ -1151,8 +1109,10 @@ export async function pushOverridesToMain() {
 }
 // Helper to find and import a component based on name/library string
 async function findAndImportComponent(value: string): Promise<{ component: ComponentNode | null, name: string }> {
-  const libraries = await getStoredLibraries();
-  const activeLibraries = await getActiveLibraries();
+  const [libraries, activeLibraries] = await Promise.all([
+    getStoredLibraries(),
+    getActiveLibraries()
+  ]);
 
   let componentName = value;
   let targetLibrary: string | null = null;
@@ -1369,7 +1329,7 @@ async function findSourceNode(instance: InstanceNode, targetNode: SceneNode): Pr
     }
 
     // 2. Traverse down from the Main Component
-    let currentSource: BaseNode | null = await instance.getMainComponentAsync();
+    let currentSource: BaseNode | null = await getCachedMainComponent(instance);
     if (!currentSource) return null;
 
     for (const index of indexPath) {
@@ -1534,6 +1494,32 @@ export async function searchInstanceOverrides(searchTerm: string): Promise<Array
     return ['No instances selected'];
   }
 
+  // Collect all unique node IDs from overrides for batch lookup
+  const uniqueNodeIds = new Set<string>();
+  for (const instance of instances) {
+    for (const override of instance.overrides) {
+      uniqueNodeIds.add(override.id);
+    }
+  }
+
+  // Batch fetch all nodes at once using Promise.all
+  const nodeIdArray = Array.from(uniqueNodeIds);
+  const nodeResults = await Promise.all(
+    nodeIdArray.map(async (id) => {
+      try {
+        return await figma.getNodeByIdAsync(id) as SceneNode | null;
+      } catch {
+        return null;
+      }
+    })
+  );
+
+  // Create lookup map for O(1) access
+  const nodeMap = new Map<string, SceneNode | null>();
+  nodeIdArray.forEach((id, index) => {
+    nodeMap.set(id, nodeResults[index]);
+  });
+
   const overridesList: Array<{ name: string; data: string }> = [];
   const seenOverrides = new Set<string>();
 
@@ -1541,15 +1527,11 @@ export async function searchInstanceOverrides(searchTerm: string): Promise<Array
     for (const override of instance.overrides) {
       const nodeId = override.id;
       const fields = override.overriddenFields;
-      let nodeName = 'Unknown';
-      let node: SceneNode | null = null;
-
-      try {
-        node = await figma.getNodeByIdAsync(nodeId) as SceneNode;
-        if (node && 'name' in node) nodeName = node.name;
-      } catch (e) { /* ignore */ }
+      const node = nodeMap.get(nodeId);
 
       if (!node) continue;
+
+      const nodeName = 'name' in node ? node.name : 'Unknown';
 
       // Process fields
       for (const field of fields) {
