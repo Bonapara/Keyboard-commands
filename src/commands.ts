@@ -169,6 +169,17 @@ export const COMMAND_DEFINITIONS = {
       instanceProperties: true
     }
   },
+  ResetInstanceOverrides: {
+    type: 'commandWithValue',
+    alias: ['rio'],
+    valueFormat: 'string' as const,
+    suggestion: '?select override to reset',
+    functionWithParam: async (value: string) => await impl.resetSpecificOverride(value),
+    supportedNodes: [...NODE_GROUPS.INSTANCE_ONLY],
+    bindingSupport: {
+      instanceOverrides: true
+    }
+  },
   ResetInstance: {
     type: "commandWithoutValue",
     alias: ['ri'],

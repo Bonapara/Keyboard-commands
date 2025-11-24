@@ -33,6 +33,8 @@ async function generateBindingSuggestions(
       suggestions = await impl.searchInstanceProperties(searchTerm);
     } else if (matchedCommand.bindingSupport.instanceSwap) {
       suggestions = await impl.searchComponentsForSwap(searchTerm);
+    } else if (matchedCommand.bindingSupport.instanceOverrides) {
+      suggestions = await impl.searchInstanceOverrides(searchTerm);
     } else {
       suggestions = await searchStylesAndVariables(
         searchTerm,

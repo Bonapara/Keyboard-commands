@@ -1307,3 +1307,273 @@ export async function swapInstance(value: string) {
     }
   }
 }
+
+// Constants for grouped fields
+const RADIUS_FIELDS = ['cornerRadius', 'topLeftRadius', 'topRightRadius', 'bottomLeftRadius', 'bottomRightRadius'];
+const STROKE_FIELDS = [
+  'strokes', 'strokeWeight', 'strokeAlign', 'strokeCap', 'strokeJoin',
+  'dashPattern', 'strokeMiterLimit', 'strokeStyleId',
+  'strokeTopWeight', 'strokeBottomWeight', 'strokeLeftWeight', 'strokeRightWeight',
+  'stokeTopWeight' // Handle Figma API typo
+];
+
+/**
+ * Helper to check if a field belongs to a group and return the group name
+ */
+function getGroupedField(field: string): string | null {
+  if (RADIUS_FIELDS.includes(field)) return 'cornerRadius';
+  if (STROKE_FIELDS.includes(field)) return 'stroke';
+  return null;
+}
+
+/**
+ * Helper to get all fields associated with a reset target (handling groups)
+ */
+function getFieldsToReset(field: string): string[] {
+  if (field === 'cornerRadius') return RADIUS_FIELDS;
+  if (field === 'stroke') return STROKE_FIELDS;
+  return [field];
+}
+
+/**
+ * Helper to find the source node in the main component hierarchy corresponding to a target node
+ */
+async function findSourceNode(instance: InstanceNode, targetNode: SceneNode): Promise<BaseNode | null> {
+  try {
+    // 1. Build the index path from targetNode up to the top-level instance
+    const indexPath: number[] = [];
+    let currentNode = targetNode;
+    let depth = 0;
+    const MAX_DEPTH = 100;
+
+    while (currentNode.id !== instance.id && depth < MAX_DEPTH) {
+      const parent = currentNode.parent;
+      if (!parent) break;
+
+      const index = parent.children.indexOf(currentNode as SceneNode);
+      if (index === -1) return null;
+
+      indexPath.unshift(index);
+      currentNode = parent as SceneNode;
+      depth++;
+    }
+
+    // 2. Traverse down from the Main Component
+    let currentSource: BaseNode | null = await instance.getMainComponentAsync();
+    if (!currentSource) return null;
+
+    for (const index of indexPath) {
+      if (!currentSource || !('children' in currentSource)) return null;
+
+      const children: readonly SceneNode[] = (currentSource as ChildrenMixin).children;
+      if (index >= children.length) return null;
+
+      currentSource = children[index];
+    }
+
+    return currentSource;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Helper to reset a single property value
+ */
+async function resetProperty(node: SceneNode, field: string, value: any) {
+  // Handle async style setters
+  if (field === 'strokeStyleId') {
+    await (node as any).setStrokeStyleIdAsync(value);
+  } else if (field === 'fillStyleId') {
+    await (node as any).setFillStyleIdAsync(value);
+  } else if (field === 'effectStyleId') {
+    await (node as any).setEffectStyleIdAsync(value);
+  } else if (field === 'textStyleId') {
+    await (node as any).setTextStyleIdAsync(value);
+  }
+  // For array properties, clone to prevent reference issues
+  else if (Array.isArray(value)) {
+    (node as any)[field] = JSON.parse(JSON.stringify(value));
+  } else {
+    (node as any)[field] = value;
+  }
+}
+
+/**
+ * Search and list all overrides on selected instances
+ */
+export async function searchInstanceOverrides(searchTerm: string): Promise<Array<string | { name: string; data: unknown }>> {
+  const selection = figma.currentPage.selection;
+  const instances = selection.filter(node => node.type === 'INSTANCE') as InstanceNode[];
+
+  if (instances.length === 0) {
+    return ['No instances selected'];
+  }
+
+  const overridesList: Array<{ name: string; data: string }> = [];
+  const seenOverrides = new Set<string>();
+
+  for (const instance of instances) {
+    for (const override of instance.overrides) {
+      const nodeId = override.id;
+      const fields = override.overriddenFields;
+      let nodeName = 'Unknown';
+
+      try {
+        const node = await figma.getNodeByIdAsync(nodeId);
+        if (node && 'name' in node) nodeName = node.name;
+      } catch (e) { /* ignore */ }
+
+      // Process fields
+      for (const field of fields) {
+        // Check for groups first
+        const groupName = getGroupedField(field);
+        const effectiveField = groupName || field;
+        const overrideKey = `${nodeId}:${effectiveField}`;
+
+        if (seenOverrides.has(overrideKey)) continue;
+        seenOverrides.add(overrideKey);
+
+        // Format display name
+        const fieldLabel = effectiveField === 'cornerRadius' ? 'Corner Radius' :
+          effectiveField === 'stroke' ? 'Stroke' :
+            effectiveField.replace(/_/g, ' ').toLowerCase()
+              .split(' ')
+              .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+              .join(' ');
+
+        const displayName = `${nodeName} → ${fieldLabel}`;
+
+        if (searchTerm && !displayName.toLowerCase().includes(searchTerm.toLowerCase())) continue;
+
+        overridesList.push({
+          name: displayName,
+          data: JSON.stringify({ nodeId, field: effectiveField, nodeName })
+        });
+      }
+    }
+  }
+
+  return overridesList.length === 0
+    ? (searchTerm ? [`No overrides found matching "${searchTerm}"`] : ['No overrides found on selected instances'])
+    : overridesList;
+}
+
+/**
+ * Reset a specific override on selected instances
+ */
+export async function resetSpecificOverride(overrideReference: string) {
+  const selection = figma.currentPage.selection;
+  const instances = selection.filter(node => node.type === 'INSTANCE') as InstanceNode[];
+
+  if (instances.length === 0) throw new Error('No instances selected');
+
+  let nodeId: string | null = null;
+  let field: string | null = null;
+  let nodeName: string | null = null;
+
+  // Parse input
+  try {
+    const data = JSON.parse(overrideReference);
+    if (data.nodeId && data.field) {
+      nodeId = data.nodeId;
+      field = data.field;
+      nodeName = data.nodeName;
+    }
+  } catch (e) {
+    const match = overrideReference.match(/^(.+?)\s*→\s*(.+)$/);
+    if (match) {
+      nodeName = match[1].trim();
+      const fieldDisplay = match[2].trim();
+      field = fieldDisplay.replace(/\s+/g, '').replace(/^(.)/, m => m.toLowerCase());
+
+      const fieldMap: Record<string, string> = {
+        'strokestyleid': 'strokeStyleId', 'strokeweight': 'strokeWeight',
+        'strokes': 'strokes', 'fills': 'fills', 'fillstyleid': 'fillStyleId',
+        'componentproperties': 'componentProperties', 'effects': 'effects',
+        'effectstyleid': 'effectStyleId', 'characters': 'characters',
+        'textstyleid': 'textStyleId', 'cornerradius': 'cornerRadius',
+        'stroke': 'stroke'
+      };
+      field = fieldMap[field.toLowerCase()] || field;
+    }
+  }
+
+  if (!field) {
+    figma.notify('Invalid override reference format', { error: true });
+    return;
+  }
+
+  let resetCount = 0;
+
+  for (const instance of instances) {
+    for (const override of instance.overrides) {
+      // Filter by nodeId or nodeName if provided
+      if (nodeId && override.id !== nodeId) continue;
+      if (!nodeId && nodeName) {
+        try {
+          const node = await figma.getNodeByIdAsync(override.id);
+          if (!node || node.name !== nodeName) continue;
+          nodeId = override.id;
+        } catch (e) { continue; }
+      }
+
+      // Check if this override matches our target field
+      const fieldsToReset = getFieldsToReset(field);
+      const hasMatchingField = override.overriddenFields.some(f => fieldsToReset.includes(f));
+
+      if (hasMatchingField) {
+        try {
+          const nodeToReset = await figma.getNodeByIdAsync(override.id);
+          if (!nodeToReset || !('type' in nodeToReset)) continue;
+
+          const sourceNode = await findSourceNode(instance, nodeToReset as SceneNode);
+
+          if (sourceNode) {
+            // Component Properties
+            if (field === 'componentProperties') {
+              try {
+                const defaultProps: Record<string, string | boolean> = {};
+                if (sourceNode.type === 'INSTANCE') {
+                  const props = (sourceNode as InstanceNode).componentProperties;
+                  Object.entries(props).forEach(([k, v]) => defaultProps[k] = v.value);
+                } else if (sourceNode.type === 'COMPONENT' || sourceNode.type === 'COMPONENT_SET') {
+                  const definitions = (sourceNode as ComponentNode | ComponentSetNode).componentPropertyDefinitions;
+                  Object.entries(definitions).forEach(([k, v]) => defaultProps[k] = v.defaultValue);
+                }
+                (nodeToReset as InstanceNode).setProperties(defaultProps);
+                resetCount++;
+              } catch (err) {
+                console.error(`Failed to reset componentProperties on ${nodeToReset.name}:`, err);
+              }
+            }
+            // Standard Properties
+            else {
+              let anyReset = false;
+              for (const f of fieldsToReset) {
+                if (f in sourceNode) {
+                  try {
+                    await resetProperty(nodeToReset as SceneNode, f, (sourceNode as any)[f]);
+                    anyReset = true;
+                  } catch (err) {
+                    // Ignore read-only errors or missing setters
+                  }
+                }
+              }
+              if (anyReset) resetCount++;
+            }
+          }
+        } catch (e) {
+          console.error('Error resetting override:', e);
+        }
+      }
+    }
+  }
+
+  if (resetCount > 0) {
+    const displayField = field.replace(/([A-Z])/g, ' $1').trim();
+    figma.notify(`Reset "${displayField}" on ${resetCount} ${pluralize(resetCount, 'node')}${nodeName ? ` (${nodeName})` : ''}`);
+  } else {
+    figma.notify('No matching overrides found to reset', { error: true });
+  }
+}

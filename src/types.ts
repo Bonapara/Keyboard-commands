@@ -11,6 +11,7 @@ export interface BindingSupport {
   variables?: VariableResolvedType[];
   instanceProperties?: boolean;
   instanceSwap?: boolean;
+  instanceOverrides?: boolean;
   libraries?: boolean;
   libraryStyles?: boolean;
   libraryComponents?: boolean;
