@@ -148,13 +148,7 @@ export const COMMAND_DEFINITIONS = {
     functionWithParam: (value: string) => impl.resize(value),
     supportedNodes: [...NODE_GROUPS.RESIZABLE],
   },
-  GoToMainComponent: {
-    type: "commandWithoutValue",
-    alias: ['m'],
-    suggestion: "use ⌘Z to come back",
-    functionWithoutParam: () => impl.selectMasterComponent(),
-    supportedNodes: [...NODE_GROUPS.INSTANCE_ONLY],
-  },
+
   InstanceSwap: {
     type: 'commandWithValue',
     alias: ['is'],

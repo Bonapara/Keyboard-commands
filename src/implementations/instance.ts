@@ -1098,31 +1098,7 @@ export function addVariant() {
   figma.notify(`Added new variant "${newVariant.name}" based on "${baseComponent.name}"`);
 }
 
-export async function selectMasterComponent() {
-  const selection = figma.currentPage.selection;
-  const instances = selection.filter(node => node.type === 'INSTANCE') as InstanceNode[];
 
-  if (instances.length === 0) {
-    throw new Error('No instances selected');
-  }
-
-  const mainComponents: ComponentNode[] = [];
-
-  for (const instance of instances) {
-    const main = await instance.getMainComponentAsync();
-    if (main) {
-      mainComponents.push(main);
-    }
-  }
-
-  if (mainComponents.length > 0) {
-    figma.currentPage.selection = mainComponents;
-    figma.viewport.scrollAndZoomIntoView(mainComponents);
-    figma.notify(`Selected ${mainComponents.length} main component${mainComponents.length > 1 ? 's' : ''}`);
-  } else {
-    figma.notify('No main components found');
-  }
-}
 
 export async function pushOverridesToMain() {
   const selection = figma.currentPage.selection;
