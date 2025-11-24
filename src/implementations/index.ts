@@ -4,6 +4,7 @@
 
 export * from './alignment';
 export * from './borders';
+export * from './colors';
 export * from './constraints';
 export * from './effects';
 export * from './export';

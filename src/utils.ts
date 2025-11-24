@@ -9,6 +9,7 @@ import {
   CACHE_DURATION
 } from './constants';
 import { searchInstanceProperties } from './implementations/instance';
+import { searchSelectionColors } from './implementations/colors';
 
 export { COMMAND_SPLITTER_REGEX, COMMAND_BREAK_PATTERN, COMMAND_PART_REGEX, VALUE_FORMAT_REGEX };
 
@@ -244,6 +245,25 @@ export function getCommandSuggestions(
 }
 
 export function extractValue(text: string, format: ValueFormat): string | null {
+  // Check for selection colors format with :: delimiter: "source :: target"
+  // This must be preserved as-is for the swapSelectionColors command
+  if (text.includes('::')) {
+    // Extract everything after the command part
+    const parts = text.split(' ');
+    // Find the first part that contains ::, join from there
+    for (let i = 0; i < parts.length; i++) {
+      if (parts[i].includes('::') || (i > 0 && parts.slice(i).join(' ').includes('::'))) {
+        const result = parts.slice(i).join(' ');
+        return result;
+      }
+    }
+    // If no space found, check if the whole text contains ::
+    const delimiterIndex = text.indexOf('::');
+    if (delimiterIndex > 0) {
+      return text;
+    }
+  }
+
   // Check for instance property format: "PropertyName:Value"
   // This is used for instance property binding mode
   const instancePropertyMatch = text.match(/^([a-z]+)\s+([^:]+):(.+)$/i);
@@ -542,6 +562,21 @@ export async function searchStylesAndVariables(
     getActiveLibraries: () => Promise<string[]>;
   }
 ): Promise<Array<string | { name: string; data: unknown }>> {
+  // Handle selection colors with two-stage search
+  if (bindingSupport.selectionColors) {
+    const delimiterIndex = searchTerm.indexOf('::');
+
+    if (delimiterIndex === -1) {
+      // Stage 1: Show colors from selection
+      return await searchSelectionColors(searchTerm);
+    } else {
+      // Stage 2: Show replacement options (styles/variables)
+      const targetSearch = searchTerm.slice(delimiterIndex + 2).trim();
+      // Continue with normal search using targetSearch
+      searchTerm = targetSearch;
+    }
+  }
+
   // Handle instance properties separately
   if (bindingSupport.instanceProperties) {
     return await searchInstanceProperties(searchTerm);
@@ -1046,4 +1081,3 @@ export async function resolveStyleValue(rawValue: string): Promise<StyleResoluti
 
   throw new Error(`Invalid style or color format: ${cleanValue}`);
 }
-

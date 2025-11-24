@@ -192,23 +192,88 @@ async function executeBindingCommand(
   let valueToUse = rawValue.trim();
   let isDropdownSelection = false;
 
+  // Check for :: delimiter in the RAW value before dropdown override
+  const hasDelimiter = rawValue.trim().includes('::');
+
   // Check if we should use the dropdown value
   const dropdownValue = getDropdownValue(parameters, isOnlySegment, isLastSegment);
+
   if (dropdownValue) {
-    valueToUse = dropdownValue;
-    isDropdownSelection = true;
+    if (!hasDelimiter || dropdownValue.includes('::')) {
+      // Standard case or full replacement
+      valueToUse = dropdownValue;
+      isDropdownSelection = true;
+    } else if (hasDelimiter) {
+      // Two-stage case: User selected a target color, but we need to preserve the source
+      const parts = rawValue.split('::');
+      if (parts.length >= 1) {
+        const source = parts[0].trim();
+        valueToUse = `${source} :: ${dropdownValue}`;
+        isDropdownSelection = true;
+      }
+    }
   }
 
-  // Auto-select first search result when user types a value without selecting from dropdown
-  if (!isDropdownSelection && matchedCommand?.bindingSupport) {
-    const suggestions = await generateBindingSuggestions(matchedCommand, valueToUse);
+  // Helper to extract color identifier from suggestion text
+  // "ColorName (Type) - X uses in locations" -> "ColorName (Type)"
+  // "Colors/Green/9 (Twenty - Library)" -> Should remain as is
+  const extractColorIdentifier = (text: string): string => {
+    // Only strip if it matches the usage pattern " - N use(s)"
+    // This prevents stripping " - " inside variable names/metadata
+    const usageRegex = /\s-\s\d+\suses?.*$/;
 
-    if (suggestions.length > 0) {
-      const firstResult = suggestions[0];
-      if (typeof firstResult === 'object' && 'name' in firstResult) {
-        valueToUse = firstResult.name;
-      } else if (typeof firstResult === 'string') {
-        valueToUse = firstResult;
+    if (usageRegex.test(text)) {
+      const result = text.replace(usageRegex, '').trim();
+      return result;
+    }
+
+    return text;
+  };
+
+  // Auto-select logic - handle two-stage color selection differently
+  if (!isDropdownSelection && matchedCommand?.bindingSupport) {
+    if (hasDelimiter) {
+      // Two-stage selection: "source :: target"
+      const parts = valueToUse.split('::');
+      const sourceSearch = parts[0].trim();
+      const targetSearch = parts[1].trim();
+
+      // Auto-select source from selection colors
+      const sourceSuggestions = await generateBindingSuggestions(matchedCommand, sourceSearch);
+      let resolvedSource = sourceSearch;
+      if (sourceSuggestions.length > 0) {
+        const firstSource = sourceSuggestions[0];
+        if (typeof firstSource === 'object' && 'name' in firstSource) {
+          resolvedSource = extractColorIdentifier(firstSource.name);
+        } else if (typeof firstSource === 'string') {
+          resolvedSource = extractColorIdentifier(firstSource);
+        }
+      }
+
+      // Auto-select target from all available colors (stage 2 search)
+      const targetSuggestions = await generateBindingSuggestions(matchedCommand, sourceSearch + ' :: ' + targetSearch);
+      let resolvedTarget = targetSearch;
+      if (targetSuggestions.length > 0) {
+        const firstTarget = targetSuggestions[0];
+        if (typeof firstTarget === 'object' && 'name' in firstTarget) {
+          resolvedTarget = extractColorIdentifier(firstTarget.name);
+        } else if (typeof firstTarget === 'string') {
+          resolvedTarget = extractColorIdentifier(firstTarget);
+        }
+      }
+
+      valueToUse = `${resolvedSource} :: ${resolvedTarget}`;
+    } else {
+      // Single-stage selection: auto-select first result
+      const suggestions = await generateBindingSuggestions(matchedCommand, valueToUse);
+
+      if (suggestions.length > 0) {
+        const firstResult = suggestions[0];
+        if (typeof firstResult === 'object' && 'name' in firstResult) {
+          valueToUse = firstResult.name;
+        } else if (typeof firstResult === 'string') {
+          valueToUse = firstResult;
+        }
       }
     }
   }

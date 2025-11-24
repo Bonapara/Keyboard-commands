@@ -726,6 +726,20 @@ export const COMMAND_DEFINITIONS = {
     suggestion: '◯',
     functionWithoutParam: () => impl.setBorderAlign('OUTSIDE')
   },
+  SelectionColorsSwapping: {
+    type: 'commandWithValue',
+    alias: ['scs', 'cs'],
+    valueFormat: 'string' as const,
+    suggestion: '?search colors in selection',
+    functionWithParam: (value: string) => impl.swapSelectionColors(value),
+    supportedNodes: [...NODE_GROUPS.FILLS_AND_STROKES],
+    bindingSupport: {
+      styles: ['PAINT'],
+      variables: ['COLOR'],
+      libraryStyles: true,
+      selectionColors: true
+    }
+  },
   ToggleTheme: {
     type: "commandWithoutValue",
     alias: ['t'],

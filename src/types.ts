@@ -14,6 +14,7 @@ export interface BindingSupport {
   libraries?: boolean;
   libraryStyles?: boolean;
   libraryComponents?: boolean;
+  selectionColors?: boolean;
 }
 
 export type CommandWithValue = {
@@ -57,6 +58,8 @@ export type Command = {
 export interface PaintResolution {
   type: 'style' | 'variable' | 'literal';
   styleKey?: string;
+  styleName?: string;
+  styleType?: StyleBindingType;
   variableId?: string;
   variableName?: string;
   isLibraryVariable?: boolean;
