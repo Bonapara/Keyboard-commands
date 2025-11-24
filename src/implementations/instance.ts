@@ -153,6 +153,68 @@ async function searchVariantOptions(instances: InstanceNode[], propertyName: str
   return [`No variant options found for "${propertyName}"`];
 }
 
+async function applyToExposedInstances(
+  instance: InstanceNode,
+  propertyName: string,
+  expectedType: string,
+  applyFn: (exposedInstance: InstanceNode, propertyKey: string) => Promise<void> | void
+): Promise<number> {
+  let count = 0;
+
+  if (!instance.exposedInstances || instance.exposedInstances.length === 0) {
+    return count;
+  }
+
+  for (const exposedInstance of instance.exposedInstances) {
+    const exposedMainComponent = await exposedInstance.getMainComponentAsync();
+    if (!exposedMainComponent) continue;
+
+    const exposedProperties = getComponentPropertyDefinitions(exposedMainComponent);
+    const { key: exposedRealKey, definition: exposedPropDef } = findPropertyKey(propertyName, exposedProperties);
+
+    if (exposedRealKey && exposedPropDef && exposedPropDef.type === expectedType) {
+      try {
+        await applyFn(exposedInstance, exposedRealKey);
+        count++;
+      } catch (error) {
+        console.error(`Error applying to exposed instance:`, error);
+      }
+    }
+  }
+
+  return count;
+}
+
+async function findPropertyInInstanceOrExposed(
+  instance: InstanceNode,
+  propertyName: string
+): Promise<{ definition: PropertyDefinition | null; keyInMain: string | null }> {
+  const mainComponent = await instance.getMainComponentAsync();
+  if (mainComponent) {
+    const allProperties = getComponentPropertyDefinitions(mainComponent);
+    const result = findPropertyKey(propertyName, allProperties);
+    if (result.definition) {
+      return { definition: result.definition, keyInMain: result.key };
+    }
+  }
+
+  if (instance.exposedInstances) {
+    for (const exposedInstance of instance.exposedInstances) {
+      const exposedMainComponent = await exposedInstance.getMainComponentAsync();
+      if (!exposedMainComponent) continue;
+
+      const exposedProperties = getComponentPropertyDefinitions(exposedMainComponent);
+      const result = findPropertyKey(propertyName, exposedProperties);
+      if (result.definition) {
+        return { definition: result.definition, keyInMain: null };
+      }
+    }
+  }
+
+  return { definition: null, keyInMain: null };
+}
+
+
 async function setVariantProperty(instances: InstanceNode[], propertyName: string, optionValue: string): Promise<void> {
   let successCount = 0;
   let errorCount = 0;
@@ -160,45 +222,65 @@ async function setVariantProperty(instances: InstanceNode[], propertyName: strin
 
   for (const instance of instances) {
     const mainComponent = await instance.getMainComponentAsync();
-    if (!mainComponent) {
-      errorCount++;
-      continue;
+    if (mainComponent) {
+      const allVariantProperties = getComponentPropertyDefinitions(mainComponent);
+      const { key: realPropertyKey, definition: propertyDef } = findPropertyKey(propertyName, allVariantProperties);
+
+      if (realPropertyKey && propertyDef && propertyDef.type === 'VARIANT') {
+        try {
+
+          const propertiesToSet: { [key: string]: string | boolean } = {};
+
+          const propKeys = Object.keys(allVariantProperties);
+          for (const propName of propKeys) {
+            const propDef = allVariantProperties[propName];
+            if (propDef && propDef.type === 'VARIANT') {
+              const currentValue = extractPropertyValue(instance.componentProperties[propName]);
+              propertiesToSet[propName] = String(currentValue);
+            }
+          }
+
+          propertiesToSet[realPropertyKey] = optionValue;
+
+          instance.setProperties(propertiesToSet);
+
+          if (successCount === 0) {
+            matchedPropertyName = cleanPropertyName(realPropertyKey);
+          }
+
+          successCount++;
+        } catch (error) {
+          console.error(`Error setting variant property ${propertyName}:`, error);
+          errorCount++;
+        }
+      }
     }
 
-    const allVariantProperties = getComponentPropertyDefinitions(mainComponent);
-    const { key: realPropertyKey, definition: propertyDef } = findPropertyKey(propertyName, allVariantProperties);
+    const exposedCount = await applyToExposedInstances(instance, propertyName, 'VARIANT', async (exposedInstance, key) => {
+      const exposedMainComponent = await exposedInstance.getMainComponentAsync();
+      if (!exposedMainComponent) return;
 
-    if (!realPropertyKey || !propertyDef || propertyDef.type !== 'VARIANT') {
-      errorCount++;
-      continue;
-    }
+      const exposedProperties = getComponentPropertyDefinitions(exposedMainComponent);
+      const exposedPropertiesToSet: { [key: string]: string | boolean } = {};
 
-    try {
-
-      const propertiesToSet: { [key: string]: string | boolean } = {};
-
-      const propKeys = Object.keys(allVariantProperties);
-      for (const propName of propKeys) {
-        const propDef = allVariantProperties[propName];
+      const exposedPropKeys = Object.keys(exposedProperties);
+      for (const propName of exposedPropKeys) {
+        const propDef = exposedProperties[propName];
         if (propDef && propDef.type === 'VARIANT') {
-          const currentValue = extractPropertyValue(instance.componentProperties[propName]);
-          propertiesToSet[propName] = String(currentValue);
+          const currentValue = extractPropertyValue(exposedInstance.componentProperties[propName]);
+          exposedPropertiesToSet[propName] = String(currentValue);
         }
       }
 
-      propertiesToSet[realPropertyKey] = optionValue;
+      exposedPropertiesToSet[key] = optionValue;
+      exposedInstance.setProperties(exposedPropertiesToSet);
 
-      instance.setProperties(propertiesToSet);
-
-      if (successCount === 0) {
-        matchedPropertyName = cleanPropertyName(realPropertyKey);
+      if (successCount === 0 && !matchedPropertyName) {
+        matchedPropertyName = cleanPropertyName(key);
       }
+    });
 
-      successCount++;
-    } catch (error) {
-      console.error(`Error setting variant property ${propertyName}:`, error);
-      errorCount++;
-    }
+    successCount += exposedCount;
   }
 
   if (successCount > 0) {
@@ -223,33 +305,37 @@ async function setTextProperty(instances: InstanceNode[], propertyName: string, 
 
   for (const instance of instances) {
     const mainComponent = await instance.getMainComponentAsync();
-    if (!mainComponent) {
-      errorCount++;
-      continue;
-    }
+    if (mainComponent) {
+      const allProperties = getComponentPropertyDefinitions(mainComponent);
+      const { key: realPropertyKey, definition: propertyDef } = findPropertyKey(propertyName, allProperties);
 
-    const allProperties = getComponentPropertyDefinitions(mainComponent);
-    const { key: realPropertyKey, definition: propertyDef } = findPropertyKey(propertyName, allProperties);
+      if (realPropertyKey && propertyDef && propertyDef.type === 'TEXT') {
+        try {
+          instance.setProperties({
+            [realPropertyKey]: textValue
+          });
 
-    if (!realPropertyKey || !propertyDef || propertyDef.type !== 'TEXT') {
-      errorCount++;
-      continue;
-    }
+          if (successCount === 0) {
+            matchedPropertyName = cleanPropertyName(realPropertyKey);
+          }
 
-    try {
-      instance.setProperties({
-        [realPropertyKey]: textValue
-      });
-
-      if (successCount === 0) {
-        matchedPropertyName = cleanPropertyName(realPropertyKey);
+          successCount++;
+        } catch (error) {
+          console.error(`Error setting text property ${propertyName}:`, error);
+          errorCount++;
+        }
       }
-
-      successCount++;
-    } catch (error) {
-      console.error(`Error setting text property ${propertyName}:`, error);
-      errorCount++;
     }
+
+    const exposedCount = await applyToExposedInstances(instance, propertyName, 'TEXT', (exposedInstance, key) => {
+      exposedInstance.setProperties({ [key]: textValue });
+
+      if (successCount === 0 && !matchedPropertyName) {
+        matchedPropertyName = cleanPropertyName(key);
+      }
+    });
+
+    successCount += exposedCount;
   }
 
   if (successCount > 0) {
@@ -405,12 +491,58 @@ export async function searchInstanceProperties(searchTerm: string): Promise<Arra
       }
 
       if (propertyDef) break;
+
+      // If not found in main component, check exposed instances
+      if (instance.exposedInstances && instance.exposedInstances.length > 0) {
+        for (const exposedInstance of instance.exposedInstances) {
+          const exposedMainComponent = await exposedInstance.getMainComponentAsync();
+          if (!exposedMainComponent) continue;
+
+          const exposedProperties = getComponentPropertyDefinitions(exposedMainComponent);
+          const { key: exposedRealKey, definition: exposedPropDef } = findPropertyKey(propertyName, exposedProperties);
+
+          if (exposedPropDef) {
+            if (exposedPropDef.type === 'VARIANT') {
+              return await searchVariantOptions(instances, propertyName, value);
+            } else if (exposedPropDef.type === 'TEXT') {
+              const cleanName = exposedRealKey ? cleanPropertyName(exposedRealKey) : propertyName;
+              if (value) {
+                return [`${cleanName}: ${value}`];
+              } else {
+                // Get current value to show in suggestion
+                let currentValue = 'current value';
+                if (exposedRealKey && exposedInstance.componentProperties[exposedRealKey]) {
+                  const currentProp = extractPropertyValue(exposedInstance.componentProperties[exposedRealKey]);
+                  if (currentProp && typeof currentProp === 'string') {
+                    currentValue = currentProp;
+                  }
+                }
+                return [`${cleanName}: Type what you want to replace '${currentValue}' with`];
+              }
+            } else if (exposedPropDef.type === 'INSTANCE_SWAP') {
+              // Similar logic as above for instance swap
+              const components = await searchLibraryComponents(value, 100);
+              if (components.length === 0) {
+                return [`No components found matching "${value}"`];
+              }
+              return components.map(c => ({
+                name: `${c.name} (${c.library})`,
+                data: `${propertyName}:${c.name} (${c.library})`
+              }));
+            }
+
+            // Found the property in exposed instance, stop searching
+            break;
+          }
+        }
+      }
     }
 
     return await searchVariantOptions(instances, propertyName, value);
   }
 
   const propertiesMap = new Map<string, PropertyData>();
+  const seenCleanedNames = new Set<string>();
 
   for (const instance of instances) {
     const mainComponent = await instance.getMainComponentAsync();
@@ -423,20 +555,62 @@ export async function searchInstanceProperties(searchTerm: string): Promise<Arra
       const propDef = allProperties[propName];
       if (!propDef) continue;
 
-      // Removed INSTANCE_SWAP skip
+      const cleanedName = cleanPropertyName(propName);
 
-      if (!propertiesMap.has(propName)) {
-        propertiesMap.set(propName, {
-          type: propDef.type,
-          values: new Set(),
-          propertyDef: propDef
-        });
+      if (!seenCleanedNames.has(cleanedName)) {
+        seenCleanedNames.add(cleanedName);
+
+        if (!propertiesMap.has(propName)) {
+          propertiesMap.set(propName, {
+            type: propDef.type,
+            values: new Set(),
+            propertyDef: propDef
+          });
+        }
+
+        const currentProp = instance.componentProperties[propName];
+        if (currentProp !== undefined) {
+          const actualValue = extractPropertyValue(currentProp);
+          propertiesMap.get(propName)!.values.add(String(actualValue));
+        }
       }
+    }
 
-      const currentProp = instance.componentProperties[propName];
-      if (currentProp !== undefined) {
-        const actualValue = extractPropertyValue(currentProp);
-        propertiesMap.get(propName)!.values.add(String(actualValue));
+    // Add exposed properties from nested instances
+    if (instance.exposedInstances && instance.exposedInstances.length > 0) {
+      for (const exposedInstance of instance.exposedInstances) {
+        const exposedMainComponent = await exposedInstance.getMainComponentAsync();
+        if (!exposedMainComponent) continue;
+
+        const exposedProperties = getComponentPropertyDefinitions(exposedMainComponent);
+        const exposedPropKeys = Object.keys(exposedProperties);
+
+        for (const exposedPropName of exposedPropKeys) {
+          const exposedPropDef = exposedProperties[exposedPropName];
+          if (!exposedPropDef) continue;
+
+          const cleanedExposedName = cleanPropertyName(exposedPropName);
+
+          // Only add if we haven't seen this property name yet (deduplication)
+          if (!seenCleanedNames.has(cleanedExposedName)) {
+            seenCleanedNames.add(cleanedExposedName);
+
+            if (!propertiesMap.has(exposedPropName)) {
+              propertiesMap.set(exposedPropName, {
+                type: exposedPropDef.type,
+                values: new Set(),
+                propertyDef: exposedPropDef
+              });
+            }
+
+            // Get current value from the exposed instance's component properties
+            const exposedCurrentProp = exposedInstance.componentProperties[exposedPropName];
+            if (exposedCurrentProp !== undefined) {
+              const actualValue = extractPropertyValue(exposedCurrentProp);
+              propertiesMap.get(exposedPropName)!.values.add(String(actualValue));
+            }
+          }
+        }
       }
     }
   }
@@ -631,44 +805,43 @@ export async function setInstanceProperty(propertyReference: string) {
     const value = propertyWithValueMatch[2].trim();
 
     const firstInstance = instances[0];
-    const mainComponent = await firstInstance.getMainComponentAsync();
-    if (mainComponent) {
-      const allProperties = getComponentPropertyDefinitions(mainComponent);
-      const { definition: propertyDef } = findPropertyKey(propertyName, allProperties);
+    const { definition: propertyDef } = await findPropertyInInstanceOrExposed(firstInstance, propertyName);
 
-      if (propertyDef) {
-        if (propertyDef.type === 'VARIANT') {
-          return await setVariantProperty(instances, propertyName, value);
-        } else if (propertyDef.type === 'TEXT') {
-          return await setTextProperty(instances, propertyName, value);
-        } else if (propertyDef.type === 'INSTANCE_SWAP') {
-          // Handle Instance Swap
-          const { component, name: _name } = await findAndImportComponent(value);
+    if (propertyDef) {
+      if (propertyDef.type === 'VARIANT') {
+        return await setVariantProperty(instances, propertyName, value);
+      } else if (propertyDef.type === 'TEXT') {
+        return await setTextProperty(instances, propertyName, value);
+      } else if (propertyDef.type === 'INSTANCE_SWAP') {
+        const { component, name: _name } = await findAndImportComponent(value);
 
-          if (component) {
-            // Apply to all instances
-            let successCount = 0;
-            for (const inst of instances) {
-              const main = await inst.getMainComponentAsync();
-              if (!main) continue;
+        if (component) {
+          let successCount = 0;
+          for (const inst of instances) {
+            const main = await inst.getMainComponentAsync();
+            if (main) {
               const props = getComponentPropertyDefinitions(main);
               const { key: realKey } = findPropertyKey(propertyName, props);
 
               if (realKey) {
                 inst.setProperties({ [realKey]: component.id });
                 successCount++;
-              } else {
-                console.warn(`[InstanceSwap] Property "${propertyName}" not found on instance "${inst.name}"`);
               }
             }
-            if (successCount > 0) {
-              figma.notify(`Swapped "${propertyName}" to "${component.name}" on ${successCount} instance${successCount > 1 ? 's' : ''}`);
-            } else {
-              figma.notify(`Failed to set property on selected instances`, { error: true });
-            }
+
+            const exposedCount = await applyToExposedInstances(inst, propertyName, 'INSTANCE_SWAP', (exposedInstance, key) => {
+              exposedInstance.setProperties({ [key]: component.id });
+            });
+
+            successCount += exposedCount;
           }
-          return;
+          if (successCount > 0) {
+            figma.notify(`Swapped "${propertyName}" to "${component.name}" on ${successCount} instance${successCount > 1 ? 's' : ''}`);
+          } else {
+            figma.notify(`Failed to set property on selected instances`, { error: true });
+          }
         }
+        return;
       }
     }
 
@@ -686,16 +859,9 @@ export async function setInstanceProperty(propertyReference: string) {
   let errorCount = 0;
 
   for (const instance of instances) {
-    const mainComponent = await instance.getMainComponentAsync();
-    if (!mainComponent) {
-      errorCount++;
-      continue;
-    }
+    const { definition: propertyDef, keyInMain: realPropertyKey } = await findPropertyInInstanceOrExposed(instance, propertyName);
 
-    const allProperties = getComponentPropertyDefinitions(mainComponent);
-    const { key: realPropertyKey, definition: propertyDef } = findPropertyKey(propertyName, allProperties);
-
-    if (!realPropertyKey || !propertyDef) {
+    if (!propertyDef) {
       errorCount++;
       continue;
     }
@@ -704,11 +870,13 @@ export async function setInstanceProperty(propertyReference: string) {
 
       switch (propertyDef.type) {
         case 'BOOLEAN': {
-
-          const currentValue = extractPropertyValue(instance.componentProperties[realPropertyKey]) as boolean;
-          instance.setProperties({
-            [realPropertyKey]: !currentValue
-          });
+          if (realPropertyKey) {
+            const currentValue = extractPropertyValue(instance.componentProperties[realPropertyKey]) as boolean;
+            instance.setProperties({
+              [realPropertyKey]: !currentValue
+            });
+            successCount++;
+          }
           break;
         }
         case 'TEXT': {
@@ -727,11 +895,20 @@ export async function setInstanceProperty(propertyReference: string) {
           errorCount++;
           continue;
       }
-
-      successCount++;
     } catch (error) {
       console.error(`Error setting property ${propertyName}:`, error);
       errorCount++;
+    }
+
+    if (propertyDef.type === 'BOOLEAN') {
+      const exposedCount = await applyToExposedInstances(instance, propertyName, 'BOOLEAN', (exposedInstance, key) => {
+        const currentValue = extractPropertyValue(exposedInstance.componentProperties[key]) as boolean;
+        exposedInstance.setProperties({
+          [key]: !currentValue
+        });
+      });
+
+      successCount += exposedCount;
     }
   }
 
