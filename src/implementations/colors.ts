@@ -268,7 +268,7 @@ export async function searchSelectionColors(searchTerm: string): Promise<Array<s
         })
         .map((color, index) => {
             const hex = rgbToHex(color.rgb);
-            const locations = color.locations.join(', ');
+            const _locations = color.locations.join(', ');
             const usageText = `${color.usageCount}`;
             const hint = index === 0 ? ' → Type :: to swap' : '';
 

@@ -1235,6 +1235,7 @@ async function findAndImportComponent(value: string): Promise<{ component: Compo
       if (isLocal) {
         // Search locally by key
         await figma.loadAllPagesAsync();
+        // eslint-disable-next-line @figma/figma-plugins/dynamic-page-find-method-advice
         const found = figma.root.findOne(n => (n.type === 'COMPONENT' || n.type === 'COMPONENT_SET') && n.key === componentKey);
         if (found && (found.type === 'COMPONENT' || found.type === 'COMPONENT_SET')) {
           node = found;
@@ -1389,29 +1390,39 @@ async function findSourceNode(instance: InstanceNode, targetNode: SceneNode): Pr
 /**
  * Helper to reset a single property value
  */
-async function resetProperty(node: SceneNode, field: string, value: any) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function resetProperty(node: SceneNode, field: string, value: unknown) {
+  // Dynamic property access on Figma nodes requires casting
+  const nodeRecord = node as unknown as Record<string, unknown>;
+  const nodeWithStyles = node as unknown as {
+    setStrokeStyleIdAsync?: (id: string) => Promise<void>;
+    setFillStyleIdAsync?: (id: string) => Promise<void>;
+    setEffectStyleIdAsync?: (id: string) => Promise<void>;
+    setTextStyleIdAsync?: (id: string) => Promise<void>;
+  };
+
   // Handle async style setters
-  if (field === 'strokeStyleId') {
-    await (node as any).setStrokeStyleIdAsync(value);
-  } else if (field === 'fillStyleId') {
-    await (node as any).setFillStyleIdAsync(value);
-  } else if (field === 'effectStyleId') {
-    await (node as any).setEffectStyleIdAsync(value);
-  } else if (field === 'textStyleId') {
-    await (node as any).setTextStyleIdAsync(value);
+  if (field === 'strokeStyleId' && nodeWithStyles.setStrokeStyleIdAsync) {
+    await nodeWithStyles.setStrokeStyleIdAsync(value as string);
+  } else if (field === 'fillStyleId' && nodeWithStyles.setFillStyleIdAsync) {
+    await nodeWithStyles.setFillStyleIdAsync(value as string);
+  } else if (field === 'effectStyleId' && nodeWithStyles.setEffectStyleIdAsync) {
+    await nodeWithStyles.setEffectStyleIdAsync(value as string);
+  } else if (field === 'textStyleId' && nodeWithStyles.setTextStyleIdAsync) {
+    await nodeWithStyles.setTextStyleIdAsync(value as string);
   }
   // For array properties, clone to prevent reference issues
   else if (Array.isArray(value)) {
-    (node as any)[field] = JSON.parse(JSON.stringify(value));
+    nodeRecord[field] = JSON.parse(JSON.stringify(value));
   } else {
-    (node as any)[field] = value;
+    nodeRecord[field] = value;
   }
 }
 
 /**
  * Helper for deep equality check
  */
-function isEqual(a: any, b: any): boolean {
+function isEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   if (typeof a !== typeof b) return false;
   if (typeof a !== 'object' || a === null || b === null) return false;
@@ -1421,11 +1432,13 @@ function isEqual(a: any, b: any): boolean {
     return a.every((val, i) => isEqual(val, b[i]));
   }
 
-  const keysA = Object.keys(a);
-  const keysB = Object.keys(b);
+  const objA = a as Record<string, unknown>;
+  const objB = b as Record<string, unknown>;
+  const keysA = Object.keys(objA);
+  const keysB = Object.keys(objB);
   if (keysA.length !== keysB.length) return false;
 
-  return keysA.every(key => keysB.includes(key) && isEqual(a[key], b[key]));
+  return keysA.every(key => keysB.includes(key) && isEqual(objA[key], objB[key]));
 }
 
 /**
@@ -1436,12 +1449,14 @@ async function isOverrideReal(instance: InstanceNode, node: SceneNode, field: st
   if (!sourceNode) return true; // Can't verify, assume real
 
   const fieldsToCheck = getFieldsToReset(field);
+  const sourceRecord = sourceNode as unknown as Record<string, unknown>;
+  const nodeRecord = node as unknown as Record<string, unknown>;
 
   for (const f of fieldsToCheck) {
     if (!(f in sourceNode)) continue;
 
-    const sourceValue = (sourceNode as any)[f];
-    const currentValue = (node as any)[f];
+    const sourceValue = sourceRecord[f];
+    const currentValue = nodeRecord[f];
 
     if (!isEqual(sourceValue, currentValue)) {
       return true; // Found a difference
@@ -1495,10 +1510,11 @@ async function restoreOverride(nodeToReset: SceneNode, sourceNode: BaseNode, fie
     }
   } else {
     const fieldsToReset = getFieldsToReset(field);
+    const sourceRecord = sourceNode as unknown as Record<string, unknown>;
     for (const f of fieldsToReset) {
       if (f in sourceNode) {
         try {
-          await resetProperty(nodeToReset, f, (sourceNode as any)[f]);
+          await resetProperty(nodeToReset, f, sourceRecord[f]);
           didReset = true;
         } catch (err) { /* ignore */ }
       }
