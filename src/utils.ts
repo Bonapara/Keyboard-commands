@@ -13,6 +13,41 @@ import { searchSelectionColors } from './implementations/colors';
 
 export { COMMAND_SPLITTER_REGEX, COMMAND_BREAK_PATTERN, COMMAND_PART_REGEX, VALUE_FORMAT_REGEX };
 
+// ================================
+// Command Index for O(1) Lookups
+// ================================
+
+type CommandWithName = Command & { name: CommandName };
+
+// Pre-built indexes for fast command lookups (built lazily on first use)
+let aliasToCommand: Map<string, CommandWithName> | null = null;
+let nameToCommand: Map<string, CommandWithName> | null = null;
+let allAliasesByCommand: Map<string, string[]> | null = null;
+let indexBuilt = false;
+
+// Build the index lazily on first use to avoid circular dependency issues
+function ensureCommandIndex() {
+  if (indexBuilt) return;
+  
+  aliasToCommand = new Map<string, CommandWithName>();
+  nameToCommand = new Map<string, CommandWithName>();
+  allAliasesByCommand = new Map<string, string[]>();
+  
+  for (const cmd of COMMANDS) {
+    // Index by name (lowercase)
+    nameToCommand.set(cmd.name.toLowerCase(), cmd);
+    
+    // Index by each alias (lowercase)
+    const aliases = Array.isArray(cmd.alias) ? cmd.alias : [cmd.alias];
+    allAliasesByCommand.set(cmd.name, aliases);
+    for (const alias of aliases) {
+      aliasToCommand.set(alias.toLowerCase(), cmd);
+    }
+  }
+  
+  indexBuilt = true;
+}
+
 export function notify(message: string, options?: NotificationOptions) {
   figma.notify(message, options);
 }
@@ -51,7 +86,27 @@ export function checkSpecialConditions(node: SceneNode, conditions: SpecialCondi
   });
 }
 
+// Helper function to check if command supports current selection
+function supportsCurrentSelection(cmd: Command, selection: readonly SceneNode[]): boolean {
+  if (!cmd.supportedNodes && !cmd.specialConditions) return true;
+  if (selection.length === 0) return true;
+
+  // Check both supportedNodes and specialConditions
+  const supportsNodeTypes = !cmd.supportedNodes || selection.every(node =>
+    cmd.supportedNodes!.indexOf(node.type) !== -1
+  );
+
+  const meetsSpecialConditions = !cmd.specialConditions || selection.every(node =>
+    checkSpecialConditions(node, cmd.specialConditions!)
+  );
+
+  return supportsNodeTypes && meetsSpecialConditions;
+}
+
 export function findCommand(part: string): Array<Command & { name: CommandName }> {
+  // Ensure command index is built (lazy initialization)
+  ensureCommandIndex();
+  
   const commandPart = part.match(COMMAND_PART_REGEX)?.[0];
 
   if (!commandPart) {
@@ -61,43 +116,28 @@ export function findCommand(part: string): Array<Command & { name: CommandName }
   const cmdLower = commandPart.toLowerCase();
   const selection = figma.currentPage.selection;
 
-  // Helper function to check if command supports current selection
-  const supportsCurrentSelection = (cmd: Command) => {
-    if (!cmd.supportedNodes && !cmd.specialConditions) return true;
-    if (selection.length === 0) return true;
-
-    // Check both supportedNodes and specialConditions
-    const supportsNodeTypes = !cmd.supportedNodes || selection.every(node =>
-      cmd.supportedNodes!.indexOf(node.type) !== -1
-    );
-
-    const meetsSpecialConditions = !cmd.specialConditions || selection.every(node =>
-      checkSpecialConditions(node, cmd.specialConditions!)
-    );
-
-    return supportsNodeTypes && meetsSpecialConditions;
-  };
-
-  // First, check for exact alias matches
-  const exactAliasMatches = COMMANDS.filter(cmd => {
-    const aliases = Array.isArray(cmd.alias) ? cmd.alias : [cmd.alias];
-    return aliases.some(alias => alias.toLowerCase() === cmdLower) && supportsCurrentSelection(cmd);
-  });
-
-  if (exactAliasMatches.length > 0) {
-    return exactAliasMatches;
+  // O(1) lookup: Check for exact alias match first
+  const exactMatch = aliasToCommand!.get(cmdLower);
+  if (exactMatch && supportsCurrentSelection(exactMatch, selection)) {
+    return [exactMatch];
   }
 
-  // Then, split results into "starts with" and "contains"
-  const startsWithMatches: Array<Command & { name: CommandName }> = [];
-  const containsMatches: Array<Command & { name: CommandName }> = [];
+  // O(1) lookup: Check for exact name match
+  const nameMatch = nameToCommand!.get(cmdLower);
+  if (nameMatch && supportsCurrentSelection(nameMatch, selection)) {
+    return [nameMatch];
+  }
 
-  COMMANDS.forEach(cmd => {
-    // First check if command supports current selection
-    if (!supportsCurrentSelection(cmd)) return;
+  // Fallback to prefix/contains search only when no exact match
+  // This is still O(n) but only runs for partial matches during typing
+  const startsWithMatches: CommandWithName[] = [];
+  const containsMatches: CommandWithName[] = [];
+
+  for (const cmd of COMMANDS) {
+    if (!supportsCurrentSelection(cmd, selection)) continue;
 
     const nameLower = cmd.name.toLowerCase();
-    const aliases = Array.isArray(cmd.alias) ? cmd.alias : [cmd.alias];
+    const aliases = allAliasesByCommand!.get(cmd.name) || [];
 
     // Check if name or any alias starts with the search term
     if (nameLower.startsWith(cmdLower) ||
@@ -109,7 +149,7 @@ export function findCommand(part: string): Array<Command & { name: CommandName }
       aliases.some(alias => alias.toLowerCase().includes(cmdLower))) {
       containsMatches.push(cmd);
     }
-  });
+  }
 
   // Combine the results with "starts with" matches first
   return [...startsWithMatches, ...containsMatches];
@@ -309,16 +349,67 @@ export function extractValue(text: string, format: ValueFormat): string | null {
   return match[0];
 }
 
+interface VariableCacheEntry {
+  id: string;
+  name: string;
+  type: string;
+  collection: string;
+  isLibrary: boolean;
+  color?: RGB;
+  _rawColorValue?: unknown; // For lazy color resolution
+}
+
 interface StyleVariableCache {
   paintStyles: Array<{ name: string, key: string, isLocal: boolean, color?: RGB }>;
   textStyles: Array<{ name: string, key: string, isLocal: boolean }>;
   effectStyles: Array<{ name: string, key: string, isLocal: boolean }>;
   gridStyles: Array<{ name: string, key: string, isLocal: boolean }>;
-  variables: Array<{ id: string, name: string, type: string, collection: string, isLibrary: boolean, color?: RGB }>;
+  variables: Array<VariableCacheEntry>;
   timestamp: number;
 }
 
 let cache: StyleVariableCache | null = null;
+
+// Lazy color resolution for variables - only resolve when displaying suggestions
+async function resolveVariableColor(variable: VariableCacheEntry): Promise<RGB | undefined> {
+  // Already resolved
+  if (variable.color) return variable.color;
+  
+  // Not a color variable
+  if (variable.type !== 'COLOR' || !variable._rawColorValue) return undefined;
+  
+  let value = variable._rawColorValue;
+  
+  // Resolve VARIABLE_ALIAS by following the reference chain
+  let attempts = 0;
+  while (value && typeof value === 'object' && 'type' in value && (value as { type: string }).type === 'VARIABLE_ALIAS' && attempts < 10) {
+    attempts++;
+    const aliasId = (value as VariableAlias).id;
+    try {
+      const aliasedVar = await figma.variables.getVariableByIdAsync(aliasId);
+      if (aliasedVar && aliasedVar.resolvedType === 'COLOR' && aliasedVar.valuesByMode) {
+        const modeKeys = Object.keys(aliasedVar.valuesByMode);
+        if (modeKeys.length > 0) {
+          value = aliasedVar.valuesByMode[modeKeys[0]];
+        } else {
+          break;
+        }
+      } else {
+        break;
+      }
+    } catch {
+      break;
+    }
+  }
+  
+  // Extract RGB if we have a color value
+  if (value && typeof value === 'object' && 'r' in value && 'g' in value && 'b' in value) {
+    variable.color = value as RGB;
+    return variable.color;
+  }
+  
+  return undefined;
+}
 
 function createColorSwatchSVG(color: RGB | string): string {
   let hexColor: string;
@@ -346,14 +437,30 @@ export async function getCachedStylesAndVariables(): Promise<StyleVariableCache>
     return cache;
   }
 
-  // Fetch local paint styles (includes already imported library styles)
-  const localPaintStyles = await figma.getLocalPaintStylesAsync();
+  // Fetch all styles and variables in parallel for faster loading
+  const [
+    localPaintStyles,
+    localTextStyles,
+    localEffectStyles,
+    localGridStyles,
+    allVariables,
+    collections
+  ] = await Promise.all([
+    figma.getLocalPaintStylesAsync(),
+    figma.getLocalTextStylesAsync(),
+    figma.getLocalEffectStylesAsync(),
+    figma.getLocalGridStylesAsync(),
+    figma.variables.getLocalVariablesAsync(),
+    figma.variables.getLocalVariableCollectionsAsync()
+  ]);
 
-  const paintStylesData = localPaintStyles.map(s => {
+  // Process paint styles - extract colors synchronously (with defensive check)
+  const paintStylesData = (localPaintStyles || []).map(s => {
     let color: RGB | undefined;
 
     // Extract color from the first paint that has a color
-    for (const paint of s.paints) {
+    const paints = s.paints || [];
+    for (const paint of paints) {
       if (paint.type === 'SOLID' && paint.visible !== false) {
         color = paint.color;
         break;
@@ -364,7 +471,6 @@ export async function getCachedStylesAndVariables(): Promise<StyleVariableCache>
           break;
         }
       }
-      // Skip IMAGE, VIDEO and other non-color paint types
     }
 
     return {
@@ -375,81 +481,52 @@ export async function getCachedStylesAndVariables(): Promise<StyleVariableCache>
     };
   });
 
-  // Fetch local text styles (includes already imported library styles)
-  const localTextStyles = await figma.getLocalTextStylesAsync();
-  const textStylesData = localTextStyles.map(s => ({
+  // Process text styles (with defensive check)
+  const textStylesData = (localTextStyles || []).map(s => ({
     name: s.name,
     key: s.key,
     isLocal: !s.remote
   }));
 
-  // Fetch local effect styles
-  const localEffectStyles = await figma.getLocalEffectStylesAsync();
-  const effectStylesData = localEffectStyles.map(s => ({
+  // Process effect styles (with defensive check)
+  const effectStylesData = (localEffectStyles || []).map(s => ({
     name: s.name,
     key: s.key,
     isLocal: !s.remote
   }));
 
-  // Fetch local grid styles
-  const localGridStyles = await figma.getLocalGridStylesAsync();
-  const gridStylesData = localGridStyles.map(s => ({
+  // Process grid styles (with defensive check)
+  const gridStylesData = (localGridStyles || []).map(s => ({
     name: s.name,
     key: s.key,
     isLocal: !s.remote
   }));
 
-  // Fetch all local variables
-  const allVariables = await figma.variables.getLocalVariablesAsync();
-  const collections = await figma.variables.getLocalVariableCollectionsAsync();
-  const collectionMap = new Map(collections.map(c => [c.id, c.name]));
+  // Build collection map for variable lookups (with defensive check)
+  const collectionMap = new Map((collections || []).map(c => [c.id, c.name]));
 
-  const variablesData = await Promise.all(allVariables.map(async v => {
-    let color: RGB | undefined;
-
-    // Extract color for COLOR type variables
-    if (v.resolvedType === 'COLOR') {
-      // Get the first mode's value
-      const modeId = Object.keys(v.valuesByMode)[0];
-      if (modeId) {
-        let value = v.valuesByMode[modeId];
-
-        // Resolve VARIABLE_ALIAS by following the reference chain
-        let attempts = 0;
-        while (value && typeof value === 'object' && 'type' in value && value.type === 'VARIABLE_ALIAS' && attempts < 10) {
-          attempts++;
-          const aliasId = (value as VariableAlias).id;
-          try {
-            const aliasedVar = await figma.variables.getVariableByIdAsync(aliasId);
-            if (aliasedVar) {
-              if (aliasedVar.resolvedType === 'COLOR') {
-                const aliasedModeId = Object.keys(aliasedVar.valuesByMode)[0];
-                if (aliasedModeId) {
-                  value = aliasedVar.valuesByMode[aliasedModeId];
-                }
-              }
-            }
-          } catch (e) {
-            break;
-          }
-        }
-
-        // Extract RGB if we now have a color value
-        if (value && typeof value === 'object' && 'r' in value && 'g' in value && 'b' in value) {
-          color = value as RGB;
-        }
+  // Process variables - defer color resolution to display time (lazy)
+  // Only store basic metadata here, resolve colors when needed for suggestions
+  const variablesData = (allVariables || []).map(v => {
+    // Safely get raw color value
+    let rawColorValue: unknown = undefined;
+    if (v.resolvedType === 'COLOR' && v.valuesByMode) {
+      const modeKeys = Object.keys(v.valuesByMode);
+      if (modeKeys.length > 0) {
+        rawColorValue = v.valuesByMode[modeKeys[0]];
       }
     }
-
+    
     return {
       id: v.id,
       name: v.name,
       type: v.resolvedType,
       collection: collectionMap.get(v.variableCollectionId) || 'Unknown',
       isLibrary: false,
-      color
+      color: undefined as RGB | undefined,
+      _rawColorValue: rawColorValue
     };
-  }));
+  });
 
   cache = {
     paintStyles: paintStylesData,
@@ -591,6 +668,7 @@ export async function searchStylesAndVariables(
     name: string;
     color?: RGB;
     hexColor?: string;
+    variableEntry?: VariableCacheEntry; // Reference for lazy color resolution
   }
 
   // Use a Map to automatically handle deduplication by name
@@ -612,83 +690,38 @@ export async function searchStylesAndVariables(
         text: `${v.name} (${v.collection} - ${location})`,
         collection: v.collection,
         name: v.name,
-        color: v.color
+        color: v.color,
+        variableEntry: v // Store reference for lazy color resolution
       });
     });
   }
 
-  // Search paint styles
-  if (bindingSupport.styles && bindingSupport.styles.indexOf('PAINT') !== -1) {
-    const matchingStyles = data.paintStyles.filter(s =>
-      flexibleMatch(searchTerm, s.name)
-    );
+  // Search styles using data-driven approach
+  const styleConfigs: Array<{
+    key: 'paintStyles' | 'textStyles' | 'effectStyles' | 'gridStyles';
+    bindingKey: StyleBindingType;
+  }> = [
+    { key: 'paintStyles', bindingKey: 'PAINT' },
+    { key: 'textStyles', bindingKey: 'TEXT' },
+    { key: 'effectStyles', bindingKey: 'EFFECT' },
+    { key: 'gridStyles', bindingKey: 'GRID' },
+  ];
 
-    matchingStyles.forEach(s => {
-      const score = calculateSearchScore(searchTerm, s.name);
-      const location = s.isLocal ? 'Local' : 'Library';
+  for (const { key, bindingKey } of styleConfigs) {
+    if (!bindingSupport.styles?.includes(bindingKey)) continue;
 
-      resultsMap.set(s.name, {
-        score,
-        text: `${s.name} (${location})`,
-        collection: location, // Use location as collection for styles
-        name: s.name,
-        color: s.color
+    data[key]
+      .filter(s => flexibleMatch(searchTerm, s.name))
+      .forEach(s => {
+        const location = s.isLocal ? 'Local' : 'Library';
+        resultsMap.set(s.name, {
+          score: calculateSearchScore(searchTerm, s.name),
+          text: `${s.name} (${location})`,
+          collection: location,
+          name: s.name,
+          color: 'color' in s ? s.color : undefined
+        });
       });
-    });
-  }
-
-  // Search text styles
-  if (bindingSupport.styles && bindingSupport.styles.indexOf('TEXT') !== -1) {
-    const matchingStyles = data.textStyles.filter(s =>
-      flexibleMatch(searchTerm, s.name)
-    );
-
-    matchingStyles.forEach(s => {
-      const score = calculateSearchScore(searchTerm, s.name);
-      const location = s.isLocal ? 'Local' : 'Library';
-      resultsMap.set(s.name, {
-        score,
-        text: `${s.name} (${location})`,
-        collection: location,
-        name: s.name
-      });
-    });
-  }
-
-  // Search effect styles
-  if (bindingSupport.styles && bindingSupport.styles.indexOf('EFFECT') !== -1) {
-    const matchingStyles = data.effectStyles.filter(s =>
-      flexibleMatch(searchTerm, s.name)
-    );
-
-    matchingStyles.forEach(s => {
-      const score = calculateSearchScore(searchTerm, s.name);
-      const location = s.isLocal ? 'Local' : 'Library';
-      resultsMap.set(s.name, {
-        score,
-        text: `${s.name} (${location})`,
-        collection: location,
-        name: s.name
-      });
-    });
-  }
-
-  // Search grid styles
-  if (bindingSupport.styles && bindingSupport.styles.indexOf('GRID') !== -1) {
-    const matchingStyles = data.gridStyles.filter(s =>
-      flexibleMatch(searchTerm, s.name)
-    );
-
-    matchingStyles.forEach(s => {
-      const score = calculateSearchScore(searchTerm, s.name);
-      const location = s.isLocal ? 'Local' : 'Library';
-      resultsMap.set(s.name, {
-        score,
-        text: `${s.name} (${location})`,
-        collection: location,
-        name: s.name
-      });
-    });
   }
 
   // Search library styles (from plugin storage)
@@ -750,7 +783,7 @@ export async function searchStylesAndVariables(
   }
 
   // Sort by score first (highest to lowest), then by collection, then by name
-  const finalResults = Array.from(resultsMap.values())
+  const sortedResults = Array.from(resultsMap.values())
     .sort((a, b) => {
       // First, sort by score (descending)
       if (a.score !== b.score) return b.score - a.score;
@@ -762,414 +795,256 @@ export async function searchStylesAndVariables(
       // Finally, sort alphabetically by name with natural number sorting
       return naturalSort(a.name, b.name);
     })
-    .slice(0, 20)
-    .map(r => {
-      const hexColor = r.hexColor;
+    .slice(0, 20);
 
-      if (hexColor) {
-        return {
-          name: r.text,
-          data: r.text,
-          icon: createColorSwatchSVG(hexColor)
-        };
-      } else if (r.color) {
-        return {
-          name: r.text,
-          data: r.text,
-          icon: createColorSwatchSVG(r.color)
-        };
-      }
-      return r.text;
-    });
+  // Lazy color resolution: Only resolve colors for the final 20 results
+  // This avoids resolving colors for hundreds of variables that won't be displayed
+  const finalResults = await Promise.all(sortedResults.map(async r => {
+    const hexColor = r.hexColor;
+
+    if (hexColor) {
+      return {
+        name: r.text,
+        data: r.text,
+        icon: createColorSwatchSVG(hexColor)
+      };
+    }
+    
+    // Lazy resolve variable color if needed
+    let color = r.color;
+    if (!color && r.variableEntry) {
+      color = await resolveVariableColor(r.variableEntry);
+    }
+    
+    if (color) {
+      return {
+        name: r.text,
+        data: r.text,
+        icon: createColorSwatchSVG(color)
+      };
+    }
+    return r.text;
+  }));
 
   return finalResults;
 }
 
-export async function resolvePaintValue(rawValue: string): Promise<PaintResolution> {
-  const cleanValue = rawValue.trim();
+// ================================
+// Unified Value Resolution Helpers
+// ================================
 
-  // Check if this is a style/variable reference by pattern
-  // Variables have format: "Name (Collection - Location)" (contains " - " in parentheses)
-  // Styles have format: "Name (Location)" (single word in parentheses)
-  const bindingMatch = cleanValue.match(/^(.+?)\s*\(([^)]+)\)$/);
+const BINDING_REFERENCE_PATTERN = /^(.+?)\s*\(([^)]+)\)$/;
+const STYLE_TYPES: StyleBindingType[] = ['PAINT', 'TEXT', 'EFFECT', 'GRID'];
 
-  if (bindingMatch) {
-    const name = bindingMatch[1].trim();
-    const metadata = bindingMatch[2];
+interface VariableLookupConfig {
+  typeFilter: (type: string) => boolean;
+}
 
-    const data = await getCachedStylesAndVariables();
+async function lookupVariable(
+  name: string,
+  config: VariableLookupConfig
+): Promise<{ variableId: string; variableName: string; isLibraryVariable: boolean } | null> {
+  const data = await getCachedStylesAndVariables();
+  const varData = data.variables.find(v => v.name === name);
 
-    // Check if it's a variable (contains " - " in metadata)
-    if (metadata.includes(' - ')) {
-      // Variable reference
-      const varData = data.variables.find(v => v.name === name);
+  if (varData) {
+    return { variableId: varData.id, variableName: varData.name, isLibraryVariable: varData.isLibrary };
+  }
 
-      if (!varData) {
-        // Fallback: Check stored libraries
-        try {
-          const libraries = await getStoredLibraries();
-          let foundItem: LibraryItem | undefined;
-
-          // Search all libraries for the variable
-          for (const libName of Object.keys(libraries)) {
-            const items = libraries[libName];
-            // We are looking for a paint variable, so check for VARIABLE_COLOR or legacy VARIABLE
-            foundItem = items.find(i => i[0] === name && (i[2] === 'VARIABLE_COLOR' || (i[2] as string) === 'VARIABLE'));
-            if (foundItem) break;
-          }
-
-          if (foundItem) {
-            return {
-              type: 'variable',
-              variableId: foundItem[1], // Key
-              variableName: foundItem[0],
-              isLibraryVariable: true
-            };
-          }
-        } catch (e) {
-          console.warn('Failed to search stored libraries:', e);
-        }
-
-        figma.notify(`Variable "${name}" not found, skipping...`);
-        throw new Error(`Variable not found: ${name}`);
+  // Fallback: Check stored libraries
+  try {
+    const libraries = await getStoredLibraries();
+    for (const libName of Object.keys(libraries)) {
+      const foundItem = libraries[libName].find(i => i[0] === name && config.typeFilter(i[2]));
+      if (foundItem) {
+        return { variableId: foundItem[1], variableName: foundItem[0], isLibraryVariable: true };
       }
+    }
+  } catch (e) {
+    console.warn('Failed to search stored libraries:', e);
+  }
 
-      return {
-        type: 'variable',
-        variableId: varData.id,
-        variableName: varData.name,
-        isLibraryVariable: varData.isLibrary
-      };
-    } else {
-      // Style reference
-      const styleData = data.paintStyles.find(s => s.name === name);
+  return null;
+}
 
-      if (!styleData) {
-        // Fallback for Library Styles (unimported)
-        // If we have a library style selected from the index, it might not be in paintStyles (local/imported)
-        // We need to look it up in the stored index to get the key.
-        try {
-          const libraries = await getStoredLibraries();
-          let foundItem: LibraryItem | undefined;
+async function lookupStyle(
+  name: string,
+  allowedTypes: StyleBindingType[]
+): Promise<{ styleKey: string; styleType?: StyleBindingType } | null> {
+  const data = await getCachedStylesAndVariables();
 
-          // Search all libraries for the style
-          for (const libName of Object.keys(libraries)) {
-            const items = libraries[libName];
-            foundItem = items.find(i => i[0] === name && i[2] === 'PAINT');
-            if (foundItem) break;
-          }
+  // Search through style types in order
+  const styleConfigs: Array<{ styles: typeof data.paintStyles; type: StyleBindingType }> = [
+    { styles: data.paintStyles, type: 'PAINT' },
+    { styles: data.textStyles, type: 'TEXT' },
+    { styles: data.effectStyles, type: 'EFFECT' },
+    { styles: data.gridStyles, type: 'GRID' },
+  ];
 
-          if (foundItem) {
-            // Import it!
-            try {
-              await figma.importStyleByKeyAsync(foundItem[1]);
-              // After import, we return the key. The caller (setFill) handles application.
-              // Actually setFill expects a styleKey.
-              return {
-                type: 'style',
-                styleKey: foundItem[1]
-              };
-            } catch (e) {
-              console.error("Failed to import style:", e);
-              throw new Error(`Failed to import library style: ${name}`);
-            }
-          }
-        } catch (e) {
-          console.warn('Failed to search stored libraries for style:', e);
-        }
-
-        figma.notify(`Style "${name}" not found, skipping...`);
-        throw new Error(`Style not found: ${name}`);
-      }
-
+  for (const { styles, type } of styleConfigs) {
+    if (!allowedTypes.includes(type)) continue;
+    const found = styles.find(s => s.name === name);
+    if (found) {
       // Lazy import if it's a library style
-      if (!styleData.isLocal && styleData.key) {
-        try {
-          await figma.importStyleByKeyAsync(styleData.key);
-        } catch (e) {
-          console.error("Failed to import style:", e);
-          throw new Error(`Failed to import library style: ${name} `);
-        }
+      if (!found.isLocal && found.key) {
+        await figma.importStyleByKeyAsync(found.key).catch(e => {
+          throw new Error(`Failed to import library style: ${name}`);
+        });
       }
-
-      return {
-        type: 'style',
-        styleKey: styleData.key
-      };
+      return { styleKey: found.key, styleType: type };
     }
   }
 
-  // Literal hex color
-  const hexMatch = cleanValue.match(/#?([0-9a-fA-F]{3,6})/);
-  if (!hexMatch) {
-    throw new Error(`Invalid color format: ${cleanValue}`);
+  // Fallback: Check stored libraries for unimported styles
+  try {
+    const libraries = await getStoredLibraries();
+    for (const libName of Object.keys(libraries)) {
+      const foundItem = libraries[libName].find(i => i[0] === name && allowedTypes.includes(i[2] as StyleBindingType));
+      if (foundItem) {
+        await figma.importStyleByKeyAsync(foundItem[1]).catch(e => {
+          throw new Error(`Failed to import library style: ${name}`);
+        });
+        return { styleKey: foundItem[1], styleType: foundItem[2] as StyleBindingType };
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to search stored libraries for style:', e);
   }
+
+  return null;
+}
+
+function parseHexColor(value: string): RGB | null {
+  const hexMatch = value.match(/#?([0-9a-fA-F]{3,6})/);
+  if (!hexMatch) return null;
 
   let hex = hexMatch[1];
   if (hex.length === 3) {
     hex = hex.split('').map(c => c + c).join('');
   }
-
-  if (hex.length !== 6) {
-    throw new Error(`Invalid hex color: ${cleanValue}`);
-  }
-
-  const r = parseInt(hex.substring(0, 2), 16) / 255;
-  const g = parseInt(hex.substring(2, 4), 16) / 255;
-  const b = parseInt(hex.substring(4, 6), 16) / 255;
+  if (hex.length !== 6) return null;
 
   return {
-    type: 'literal',
-    color: { r, g, b }
+    r: parseInt(hex.substring(0, 2), 16) / 255,
+    g: parseInt(hex.substring(2, 4), 16) / 255,
+    b: parseInt(hex.substring(4, 6), 16) / 255
   };
 }
 
-export async function resolveStyleValue(rawValue: string): Promise<StyleResolution> {
-  const cleanValue = rawValue.trim();
+// ================================
+// Public Resolution Functions
+// ================================
 
-  // Check if this is a style/variable reference by pattern
-  const bindingMatch = cleanValue.match(/^(.+?)\s*\(([^)]+)\)$/);
+export async function resolvePaintValue(rawValue: string): Promise<PaintResolution> {
+  const cleanValue = rawValue.trim();
+  const bindingMatch = cleanValue.match(BINDING_REFERENCE_PATTERN);
 
   if (bindingMatch) {
     const name = bindingMatch[1].trim();
     const metadata = bindingMatch[2];
 
-    const data = await getCachedStylesAndVariables();
-
-    // Check if it's a variable (contains " - " in metadata)
+    // Variable reference (contains " - " in metadata)
     if (metadata.includes(' - ')) {
-      // Variable reference
-      const varData = data.variables.find(v => v.name === name);
-
-      if (!varData) {
-        // Fallback: Check stored libraries
-        try {
-          const libraries = await getStoredLibraries();
-          let foundItem: LibraryItem | undefined;
-
-          // Search all libraries for the variable
-          for (const libName of Object.keys(libraries)) {
-            const items = libraries[libName];
-            // Check for any variable type
-            foundItem = items.find(i => i[0] === name && (i[2].startsWith('VARIABLE') || (i[2] as string) === 'VARIABLE'));
-            if (foundItem) break;
-          }
-
-          if (foundItem) {
-            return {
-              type: 'variable',
-              variableId: foundItem[1], // Key
-              variableName: foundItem[0],
-              isLibraryVariable: true
-            };
-          }
-        } catch (e) {
-          console.warn('Failed to search stored libraries:', e);
-        }
-
+      const result = await lookupVariable(name, {
+        typeFilter: type => type === 'VARIABLE_COLOR' || type === 'VARIABLE'
+      });
+      if (!result) {
         figma.notify(`Variable "${name}" not found, skipping...`);
         throw new Error(`Variable not found: ${name}`);
       }
-
-      return {
-        type: 'variable',
-        variableId: varData.id,
-        variableName: varData.name,
-        isLibraryVariable: varData.isLibrary
-      };
-    } else {
-      // Style reference
-      // Try to find it in all style types
-      let styleData: { name: string, key: string, isLocal: boolean } | undefined;
-      let styleType: StyleBindingType | undefined;
-
-      // Check Paint Styles
-      styleData = data.paintStyles.find(s => s.name === name);
-      if (styleData) styleType = 'PAINT';
-
-      // Check Text Styles
-      if (!styleData) {
-        styleData = data.textStyles.find(s => s.name === name);
-        if (styleData) styleType = 'TEXT';
-      }
-
-      // Check Effect Styles
-      if (!styleData) {
-        styleData = data.effectStyles.find(s => s.name === name);
-        if (styleData) styleType = 'EFFECT';
-      }
-
-      // Check Grid Styles
-      if (!styleData) {
-        styleData = data.gridStyles.find(s => s.name === name);
-        if (styleData) styleType = 'GRID';
-      }
-
-      if (!styleData) {
-        // Fallback for Library Styles (unimported)
-        try {
-          const libraries = await getStoredLibraries();
-          let foundItem: LibraryItem | undefined;
-
-          // Search all libraries for the style
-          for (const libName of Object.keys(libraries)) {
-            const items = libraries[libName];
-            // Check for any style type
-            foundItem = items.find(i => i[0] === name && ['PAINT', 'TEXT', 'EFFECT', 'GRID'].includes(i[2]));
-            if (foundItem) break;
-          }
-
-          if (foundItem) {
-            // Import it!
-            try {
-              await figma.importStyleByKeyAsync(foundItem[1]);
-              return {
-                type: 'style',
-                styleKey: foundItem[1],
-                styleType: foundItem[2] as StyleBindingType
-              };
-            } catch (e) {
-              console.error("Failed to import style:", e);
-              throw new Error(`Failed to import library style: ${name}`);
-            }
-          }
-        } catch (e) {
-          console.warn('Failed to search stored libraries for style:', e);
-        }
-
-        figma.notify(`Style "${name}" not found, skipping...`);
-        throw new Error(`Style not found: ${name}`);
-      }
-
-      // Lazy import if it's a library style
-      if (!styleData.isLocal && styleData.key) {
-        try {
-          await figma.importStyleByKeyAsync(styleData.key);
-        } catch (e) {
-          console.error("Failed to import style:", e);
-          throw new Error(`Failed to import library style: ${name} `);
-        }
-      }
-
-      return {
-        type: 'style',
-        styleKey: styleData.key,
-        styleType: styleType
-      };
+      return { type: 'variable', ...result };
     }
+
+    // Style reference
+    const styleResult = await lookupStyle(name, ['PAINT']);
+    if (!styleResult) {
+      figma.notify(`Style "${name}" not found, skipping...`);
+      throw new Error(`Style not found: ${name}`);
+    }
+    return { type: 'style', styleKey: styleResult.styleKey };
   }
 
-  // Literal hex color (fallback for paint)
-  const hexMatch = cleanValue.match(/#?([0-9a-fA-F]{3,6})/);
-  if (hexMatch) {
-    let hex = hexMatch[1];
-    if (hex.length === 3) {
-      hex = hex.split('').map(c => c + c).join('');
+  // Literal hex color
+  const color = parseHexColor(cleanValue);
+  if (!color) throw new Error(`Invalid color format: ${cleanValue}`);
+  return { type: 'literal', color };
+}
+
+export async function resolveStyleValue(rawValue: string): Promise<StyleResolution> {
+  const cleanValue = rawValue.trim();
+  const bindingMatch = cleanValue.match(BINDING_REFERENCE_PATTERN);
+
+  if (bindingMatch) {
+    const name = bindingMatch[1].trim();
+    const metadata = bindingMatch[2];
+
+    // Variable reference
+    if (metadata.includes(' - ')) {
+      const result = await lookupVariable(name, {
+        typeFilter: type => type.startsWith('VARIABLE') || type === 'VARIABLE'
+      });
+      if (!result) {
+        figma.notify(`Variable "${name}" not found, skipping...`);
+        throw new Error(`Variable not found: ${name}`);
+      }
+      return { type: 'variable', ...result };
     }
 
-    if (hex.length === 6) {
-      const r = parseInt(hex.substring(0, 2), 16) / 255;
-      const g = parseInt(hex.substring(2, 4), 16) / 255;
-      const b = parseInt(hex.substring(4, 6), 16) / 255;
-
-      return {
-        type: 'literal',
-        color: { r, g, b }
-      };
+    // Style reference (search all types)
+    const styleResult = await lookupStyle(name, STYLE_TYPES);
+    if (!styleResult) {
+      figma.notify(`Style "${name}" not found, skipping...`);
+      throw new Error(`Style not found: ${name}`);
     }
+    return { type: 'style', styleKey: styleResult.styleKey, styleType: styleResult.styleType };
   }
+
+  // Literal hex color fallback
+  const color = parseHexColor(cleanValue);
+  if (color) return { type: 'literal', color };
 
   throw new Error(`Invalid style or color format: ${cleanValue}`);
 }
 
 export async function resolveNumberValue(rawValue: string): Promise<NumberResolution> {
   const cleanValue = rawValue.trim();
-
-  // Check if this is a variable reference by pattern
-  const bindingMatch = cleanValue.match(/^(.+?)\s*\(([^)]+)\)$/);
+  const bindingMatch = cleanValue.match(BINDING_REFERENCE_PATTERN);
 
   if (bindingMatch) {
     const name = bindingMatch[1].trim();
     const metadata = bindingMatch[2];
 
-    const data = await getCachedStylesAndVariables();
-
-    // Check if it's a variable (contains " - " in metadata)
+    // Variable reference
     if (metadata.includes(' - ')) {
-      // Variable reference
-      const varData = data.variables.find(v => v.name === name);
-
-      if (!varData) {
-        // Fallback: Check stored libraries
-        try {
-          const libraries = await getStoredLibraries();
-          let foundItem: LibraryItem | undefined;
-
-          // Search all libraries for the variable
-          for (const libName of Object.keys(libraries)) {
-            const items = libraries[libName];
-            // Check for FLOAT variable type
-            foundItem = items.find(i => i[0] === name && (i[2] === 'VARIABLE_FLOAT'));
-            if (foundItem) break;
-          }
-
-          if (foundItem) {
-            return {
-              type: 'variable',
-              variableId: foundItem[1], // Key
-              variableName: foundItem[0],
-              isLibraryVariable: true
-            };
-          }
-        } catch (e) {
-          console.warn('Failed to search stored libraries:', e);
-        }
-
+      const result = await lookupVariable(name, {
+        typeFilter: type => type === 'VARIABLE_FLOAT'
+      });
+      if (!result) {
         figma.notify(`Variable "${name}" not found, skipping...`);
         throw new Error(`Variable not found: ${name}`);
       }
-
-      return {
-        type: 'variable',
-        variableId: varData.id,
-        variableName: varData.name,
-        isLibraryVariable: varData.isLibrary
-      };
+      return { type: 'variable', ...result };
     }
   }
 
   // Literal number
-  // Check if it's a percentage
   const isPercentage = cleanValue.endsWith('%');
   const valueStr = isPercentage ? cleanValue.slice(0, -1) : cleanValue;
-  const value = parseFloat(valueStr);
+  let value = parseFloat(valueStr);
 
   if (isNaN(value)) {
-    // Try to calculate expression if it's not a simple number
+    // Try to calculate expression
     try {
       const calculated = calculateExpression(cleanValue);
       const isCalcPercentage = calculated.endsWith('%');
-      const calcValueStr = isCalcPercentage ? calculated.slice(0, -1) : calculated;
-      const calcValue = parseFloat(calcValueStr);
-
-      if (!isNaN(calcValue)) {
-        return {
-          type: 'literal',
-          value: calcValue,
-          unit: isCalcPercentage ? 'PERCENT' : 'PIXELS'
-        };
+      value = parseFloat(isCalcPercentage ? calculated.slice(0, -1) : calculated);
+      if (!isNaN(value)) {
+        return { type: 'literal', value, unit: isCalcPercentage ? 'PERCENT' : 'PIXELS' };
       }
-    } catch (e) {
-      // Ignore calculation errors
-    }
-
+    } catch { /* ignore */ }
     throw new Error(`Invalid number format: ${cleanValue}`);
   }
 
-  return {
-    type: 'literal',
-    value: value,
-    unit: isPercentage ? 'PERCENT' : 'PIXELS'
-  };
+  return { type: 'literal', value, unit: isPercentage ? 'PERCENT' : 'PIXELS' };
 }
 

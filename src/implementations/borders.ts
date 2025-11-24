@@ -2,7 +2,7 @@
 // Border Functions
 // ================================
 
-import { resolvePaintValue } from '../utils';
+import { resolvePaintValue, resolveNumberValue } from '../utils';
 import { DEFAULT_BORDER_WIDTH } from '../constants';
 
 // Helper function to get existing border style or create new one
@@ -18,11 +18,13 @@ function getOrCreateBorder(node: SceneNode): Paint[] {
   }];
 }
 
-export function setBorder(side: 'all' | 'left' | 'right' | 'top' | 'bottom', width: string) {
+export async function setBorder(side: 'all' | 'left' | 'right' | 'top' | 'bottom', width: string) {
   const selection = figma.currentPage.selection;
   if (selection.length === 0) {
     throw new Error('No items selected');
   }
+  
+  const resolution = await resolveNumberValue(width);
   
   for (const node of selection) {
     if (!('strokes' in node) || !('strokeWeight' in node) || 
@@ -47,26 +49,48 @@ export function setBorder(side: 'all' | 'left' | 'right' | 'top' | 'bottom', wid
       node.strokeAlign = 'INSIDE';
     }
     
-    switch (side) {
-      case 'all':
-      node.strokeWeight = Number(width);
-      break;
-      case 'left':
-      node.strokeLeftWeight = Number(width);
-      break;
-      case 'right':
-      node.strokeRightWeight = Number(width);
-      break;
-      case 'top':
-      node.strokeTopWeight = Number(width);
-      break;
-      case 'bottom':
-      node.strokeBottomWeight = Number(width);
-      break;
+    if (resolution.type === 'variable') {
+      // Handle variable binding
+      let variableId = resolution.variableId!;
+      if (resolution.isLibraryVariable) {
+        const importedVar = await figma.variables.importVariableByKeyAsync(variableId);
+        variableId = importedVar.id;
+      }
+      const variable = await figma.variables.getVariableByIdAsync(variableId);
+      if (!variable) throw new Error('Variable not found');
+      
+      const boundField = side === 'all' ? 'strokeWeight' : `stroke${side.charAt(0).toUpperCase() + side.slice(1)}Weight` as
+        'strokeLeftWeight' | 'strokeRightWeight' | 'strokeTopWeight' | 'strokeBottomWeight';
+      
+      node.setBoundVariable(boundField, variable);
+    } else {
+      // Handle literal value
+      const value = resolution.value!;
+      switch (side) {
+        case 'all':
+        node.strokeWeight = value;
+        break;
+        case 'left':
+        node.strokeLeftWeight = value;
+        break;
+        case 'right':
+        node.strokeRightWeight = value;
+        break;
+        case 'top':
+        node.strokeTopWeight = value;
+        break;
+        case 'bottom':
+        node.strokeBottomWeight = value;
+        break;
+      }
     }
   }
   
-  figma.notify(`${side.charAt(0).toUpperCase() + side.slice(1)} stroke set to ${Number(width)}px`);
+  if (resolution.type === 'variable') {
+    figma.notify(`${side.charAt(0).toUpperCase() + side.slice(1)} stroke bound to ${resolution.variableName}`);
+  } else {
+    figma.notify(`${side.charAt(0).toUpperCase() + side.slice(1)} stroke set to ${resolution.value}px`);
+  }
 }
 
 export function toggleBorder(side: 'all' | 'left' | 'right' | 'top' | 'bottom') {

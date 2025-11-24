@@ -707,41 +707,61 @@ export const COMMAND_DEFINITIONS = {
     type: "optionalValueCommand",
     alias: ['st', 'b'],
     valueFormat: 'number' as const,
-    suggestion: 'in px (No value = toggle) ? → styles/variables',
+    suggestion: 'in px (No value = toggle) ? → variables',
     functionWithParam: (value: string) => impl.setBorder('all', value),
     functionWithoutParam: () => impl.toggleBorder('all'),
+    bindingSupport: {
+      variables: ['FLOAT'],
+      libraryStyles: true
+    }
   },
   StrokeLeft: {
     type: "optionalValueCommand",
     alias: ['stl', 'bl'],
     valueFormat: 'number' as const,
-    suggestion: 'border in px (No value = toggle)',
+    suggestion: 'border in px (No value = toggle) ? → variables',
     functionWithParam: (value: string) => impl.setBorder('left', value),
     functionWithoutParam: () => impl.toggleBorder('left'),
+    bindingSupport: {
+      variables: ['FLOAT'],
+      libraryStyles: true
+    }
   },
   StrokeRight: {
     type: "optionalValueCommand",
     alias: ['str', 'br'],
     valueFormat: 'number' as const,
-    suggestion: 'border in px (No value = toggle)',
+    suggestion: 'border in px (No value = toggle) ? → variables',
     functionWithParam: (value: string) => impl.setBorder('right', value),
     functionWithoutParam: () => impl.toggleBorder('right'),
+    bindingSupport: {
+      variables: ['FLOAT'],
+      libraryStyles: true
+    }
   },
   StrokeTop: {
     type: "optionalValueCommand",
     alias: ['stt', 'bt'],
     valueFormat: 'number' as const,
-    suggestion: 'border in px (No value = toggle)',
+    suggestion: 'border in px (No value = toggle) ? → variables',
     functionWithParam: (value: string) => impl.setBorder('top', value),
     functionWithoutParam: () => impl.toggleBorder('top'),
+    bindingSupport: {
+      variables: ['FLOAT'],
+      libraryStyles: true
+    }
   },
   StrokeBottom: {
     type: "optionalValueCommand",
     alias: ['stb', 'bb'],
     valueFormat: 'number' as const,
-    suggestion: 'border in px (No value = toggle)',
+    suggestion: 'border in px (No value = toggle) ? → variables',
     functionWithParam: (value: string) => impl.setBorder('bottom', value),
     functionWithoutParam: () => impl.toggleBorder('bottom'),
+    bindingSupport: {
+      variables: ['FLOAT'],
+      libraryStyles: true
+    }
   },
   StrokeColor: {
     type: "optionalValueCommand",
