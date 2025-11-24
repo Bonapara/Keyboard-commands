@@ -1,4 +1,4 @@
-import { BindingSupport, Command, PaintResolution, StyleResolution, StyleBindingType, ValueFormat, VariableResolvedType, LibraryItem, SpecialCondition } from './types';
+import { BindingSupport, Command, PaintResolution, StyleResolution, NumberResolution, StyleBindingType, ValueFormat, VariableResolvedType, LibraryItem, SpecialCondition } from './types';
 import { getStoredLibraries } from './storage';
 import { COMMANDS, CommandName } from './commands';
 import {
@@ -692,7 +692,7 @@ export async function searchStylesAndVariables(
   }
 
   // Search library styles (from plugin storage)
-  if (bindingSupport.libraryStyles && bindingSupport.styles && libraryFunctions) {
+  if (bindingSupport.libraryStyles && (bindingSupport.styles || bindingSupport.variables) && libraryFunctions) {
     const libraries = await libraryFunctions.getStoredLibraries();
     const activeLibraries = await libraryFunctions.getActiveLibraries();
 
@@ -1081,3 +1081,95 @@ export async function resolveStyleValue(rawValue: string): Promise<StyleResoluti
 
   throw new Error(`Invalid style or color format: ${cleanValue}`);
 }
+
+export async function resolveNumberValue(rawValue: string): Promise<NumberResolution> {
+  const cleanValue = rawValue.trim();
+
+  // Check if this is a variable reference by pattern
+  const bindingMatch = cleanValue.match(/^(.+?)\s*\(([^)]+)\)$/);
+
+  if (bindingMatch) {
+    const name = bindingMatch[1].trim();
+    const metadata = bindingMatch[2];
+
+    const data = await getCachedStylesAndVariables();
+
+    // Check if it's a variable (contains " - " in metadata)
+    if (metadata.includes(' - ')) {
+      // Variable reference
+      const varData = data.variables.find(v => v.name === name);
+
+      if (!varData) {
+        // Fallback: Check stored libraries
+        try {
+          const libraries = await getStoredLibraries();
+          let foundItem: LibraryItem | undefined;
+
+          // Search all libraries for the variable
+          for (const libName of Object.keys(libraries)) {
+            const items = libraries[libName];
+            // Check for FLOAT variable type
+            foundItem = items.find(i => i[0] === name && (i[2] === 'VARIABLE_FLOAT'));
+            if (foundItem) break;
+          }
+
+          if (foundItem) {
+            return {
+              type: 'variable',
+              variableId: foundItem[1], // Key
+              variableName: foundItem[0],
+              isLibraryVariable: true
+            };
+          }
+        } catch (e) {
+          console.warn('Failed to search stored libraries:', e);
+        }
+
+        figma.notify(`Variable "${name}" not found, skipping...`);
+        throw new Error(`Variable not found: ${name}`);
+      }
+
+      return {
+        type: 'variable',
+        variableId: varData.id,
+        variableName: varData.name,
+        isLibraryVariable: varData.isLibrary
+      };
+    }
+  }
+
+  // Literal number
+  // Check if it's a percentage
+  const isPercentage = cleanValue.endsWith('%');
+  const valueStr = isPercentage ? cleanValue.slice(0, -1) : cleanValue;
+  const value = parseFloat(valueStr);
+
+  if (isNaN(value)) {
+    // Try to calculate expression if it's not a simple number
+    try {
+      const calculated = calculateExpression(cleanValue);
+      const isCalcPercentage = calculated.endsWith('%');
+      const calcValueStr = isCalcPercentage ? calculated.slice(0, -1) : calculated;
+      const calcValue = parseFloat(calcValueStr);
+
+      if (!isNaN(calcValue)) {
+        return {
+          type: 'literal',
+          value: calcValue,
+          unit: isCalcPercentage ? 'PERCENT' : 'PIXELS'
+        };
+      }
+    } catch (e) {
+      // Ignore calculation errors
+    }
+
+    throw new Error(`Invalid number format: ${cleanValue}`);
+  }
+
+  return {
+    type: 'literal',
+    value: value,
+    unit: isPercentage ? 'PERCENT' : 'PIXELS'
+  };
+}
+

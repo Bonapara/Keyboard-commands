@@ -342,6 +342,60 @@ export const COMMAND_DEFINITIONS = {
     suggestion: '👤',
     functionWithoutParam: () => impl.grouping('ungroup')
   },
+  Union: {
+    type: "commandWithoutValue",
+    alias: ['un', 'u'],
+    suggestion: 'Union Selection ∪',
+    functionWithoutParam: () => impl.performBooleanOperation('UNION'),
+    supportedNodes: [...NODE_GROUPS.FILLS_AND_STROKES],
+  },
+  Subtract: {
+    type: "commandWithoutValue",
+    alias: ['su', 'sub'],
+    suggestion: 'Subtract Selection −',
+    functionWithoutParam: () => impl.performBooleanOperation('SUBTRACT'),
+    supportedNodes: [...NODE_GROUPS.FILLS_AND_STROKES],
+  },
+  Intersect: {
+    type: "commandWithoutValue",
+    alias: ['in', 'int'],
+    suggestion: 'Intersect Selection ∩',
+    functionWithoutParam: () => impl.performBooleanOperation('INTERSECT'),
+    supportedNodes: [...NODE_GROUPS.FILLS_AND_STROKES],
+  },
+  Exclude: {
+    type: "commandWithoutValue",
+    alias: ['ex'],
+    suggestion: 'Exclude Selection ∆',
+    functionWithoutParam: () => impl.performBooleanOperation('EXCLUDE'),
+    supportedNodes: [...NODE_GROUPS.FILLS_AND_STROKES],
+  },
+  Lock: {
+    type: "commandWithoutValue",
+    alias: ['l', 'lock'],
+    suggestion: 'Toggle Lock 🔒',
+    functionWithoutParam: () => impl.toggleLock(),
+  },
+  Mask: {
+    type: "commandWithoutValue",
+    alias: ['m', 'mask'],
+    suggestion: 'Toggle Mask 🎭',
+    functionWithoutParam: () => impl.toggleMask(),
+    supportedNodes: [...NODE_GROUPS.FILLS_AND_STROKES, 'GROUP', 'FRAME', 'COMPONENT', 'INSTANCE'],
+  },
+  Flatten: {
+    type: "commandWithoutValue",
+    alias: ['fl'],
+    suggestion: 'Flatten Selection 🥞',
+    functionWithoutParam: () => impl.flattenSelection(),
+  },
+  OutlineStroke: {
+    type: "commandWithoutValue",
+    alias: ['os'],
+    suggestion: 'Outline Stroke ✒️',
+    functionWithoutParam: () => impl.outlineStroke(),
+    supportedNodes: [...NODE_GROUPS.FILLS_AND_STROKES],
+  },
   VerticalFill: {
     type: "commandWithoutValue",
     alias: ['vf'],
@@ -888,27 +942,55 @@ export const COMMAND_DEFINITIONS = {
 
   // Letter Spacing Command
   LetterSpacing: {
-    type: "commandWithValue",
+    type: "optionalValueCommand",
     alias: ['ls'],
-    valueFormat: 'number' as const,
-    suggestion: 'Enter letter spacing in px',
-    functionWithParam: async (value: string) => await impl.setLetterSpacing(value),
+    valueFormat: "number",
+    suggestion: "Letter spacing in px (or %)",
+    functionWithParam: (value: string) => impl.setLetterSpacing(value),
+    functionWithoutParam: () => impl.setLetterSpacing('0'),
     supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
-    specialConditions: ['NoTextStyleApplied'],
+    bindingSupport: {
+      variables: ['FLOAT'],
+      libraryStyles: true
+    }
   },
-
-  // Line Height Command
   LineHeight: {
     type: "optionalValueCommand",
     alias: ['lh'],
-    valueFormat: 'number' as const,
-    suggestion: 'In px or % (No value = Auto)',
-    functionWithParam: async (value: string) => await impl.setLineHeight(value),
-    functionWithoutParam: async () => await impl.setLineHeight('AUTO'),
+    valueFormat: "number",
+    suggestion: "Line height in px (or %)",
+    functionWithParam: (value: string) => impl.setLineHeight(value),
+    functionWithoutParam: () => impl.setLineHeight('AUTO'),
     supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
-    specialConditions: ['NoTextStyleApplied'],
+    bindingSupport: {
+      variables: ['FLOAT'],
+      libraryStyles: true
+    }
   },
-
+  ParagraphSpacing: {
+    type: "commandWithValue",
+    alias: ['ps'],
+    valueFormat: "number",
+    suggestion: "Paragraph spacing in px",
+    functionWithParam: (value: string) => impl.setParagraphSpacing(value),
+    supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
+    bindingSupport: {
+      variables: ['FLOAT'],
+      libraryStyles: true
+    }
+  },
+  ParagraphIndent: {
+    type: "commandWithValue",
+    alias: ['pi'],
+    valueFormat: "number",
+    suggestion: "Paragraph indent in px",
+    functionWithParam: (value: string) => impl.setParagraphIndent(value),
+    supportedNodes: [...NODE_GROUPS.TEXT_ONLY],
+    bindingSupport: {
+      variables: ['FLOAT'],
+      libraryStyles: true
+    }
+  },
 
   // Original Text Case
   TextCaseOriginal: {
@@ -1272,7 +1354,7 @@ export const COMMAND_DEFINITIONS = {
   },
   CornerSmoothing: {
     type: "commandWithValue",
-    alias: ['cs'],
+    alias: ['csm'],
     valueFormat: "number",
     suggestion: "Corner smoothing (0-100)",
     functionWithParam: (value: string) => impl.setCornerSmoothing(value),

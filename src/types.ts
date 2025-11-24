@@ -77,6 +77,15 @@ export interface StyleResolution {
   color?: RGB;
 }
 
+export interface NumberResolution {
+  type: 'variable' | 'literal';
+  variableId?: string;
+  variableName?: string;
+  isLibraryVariable?: boolean;
+  value?: number;
+  unit?: 'PIXELS' | 'PERCENT';
+}
+
 export type LibraryItemType = 'PAINT' | 'TEXT' | 'EFFECT' | 'GRID' | 'COMPONENT' | 'VARIABLE_COLOR' | 'VARIABLE_FLOAT' | 'VARIABLE_STRING' | 'VARIABLE_BOOLEAN';
 export type LibraryItem = [string, string, LibraryItemType, string?];
 

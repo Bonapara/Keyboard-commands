@@ -2,12 +2,14 @@
 // Text Functions
 // ================================
 
+import { resolveNumberValue } from '../utils';
+
 export async function setTextAutoResize(resizeType: 'NONE' | 'WIDTH_AND_HEIGHT' | 'HEIGHT') {
   const selection = figma.currentPage.selection;
   if (selection.length === 0) {
     throw new Error('No items selected');
   }
-  
+
   for (const node of selection) {
     if (node.type === 'TEXT') {
       try {
@@ -30,7 +32,7 @@ export async function textTruncation(maxLines?: string) {
   if (selection.length === 0) {
     throw new Error('No items selected');
   }
-  
+
   for (const node of selection) {
     if (node.type === 'TEXT') {
       try {
@@ -65,12 +67,12 @@ export async function setFontSize(size: string) {
   if (selection.length === 0) {
     throw new Error('No items selected');
   }
-  
+
   const fontSize = parseInt(size);
   if (isNaN(fontSize) || fontSize < 1) {
     throw new Error('Please provide a valid font size greater than 0');
   }
-  
+
   for (const node of selection) {
     if (node.type === 'TEXT') {
       try {
@@ -92,12 +94,12 @@ export async function setFontWeight(weight: string) {
   if (selection.length === 0) {
     throw new Error('No items selected');
   }
-  
+
   const fontWeight = parseInt(weight);
   if (isNaN(fontWeight) || fontWeight < 100 || fontWeight > 900 || fontWeight % 100 !== 0) {
     throw new Error('Please provide a valid font weight (100-900 in steps of 100)');
   }
-  
+
   for (const node of selection) {
     if (node.type === 'TEXT' && node.fontName !== figma.mixed) {
       try {
@@ -106,7 +108,7 @@ export async function setFontWeight(weight: string) {
           family: currentFont.family,
           style: fontWeight.toString()
         };
-        
+
         await figma.loadFontAsync(newFontName);
         node.fontName = newFontName;
       } catch (error) {
@@ -118,70 +120,187 @@ export async function setFontWeight(weight: string) {
   figma.notify(`Font weight set to ${fontWeight}`);
 }
 
-export async function setLetterSpacing(spacing: string) {
+export async function setLetterSpacing(value: string) {
   const selection = figma.currentPage.selection;
   if (selection.length === 0) {
     throw new Error('No items selected');
   }
-  
-  const letterSpacing = parseFloat(spacing);
-  if (isNaN(letterSpacing)) {
-    throw new Error('Please provide a valid number for letter spacing');
-  }
-  
+
+  const resolution = await resolveNumberValue(value);
+
   for (const node of selection) {
     if (node.type === 'TEXT') {
       try {
         if (node.fontName !== figma.mixed) {
           await figma.loadFontAsync(node.fontName);
-          node.letterSpacing = { value: letterSpacing, unit: 'PIXELS' };
+
+          if (resolution.type === 'variable') {
+            let variableId = resolution.variableId!;
+            if (resolution.isLibraryVariable) {
+              const importedVar = await figma.variables.importVariableByKeyAsync(variableId);
+              variableId = importedVar.id;
+            }
+            const variable = await figma.variables.getVariableByIdAsync(variableId);
+            if (variable) {
+              node.setBoundVariable('letterSpacing', variable);
+            }
+          } else {
+            // Literal value
+            const unit = resolution.unit || 'PIXELS';
+            node.letterSpacing = { value: resolution.value!, unit };
+          }
         }
       } catch (error) {
-        console.error('Error loading font:', error);
+        console.error('Error setting letter spacing:', error);
         figma.notify(`Failed to set letter spacing for "${node.name}"`);
       }
     }
   }
-  figma.notify(`Letter spacing set to ${letterSpacing}px`);
+
+  if (resolution.type === 'variable') {
+    figma.notify(`Letter spacing bound to ${resolution.variableName}`);
+  } else {
+    figma.notify(`Letter spacing set to ${resolution.value}${resolution.unit === 'PERCENT' ? '%' : 'px'}`);
+  }
 }
 
-export async function setLineHeight(height: string) {
+export async function setLineHeight(value: string) {
   const selection = figma.currentPage.selection;
   if (selection.length === 0) {
     throw new Error('No items selected');
   }
-  
+
+  let resolution;
+  if (value === 'AUTO') {
+    resolution = { type: 'literal', value: 0, unit: 'AUTO' }; // Special case for AUTO
+  } else {
+    resolution = await resolveNumberValue(value);
+  }
+
   for (const node of selection) {
     if (node.type === 'TEXT') {
       try {
         if (node.fontName !== figma.mixed) {
           await figma.loadFontAsync(node.fontName);
-          if (height === 'AUTO') {
+
+          if (value === 'AUTO') {
             node.lineHeight = { unit: 'AUTO' };
-          } else {
-            // Check if the height value ends with %
-            const isPercentage = height.endsWith('%');
-            
-            // Remove % if present and parse the number
-            const value = parseFloat(isPercentage ? height.slice(0, -1) : height);
-            
-            if (isNaN(value) || value < 0) {
-              throw new Error('Please provide a valid number for line height');
+          } else if (resolution.type === 'variable') {
+            let variableId = resolution.variableId!;
+            if (resolution.isLibraryVariable) {
+              const importedVar = await figma.variables.importVariableByKeyAsync(variableId);
+              variableId = importedVar.id;
             }
-            
-            // Set line height based on whether it's a percentage or pixel value
-            node.lineHeight = isPercentage 
-            ? { unit: 'PERCENT', value: value }
-            : { unit: 'PIXELS', value: value };
+            const variable = await figma.variables.getVariableByIdAsync(variableId);
+            if (variable) {
+              node.setBoundVariable('lineHeight', variable);
+            }
+          } else {
+            // Literal value
+            const unit = resolution.unit || 'PIXELS';
+            node.lineHeight = { value: resolution.value!, unit: unit as 'PIXELS' | 'PERCENT' };
           }
         }
       } catch (error) {
-        console.error('Error loading font:', error);
+        console.error('Error setting line height:', error);
         figma.notify(`Failed to set line height for "${node.name}"`);
       }
     }
   }
-  figma.notify(`Line height set to ${height}`);
+
+  if (value === 'AUTO') {
+    figma.notify('Line height set to Auto');
+  } else if (resolution.type === 'variable') {
+    figma.notify(`Line height bound to ${resolution.variableName}`);
+  } else {
+    figma.notify(`Line height set to ${resolution.value}${resolution.unit === 'PERCENT' ? '%' : 'px'}`);
+  }
+}
+
+export async function setParagraphSpacing(value: string) {
+  const selection = figma.currentPage.selection;
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+
+  const resolution = await resolveNumberValue(value);
+
+  for (const node of selection) {
+    if (node.type === 'TEXT') {
+      try {
+        if (node.fontName !== figma.mixed) {
+          await figma.loadFontAsync(node.fontName);
+
+          if (resolution.type === 'variable') {
+            let variableId = resolution.variableId!;
+            if (resolution.isLibraryVariable) {
+              const importedVar = await figma.variables.importVariableByKeyAsync(variableId);
+              variableId = importedVar.id;
+            }
+            const variable = await figma.variables.getVariableByIdAsync(variableId);
+            if (variable) {
+              node.setBoundVariable('paragraphSpacing', variable);
+            }
+          } else {
+            // Literal value
+            node.paragraphSpacing = resolution.value!;
+          }
+        }
+      } catch (error) {
+        console.error('Error setting paragraph spacing:', error);
+        figma.notify(`Failed to set paragraph spacing for "${node.name}"`);
+      }
+    }
+  }
+
+  if (resolution.type === 'variable') {
+    figma.notify(`Paragraph spacing bound to ${resolution.variableName}`);
+  } else {
+    figma.notify(`Paragraph spacing set to ${resolution.value}px`);
+  }
+}
+
+export async function setParagraphIndent(value: string) {
+  const selection = figma.currentPage.selection;
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+
+  const resolution = await resolveNumberValue(value);
+
+  for (const node of selection) {
+    if (node.type === 'TEXT') {
+      try {
+        if (node.fontName !== figma.mixed) {
+          await figma.loadFontAsync(node.fontName);
+
+          if (resolution.type === 'variable') {
+            let variableId = resolution.variableId!;
+            if (resolution.isLibraryVariable) {
+              const importedVar = await figma.variables.importVariableByKeyAsync(variableId);
+              variableId = importedVar.id;
+            }
+            const variable = await figma.variables.getVariableByIdAsync(variableId);
+            if (variable) {
+              node.setBoundVariable('paragraphIndent', variable);
+            }
+          } else {
+            // Literal value
+            node.paragraphIndent = resolution.value!;
+          }
+        }
+      } catch (error) {
+        console.error('Error setting paragraph indent:', error);
+        figma.notify(`Failed to set paragraph indent for "${node.name}"`);
+      }
+    }
+  }
+
+  if (resolution.type === 'variable') {
+    figma.notify(`Paragraph indent bound to ${resolution.variableName}`);
+  } else {
+    figma.notify(`Paragraph indent set to ${resolution.value}px`);
+  }
 }
 
 export async function setTextCase(textCase: TextCase) {
@@ -189,7 +308,7 @@ export async function setTextCase(textCase: TextCase) {
   if (selection.length === 0) {
     throw new Error('No items selected');
   }
-  
+
   for (const node of selection) {
     if (node.type === 'TEXT') {
       try {
@@ -211,7 +330,7 @@ export async function toggleTextDecoration(decoration: TextDecoration) {
   if (selection.length === 0) {
     throw new Error('No items selected');
   }
-  
+
   for (const node of selection) {
     if (node.type === 'TEXT') {
       try {
@@ -234,7 +353,7 @@ export async function setTextListOptions(listType: 'ORDERED' | 'UNORDERED' | 'NO
   if (selection.length === 0) {
     throw new Error('No items selected');
   }
-  
+
   for (const node of selection) {
     if (node.type === 'TEXT') {
       try {
@@ -258,15 +377,15 @@ export async function toggleVerticalTrim() {
   if (selection.length === 0) {
     throw new Error('No items selected');
   }
-  
+
   for (const node of selection) {
     if (node.type === 'TEXT') {
       try {
         if (node.fontName !== figma.mixed) {
           await figma.loadFontAsync(node.fontName);
           // Toggle between CAP_HEIGHT and NONE
-          const newTrim = (node.leadingTrim === figma.mixed || 
-            !node.leadingTrim || 
+          const newTrim = (node.leadingTrim === figma.mixed ||
+            !node.leadingTrim ||
             node.leadingTrim === 'CAP_HEIGHT')
             ? 'NONE'
             : 'CAP_HEIGHT';
@@ -280,7 +399,7 @@ export async function toggleVerticalTrim() {
     }
   }
 }
-  
+
 export function removeTextStyle() {
   if (figma.currentPage.selection[0].type === 'TEXT') {
     figma.currentPage.selection[0].setTextStyleIdAsync('');
