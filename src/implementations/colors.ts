@@ -266,19 +266,18 @@ export async function searchSelectionColors(searchTerm: string): Promise<Array<s
 
             return false;
         })
-        .map(color => {
+        .map((color, index) => {
             const hex = rgbToHex(color.rgb);
             const locations = color.locations.join(', ');
-            const usageText = color.usageCount > 1 ? `${color.usageCount} uses` : '1 use';
+            const usageText = `${color.usageCount}`;
+            const hint = index === 0 ? ' → Type :: to swap' : '';
 
             let displayName: string;
             if (color.name) {
-                // Style or variable
                 const type = color.bindingType === 'style' ? 'Style' : 'Variable';
-                displayName = `${color.name} (${type}) - ${usageText} in ${locations}`;
+                displayName = `${color.name} (${type}) - ${usageText}${hint}`;
             } else {
-                // Literal color
-                displayName = `${hex} - ${usageText} in ${locations}`;
+                displayName = `${hex} - ${usageText}${hint}`;
             }
 
             return {
