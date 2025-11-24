@@ -1317,6 +1317,15 @@ const STROKE_FIELDS = [
   'stokeTopWeight' // Handle Figma API typo
 ];
 
+const FIELD_MAPPING: Record<string, string> = {
+  'strokestyleid': 'strokeStyleId', 'strokeweight': 'strokeWeight',
+  'strokes': 'strokes', 'fills': 'fills', 'fillstyleid': 'fillStyleId',
+  'componentproperties': 'componentProperties', 'effects': 'effects',
+  'effectstyleid': 'effectStyleId', 'characters': 'characters',
+  'textstyleid': 'textStyleId', 'cornerradius': 'cornerRadius',
+  'stroke': 'stroke'
+};
+
 /**
  * Helper to check if a field belongs to a group and return the group name
  */
@@ -1400,6 +1409,105 @@ async function resetProperty(node: SceneNode, field: string, value: any) {
 }
 
 /**
+ * Helper for deep equality check
+ */
+function isEqual(a: any, b: any): boolean {
+  if (a === b) return true;
+  if (typeof a !== typeof b) return false;
+  if (typeof a !== 'object' || a === null || b === null) return false;
+
+  if (Array.isArray(a)) {
+    if (!Array.isArray(b) || a.length !== b.length) return false;
+    return a.every((val, i) => isEqual(val, b[i]));
+  }
+
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+  if (keysA.length !== keysB.length) return false;
+
+  return keysA.every(key => keysB.includes(key) && isEqual(a[key], b[key]));
+}
+
+/**
+ * Helper to check if an override is "real" (value differs from source)
+ */
+async function isOverrideReal(instance: InstanceNode, node: SceneNode, field: string): Promise<boolean> {
+  const sourceNode = await findSourceNode(instance, node);
+  if (!sourceNode) return true; // Can't verify, assume real
+
+  const fieldsToCheck = getFieldsToReset(field);
+
+  for (const f of fieldsToCheck) {
+    if (!(f in sourceNode)) continue;
+
+    const sourceValue = (sourceNode as any)[f];
+    const currentValue = (node as any)[f];
+
+    if (!isEqual(sourceValue, currentValue)) {
+      return true; // Found a difference
+    }
+  }
+
+  return false; // All fields match source
+}
+
+/**
+ * Helper to parse override reference string or JSON
+ */
+function parseOverrideReference(ref: string): { nodeId: string | null, field: string | null, nodeName: string | null } {
+  try {
+    const data = JSON.parse(ref);
+    if (data.nodeId && data.field) {
+      return { nodeId: data.nodeId, field: data.field, nodeName: data.nodeName };
+    }
+  } catch (e) {
+    const match = ref.match(/^(.+?)\s*→\s*(.+)$/);
+    if (match) {
+      const nodeName = match[1].trim();
+      let field = match[2].trim().replace(/\s+/g, '').replace(/^(.)/, m => m.toLowerCase());
+      field = FIELD_MAPPING[field.toLowerCase()] || field;
+      return { nodeId: null, field, nodeName };
+    }
+  }
+  return { nodeId: null, field: null, nodeName: null };
+}
+
+/**
+ * Helper to restore an override from source
+ */
+async function restoreOverride(nodeToReset: SceneNode, sourceNode: BaseNode, field: string): Promise<boolean> {
+  let didReset = false;
+
+  if (field === 'componentProperties') {
+    try {
+      const defaultProps: Record<string, string | boolean> = {};
+      if (sourceNode.type === 'INSTANCE') {
+        const props = (sourceNode as InstanceNode).componentProperties;
+        Object.entries(props).forEach(([k, v]) => defaultProps[k] = v.value);
+      } else if (sourceNode.type === 'COMPONENT' || sourceNode.type === 'COMPONENT_SET') {
+        const definitions = (sourceNode as ComponentNode | ComponentSetNode).componentPropertyDefinitions;
+        Object.entries(definitions).forEach(([k, v]) => defaultProps[k] = v.defaultValue);
+      }
+      (nodeToReset as InstanceNode).setProperties(defaultProps);
+      didReset = true;
+    } catch (err) {
+      console.error(`Failed to reset componentProperties on ${nodeToReset.name}:`, err);
+    }
+  } else {
+    const fieldsToReset = getFieldsToReset(field);
+    for (const f of fieldsToReset) {
+      if (f in sourceNode) {
+        try {
+          await resetProperty(nodeToReset, f, (sourceNode as any)[f]);
+          didReset = true;
+        } catch (err) { /* ignore */ }
+      }
+    }
+  }
+  return didReset;
+}
+
+/**
  * Search and list all overrides on selected instances
  */
 export async function searchInstanceOverrides(searchTerm: string): Promise<Array<string | { name: string; data: unknown }>> {
@@ -1418,11 +1526,14 @@ export async function searchInstanceOverrides(searchTerm: string): Promise<Array
       const nodeId = override.id;
       const fields = override.overriddenFields;
       let nodeName = 'Unknown';
+      let node: SceneNode | null = null;
 
       try {
-        const node = await figma.getNodeByIdAsync(nodeId);
+        node = await figma.getNodeByIdAsync(nodeId) as SceneNode;
         if (node && 'name' in node) nodeName = node.name;
       } catch (e) { /* ignore */ }
+
+      if (!node) continue;
 
       // Process fields
       for (const field of fields) {
@@ -1432,6 +1543,14 @@ export async function searchInstanceOverrides(searchTerm: string): Promise<Array
         const overrideKey = `${nodeId}:${effectiveField}`;
 
         if (seenOverrides.has(overrideKey)) continue;
+
+        // Check if the override is real (value differs from source)
+        const isReal = await isOverrideReal(instance, node, effectiveField);
+        if (!isReal) {
+          seenOverrides.add(overrideKey);
+          continue;
+        }
+
         seenOverrides.add(overrideKey);
 
         // Format display name
@@ -1461,6 +1580,7 @@ export async function searchInstanceOverrides(searchTerm: string): Promise<Array
 
 /**
  * Reset a specific override on selected instances
+ * @param overrideReference String in format "NodeName → Field" or JSON data from dropdown
  */
 export async function resetSpecificOverride(overrideReference: string) {
   const selection = figma.currentPage.selection;
@@ -1468,36 +1588,7 @@ export async function resetSpecificOverride(overrideReference: string) {
 
   if (instances.length === 0) throw new Error('No instances selected');
 
-  let nodeId: string | null = null;
-  let field: string | null = null;
-  let nodeName: string | null = null;
-
-  // Parse input
-  try {
-    const data = JSON.parse(overrideReference);
-    if (data.nodeId && data.field) {
-      nodeId = data.nodeId;
-      field = data.field;
-      nodeName = data.nodeName;
-    }
-  } catch (e) {
-    const match = overrideReference.match(/^(.+?)\s*→\s*(.+)$/);
-    if (match) {
-      nodeName = match[1].trim();
-      const fieldDisplay = match[2].trim();
-      field = fieldDisplay.replace(/\s+/g, '').replace(/^(.)/, m => m.toLowerCase());
-
-      const fieldMap: Record<string, string> = {
-        'strokestyleid': 'strokeStyleId', 'strokeweight': 'strokeWeight',
-        'strokes': 'strokes', 'fills': 'fills', 'fillstyleid': 'fillStyleId',
-        'componentproperties': 'componentProperties', 'effects': 'effects',
-        'effectstyleid': 'effectStyleId', 'characters': 'characters',
-        'textstyleid': 'textStyleId', 'cornerradius': 'cornerRadius',
-        'stroke': 'stroke'
-      };
-      field = fieldMap[field.toLowerCase()] || field;
-    }
-  }
+  const { nodeId, field, nodeName } = parseOverrideReference(overrideReference);
 
   if (!field) {
     figma.notify('Invalid override reference format', { error: true });
@@ -1508,60 +1599,30 @@ export async function resetSpecificOverride(overrideReference: string) {
 
   for (const instance of instances) {
     for (const override of instance.overrides) {
-      // Filter by nodeId or nodeName if provided
+      // Filter by nodeId if provided
       if (nodeId && override.id !== nodeId) continue;
+
+      // If we are matching by name (from typed command), we need to verify the node name
+      // Note: We do NOT update nodeId here, to allow matching multiple instances by name
       if (!nodeId && nodeName) {
         try {
           const node = await figma.getNodeByIdAsync(override.id);
           if (!node || node.name !== nodeName) continue;
-          nodeId = override.id;
-        } catch (e) { continue; }
+        } catch { continue; }
       }
 
-      // Check if this override matches our target field
       const fieldsToReset = getFieldsToReset(field);
       const hasMatchingField = override.overriddenFields.some(f => fieldsToReset.includes(f));
 
       if (hasMatchingField) {
         try {
-          const nodeToReset = await figma.getNodeByIdAsync(override.id);
-          if (!nodeToReset || !('type' in nodeToReset)) continue;
+          const nodeToReset = await figma.getNodeByIdAsync(override.id) as SceneNode;
+          if (!nodeToReset) continue;
 
-          const sourceNode = await findSourceNode(instance, nodeToReset as SceneNode);
-
+          const sourceNode = await findSourceNode(instance, nodeToReset);
           if (sourceNode) {
-            // Component Properties
-            if (field === 'componentProperties') {
-              try {
-                const defaultProps: Record<string, string | boolean> = {};
-                if (sourceNode.type === 'INSTANCE') {
-                  const props = (sourceNode as InstanceNode).componentProperties;
-                  Object.entries(props).forEach(([k, v]) => defaultProps[k] = v.value);
-                } else if (sourceNode.type === 'COMPONENT' || sourceNode.type === 'COMPONENT_SET') {
-                  const definitions = (sourceNode as ComponentNode | ComponentSetNode).componentPropertyDefinitions;
-                  Object.entries(definitions).forEach(([k, v]) => defaultProps[k] = v.defaultValue);
-                }
-                (nodeToReset as InstanceNode).setProperties(defaultProps);
-                resetCount++;
-              } catch (err) {
-                console.error(`Failed to reset componentProperties on ${nodeToReset.name}:`, err);
-              }
-            }
-            // Standard Properties
-            else {
-              let anyReset = false;
-              for (const f of fieldsToReset) {
-                if (f in sourceNode) {
-                  try {
-                    await resetProperty(nodeToReset as SceneNode, f, (sourceNode as any)[f]);
-                    anyReset = true;
-                  } catch (err) {
-                    // Ignore read-only errors or missing setters
-                  }
-                }
-              }
-              if (anyReset) resetCount++;
-            }
+            const success = await restoreOverride(nodeToReset, sourceNode, field);
+            if (success) resetCount++;
           }
         } catch (e) {
           console.error('Error resetting override:', e);
