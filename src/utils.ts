@@ -360,7 +360,7 @@ interface VariableCacheEntry {
 }
 
 interface StyleVariableCache {
-  paintStyles: Array<{ name: string, key: string, isLocal: boolean, color?: RGB }>;
+  paintStyles: Array<{ name: string, key: string, isLocal: boolean, color?: RGB, imageHash?: string }>;
   textStyles: Array<{ name: string, key: string, isLocal: boolean }>;
   effectStyles: Array<{ name: string, key: string, isLocal: boolean }>;
   gridStyles: Array<{ name: string, key: string, isLocal: boolean }>;
@@ -432,6 +432,18 @@ function createColorSwatchSVG(color: RGB | string): string {
 </svg>`;
 }
 
+const IMAGE_STYLE_ICON = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="16" height="16" fill="#f5f5f5"/>
+  <rect x="2" y="3" width="12" height="10" rx="1" fill="#e0e0e0"/>
+  <circle cx="5" cy="6" r="1.5" fill="#bdbdbd"/>
+  <path d="M2 11L5.5 8L8 10L11 7L14 11V12C14 12.5523 13.5523 13 13 13H3C2.44772 13 2 12.5523 2 12V11Z" fill="#bdbdbd"/>
+  <rect x="0.5" y="0.5" width="15" height="15" stroke="#00000033" stroke-opacity="0.2"/>
+</svg>`;
+
+function getImageStyleIcon(): string {
+  return IMAGE_STYLE_ICON;
+}
+
 export async function getCachedStylesAndVariables(): Promise<StyleVariableCache> {
   if (cache && Date.now() - cache.timestamp < CACHE_DURATION) {
     return cache;
@@ -454,20 +466,26 @@ export async function getCachedStylesAndVariables(): Promise<StyleVariableCache>
     figma.variables.getLocalVariableCollectionsAsync()
   ]);
 
-  // Process paint styles - extract colors synchronously (with defensive check)
   const paintStylesData = (localPaintStyles || []).map(s => {
     let color: RGB | undefined;
+    let imageHash: string | undefined;
 
-    // Extract color from the first paint that has a color
     const paints = s.paints || [];
     for (const paint of paints) {
-      if (paint.type === 'SOLID' && paint.visible !== false) {
+      if (paint.visible === false) continue;
+      
+      if (paint.type === 'SOLID') {
         color = paint.color;
         break;
-      } else if ((paint.type === 'GRADIENT_LINEAR' || paint.type === 'GRADIENT_RADIAL' || paint.type === 'GRADIENT_ANGULAR' || paint.type === 'GRADIENT_DIAMOND') && paint.visible !== false) {
-        // For gradients, use the first color stop
+      } else if (paint.type === 'GRADIENT_LINEAR' || paint.type === 'GRADIENT_RADIAL' || paint.type === 'GRADIENT_ANGULAR' || paint.type === 'GRADIENT_DIAMOND') {
         if (paint.gradientStops && paint.gradientStops.length > 0) {
           color = paint.gradientStops[0].color;
+          break;
+        }
+      } else if (paint.type === 'IMAGE') {
+        const imagePaint = paint as ImagePaint;
+        if (imagePaint.imageHash) {
+          imageHash = imagePaint.imageHash;
           break;
         }
       }
@@ -477,7 +495,8 @@ export async function getCachedStylesAndVariables(): Promise<StyleVariableCache>
       name: s.name,
       key: s.key,
       isLocal: !s.remote,
-      color
+      color,
+      imageHash
     };
   });
 
@@ -668,6 +687,7 @@ export async function searchStylesAndVariables(
     name: string;
     color?: RGB;
     hexColor?: string;
+    imageHash?: string; // For image fill styles
     variableEntry?: VariableCacheEntry; // Reference for lazy color resolution
   }
 
@@ -714,12 +734,15 @@ export async function searchStylesAndVariables(
       .filter(s => flexibleMatch(searchTerm, s.name))
       .forEach(s => {
         const location = s.isLocal ? 'Local' : 'Library';
+        
+        const imageHashValue = 'imageHash' in s ? (s as { imageHash?: string }).imageHash : undefined;
         resultsMap.set(s.name, {
           score: calculateSearchScore(searchTerm, s.name),
           text: `${s.name} (${location})`,
           collection: location,
           name: s.name,
-          color: 'color' in s ? s.color : undefined
+          color: 'color' in s ? s.color : undefined,
+          imageHash: imageHashValue
         });
       });
   }
@@ -763,7 +786,7 @@ export async function searchStylesAndVariables(
       });
 
       matchingItems.forEach(item => {
-        const [name, , itemType, colorHex] = item;
+        const [name, , itemType, colorOrImageRef] = item;
 
         const score = calculateSearchScore(searchTerm, name);
 
@@ -771,12 +794,25 @@ export async function searchStylesAndVariables(
         const isVariable = itemType.startsWith('VARIABLE');
         const text = isVariable ? `${name} (${libName} - Library)` : `${name} (${libName})`;
 
+        let hexColor: string | undefined;
+        let imageHash: string | undefined;
+        
+        if (colorOrImageRef?.startsWith('IMAGE:')) {
+          imageHash = colorOrImageRef.substring(6);
+        } else {
+          hexColor = colorOrImageRef;
+        }
+
+        const existing = resultsMap.get(name);
+        const finalImageHash = imageHash || existing?.imageHash;
+        
         resultsMap.set(name, {
           score,
           text,
           collection: libName,
           name: name,
-          hexColor: colorHex
+          hexColor,
+          imageHash: finalImageHash
         });
       });
     }
@@ -797,8 +833,8 @@ export async function searchStylesAndVariables(
     })
     .slice(0, 20);
 
-  // Lazy color resolution: Only resolve colors for the final 20 results
-  // This avoids resolving colors for hundreds of variables that won't be displayed
+  // Lazy color/image resolution: Only resolve for the final 20 results
+  // This avoids resolving colors/images for hundreds of items that won't be displayed
   const finalResults = await Promise.all(sortedResults.map(async r => {
     const hexColor = r.hexColor;
 
@@ -807,6 +843,14 @@ export async function searchStylesAndVariables(
         name: r.text,
         data: r.text,
         icon: createColorSwatchSVG(hexColor)
+      };
+    }
+    
+    if (r.imageHash) {
+      return {
+        name: r.text,
+        data: r.text,
+        icon: getImageStyleIcon()
       };
     }
     

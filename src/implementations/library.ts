@@ -68,14 +68,21 @@ export async function publishLibrary() {
 
     paintStyles.forEach(s => {
         let colorHex: string | undefined;
-        // Extract color from the first paint that has a color
         for (const paint of s.paints) {
-            if (paint.type === 'SOLID' && paint.visible !== false) {
+            if (paint.visible === false) continue;
+            
+            if (paint.type === 'SOLID') {
                 colorHex = rgbToHex(paint.color);
                 break;
-            } else if ((paint.type === 'GRADIENT_LINEAR' || paint.type === 'GRADIENT_RADIAL' || paint.type === 'GRADIENT_ANGULAR' || paint.type === 'GRADIENT_DIAMOND') && paint.visible !== false) {
+            } else if (paint.type === 'GRADIENT_LINEAR' || paint.type === 'GRADIENT_RADIAL' || paint.type === 'GRADIENT_ANGULAR' || paint.type === 'GRADIENT_DIAMOND') {
                 if (paint.gradientStops && paint.gradientStops.length > 0) {
                     colorHex = rgbToHex(paint.gradientStops[0].color);
+                    break;
+                }
+            } else if (paint.type === 'IMAGE') {
+                const imagePaint = paint as ImagePaint;
+                if (imagePaint.imageHash) {
+                    colorHex = `IMAGE:${imagePaint.imageHash}`;
                     break;
                 }
             }
