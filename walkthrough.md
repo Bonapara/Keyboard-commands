@@ -1,24 +1,22 @@
 # Smart Alignment Commands Walkthrough
 
-I have updated the alignment commands to be "smart" and flexible. They adapt their behavior based on the selected node type, but you can also force a specific behavior using a parameter or explicit commands.
+I have updated the alignment commands to be strictly separated based on context, avoiding redundancy.
 
 ## Behavior
 
-1.  **Default (No Parameter)**:
-    *   **AutoLayout Nodes**: Aligns the **items inside** the frame (Children).
-    *   **Regular Nodes**: Aligns the **node itself** relative to its parent container (Parent).
+1.  **AutoLayout Commands (`acc`, `atl`, etc.)**:
+    *   **Availability**: Only available when selecting an **AutoLayout Frame**.
+    *   **Action**: Aligns the **Children** inside the frame.
+    *   **Optional Parameter (`p`)**: Can still force alignment of the frame itself to its parent (e.g., `acc p`).
 
-2.  **With Parameter (`p`)**:
-    *   Forces alignment to the **Parent**, even for AutoLayout nodes.
-    *   Example: `acc p` will center the AutoLayout frame itself within its parent.
-
-3.  **Explicit Parent Commands (`...p`)**:
-    *   Shortcuts for parent alignment.
-    *   Example: `accp` is the same as `acc p`.
+2.  **Parent Alignment Commands (`accp`, `atlp`, etc.)**:
+    *   **Availability**: Available for **all positionable nodes** (Frames, Groups, Shapes, etc.).
+    *   **Action**: Aligns the **Node itself** to its **Parent**.
+    *   **Use Case**: This is the primary way to align regular nodes to their parent.
 
 ## Command List
 
-| Position | Smart Command (Auto/Parent) | Explicit Parent Command |
+| Position | AutoLayout Only (Align Children) | Universal (Align to Parent) |
 | :--- | :--- | :--- |
 | **Top Left** | `atl` | `atlp` |
 | **Top Center** | `atc` | `atcp` |
@@ -32,34 +30,23 @@ I have updated the alignment commands to be "smart" and flexible. They adapt the
 
 ## Changes
 
-### `src/implementations/alignment.ts`
-
--   Updated `smartAlign` signature: `smartAlign(position, scope: 'AUTO' | 'CHILDREN' | 'PARENT' = 'AUTO')`.
--   Renamed terminology to match Figma API best practices:
-    -   `PARENT`: Aligns to `node.parent`.
-    -   `CHILDREN`: Aligns `node.children` (via AutoLayout properties).
-    -   `AUTO`: Original smart logic.
-
 ### `src/commands.ts`
 
--   Updated all calls to `smartAlign` to use the new `PARENT` / `CHILDREN` terminology.
--   Functionality remains the same: `val.startsWith('p') ? 'PARENT' : 'AUTO'`.
+-   Added `specialConditions: ['IsAutoLayout']` to the 9 alignment commands (`atl`...`abr`).
+-   Removed `(p = parent)` from suggestions to avoid clutter, as `accp` is the preferred explicit command.
 
 ## Verification
 
 To verify the changes:
 
-1.  **AutoLayout Inside Test**:
+1.  **Regular Node Test**:
+    -   Select a Rectangle.
+    -   Try typing `acc`. -> **Should NOT appear**.
+    -   Type `accp`. -> **Should appear and center the rectangle**.
+
+2.  **AutoLayout Test**:
     -   Select an AutoLayout frame.
-    -   Run `acc`.
-    -   Verify children are centered.
-
-2.  **AutoLayout Outside Test (Parameter)**:
-    -   Select the same AutoLayout frame.
-    -   Run `acc p`.
-    -   Verify the AutoLayout frame itself moves to the center of its parent.
-
-3.  **AutoLayout Outside Test (Explicit Command)**:
-    -   Select the same AutoLayout frame.
-    -   Run `accp`.
-    -   Verify the AutoLayout frame itself moves to the center of its parent.
+    -   Type `acc`. -> **Should appear without parent hint**.
+    -   Run `acc`. -> **Centers children**.
+    -   Run `acc p`. -> **Centers frame in parent**.
+    -   Run `accp`. -> **Centers frame in parent**.
