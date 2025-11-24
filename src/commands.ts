@@ -697,6 +697,17 @@ export const COMMAND_DEFINITIONS = {
       libraryStyles: true
     }
   },
+  Effect: {
+    type: "commandWithValue",
+    alias: ['e'],
+    valueFormat: 'string' as const,
+    suggestion: 'Apply effect style',
+    functionWithParam: (value: string) => impl.setEffect(value),
+    bindingSupport: {
+      styles: ['EFFECT'],
+      libraryStyles: true
+    }
+  },
   StrokeAlignCenter: {
     type: "commandWithoutValue",
     alias: ['sac', 'scc'],

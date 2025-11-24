@@ -1,52 +1,28 @@
-# Smart Alignment Commands Walkthrough
+# Effect Command Implementation
 
-I have updated the alignment commands to be strictly separated based on context, avoiding redundancy.
-
-## Behavior
-
-1.  **AutoLayout Commands (`acc`, `atl`, etc.)**:
-    *   **Availability**: Only available when selecting an **AutoLayout Frame**.
-    *   **Action**: Aligns the **Children** inside the frame.
-    *   **Optional Parameter (`p`)**: Can still force alignment of the frame itself to its parent (e.g., `acc p`).
-
-2.  **Parent Alignment Commands (`accp`, `atlp`, etc.)**:
-    *   **Availability**: Available for **all positionable nodes** (Frames, Groups, Shapes, etc.).
-    *   **Action**: Aligns the **Node itself** to its **Parent**.
-    *   **Use Case**: This is the primary way to align regular nodes to their parent.
-
-## Command List
-
-| Position | AutoLayout Only (Align Children) | Universal (Align to Parent) |
-| :--- | :--- | :--- |
-| **Top Left** | `atl` | `atlp` |
-| **Top Center** | `atc` | `atcp` |
-| **Top Right** | `atr` | `atrp` |
-| **Center Left** | `acl` | `aclp` |
-| **Center Center** | `acc` | `accp` |
-| **Center Right** | `acr` | `acrp` |
-| **Bottom Left** | `abl` | `ablp` |
-| **Bottom Center** | `abc` | `abcp` |
-| **Bottom Right** | `abr` | `abrp` |
+I have refactored the previous `Style` command into a dedicated `Effect` command, as requested.
 
 ## Changes
 
-### `src/commands.ts`
+### 1. `src/commands.ts`
+- Renamed `Style` command to `Effect`.
+- Updated aliases to `effect` and `ef`.
+- Restricted `bindingSupport` to `styles: ['EFFECT']` only (removed PAINT, TEXT, GRID, and variables).
+- Updated the command to call `impl.setEffect(value)`.
 
--   Added `specialConditions: ['IsAutoLayout']` to the 9 alignment commands (`atl`...`abr`).
--   Removed `(p = parent)` from suggestions to avoid clutter, as `accp` is the preferred explicit command.
+### 2. `src/implementations/styling.ts`
+- Renamed `setStyle` to `setEffect`.
+- Updated the function logic to:
+    - Only handle `EFFECT` style types.
+    - Use `figma.importStyleByKeyAsync(key)` to correctly resolve the style object (works for both local and imported styles).
+    - Apply the style ID to `node.effectStyleId`.
 
 ## Verification
 
 To verify the changes:
-
-1.  **Regular Node Test**:
-    -   Select a Rectangle.
-    -   Try typing `acc`. -> **Should NOT appear**.
-    -   Type `accp`. -> **Should appear and center the rectangle**.
-
-2.  **AutoLayout Test**:
-    -   Select an AutoLayout frame.
-    -   Type `acc`. -> **Should appear without parent hint**.
-    -   Run `acc`. -> **Centers children**.
-    -   Run `acc p`. -> **Centers frame in parent**.
-    -   Run `accp`. -> **Centers frame in parent**.
+1.  Run the plugin.
+2.  Select a node (e.g., a Rectangle or Frame).
+3.  Open the command palette (Cmd+P).
+4.  Type `effect` or `ef` followed by an effect style name (e.g., `ef Shadow`, `ef Blur`).
+5.  Verify that only effect styles are suggested.
+6.  Verify that the selected effect style is correctly applied to the node.

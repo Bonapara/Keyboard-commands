@@ -1,4 +1,4 @@
-import { BindingSupport, Command, PaintResolution, StyleBindingType, ValueFormat, VariableResolvedType, LibraryItem, SpecialCondition } from './types';
+import { BindingSupport, Command, PaintResolution, StyleResolution, StyleBindingType, ValueFormat, VariableResolvedType, LibraryItem, SpecialCondition } from './types';
 import { getStoredLibraries } from './storage';
 import { COMMANDS, CommandName } from './commands';
 import {
@@ -292,6 +292,8 @@ export function extractValue(text: string, format: ValueFormat): string | null {
 interface StyleVariableCache {
   paintStyles: Array<{ name: string, key: string, isLocal: boolean, color?: RGB }>;
   textStyles: Array<{ name: string, key: string, isLocal: boolean }>;
+  effectStyles: Array<{ name: string, key: string, isLocal: boolean }>;
+  gridStyles: Array<{ name: string, key: string, isLocal: boolean }>;
   variables: Array<{ id: string, name: string, type: string, collection: string, isLibrary: boolean, color?: RGB }>;
   timestamp: number;
 }
@@ -358,7 +360,23 @@ export async function getCachedStylesAndVariables(): Promise<StyleVariableCache>
   const textStylesData = localTextStyles.map(s => ({
     name: s.name,
     key: s.key,
-    isLocal: !s.remote  // remote means it's from a library
+    isLocal: !s.remote
+  }));
+
+  // Fetch local effect styles
+  const localEffectStyles = await figma.getLocalEffectStylesAsync();
+  const effectStylesData = localEffectStyles.map(s => ({
+    name: s.name,
+    key: s.key,
+    isLocal: !s.remote
+  }));
+
+  // Fetch local grid styles
+  const localGridStyles = await figma.getLocalGridStylesAsync();
+  const gridStylesData = localGridStyles.map(s => ({
+    name: s.name,
+    key: s.key,
+    isLocal: !s.remote
   }));
 
   // Fetch all local variables
@@ -416,6 +434,8 @@ export async function getCachedStylesAndVariables(): Promise<StyleVariableCache>
   cache = {
     paintStyles: paintStylesData,
     textStyles: textStylesData,
+    effectStyles: effectStylesData,
+    gridStyles: gridStylesData,
     variables: variablesData,
     timestamp: Date.now()
   };
@@ -594,7 +614,43 @@ export async function searchStylesAndVariables(
       resultsMap.set(s.name, {
         score,
         text: `${s.name} (${location})`,
-        collection: location, // Use location as collection for styles
+        collection: location,
+        name: s.name
+      });
+    });
+  }
+
+  // Search effect styles
+  if (bindingSupport.styles && bindingSupport.styles.indexOf('EFFECT') !== -1) {
+    const matchingStyles = data.effectStyles.filter(s =>
+      flexibleMatch(searchTerm, s.name)
+    );
+
+    matchingStyles.forEach(s => {
+      const score = calculateSearchScore(searchTerm, s.name);
+      const location = s.isLocal ? 'Local' : 'Library';
+      resultsMap.set(s.name, {
+        score,
+        text: `${s.name} (${location})`,
+        collection: location,
+        name: s.name
+      });
+    });
+  }
+
+  // Search grid styles
+  if (bindingSupport.styles && bindingSupport.styles.indexOf('GRID') !== -1) {
+    const matchingStyles = data.gridStyles.filter(s =>
+      flexibleMatch(searchTerm, s.name)
+    );
+
+    matchingStyles.forEach(s => {
+      const score = calculateSearchScore(searchTerm, s.name);
+      const location = s.isLocal ? 'Local' : 'Library';
+      resultsMap.set(s.name, {
+        score,
+        text: `${s.name} (${location})`,
+        collection: location,
         name: s.name
       });
     });
@@ -831,5 +887,163 @@ export async function resolvePaintValue(rawValue: string): Promise<PaintResoluti
     type: 'literal',
     color: { r, g, b }
   };
+}
+
+export async function resolveStyleValue(rawValue: string): Promise<StyleResolution> {
+  const cleanValue = rawValue.trim();
+
+  // Check if this is a style/variable reference by pattern
+  const bindingMatch = cleanValue.match(/^(.+?)\s*\(([^)]+)\)$/);
+
+  if (bindingMatch) {
+    const name = bindingMatch[1].trim();
+    const metadata = bindingMatch[2];
+
+    const data = await getCachedStylesAndVariables();
+
+    // Check if it's a variable (contains " - " in metadata)
+    if (metadata.includes(' - ')) {
+      // Variable reference
+      const varData = data.variables.find(v => v.name === name);
+
+      if (!varData) {
+        // Fallback: Check stored libraries
+        try {
+          const libraries = await getStoredLibraries();
+          let foundItem: LibraryItem | undefined;
+
+          // Search all libraries for the variable
+          for (const libName of Object.keys(libraries)) {
+            const items = libraries[libName];
+            // Check for any variable type
+            foundItem = items.find(i => i[0] === name && (i[2].startsWith('VARIABLE') || (i[2] as string) === 'VARIABLE'));
+            if (foundItem) break;
+          }
+
+          if (foundItem) {
+            return {
+              type: 'variable',
+              variableId: foundItem[1], // Key
+              variableName: foundItem[0],
+              isLibraryVariable: true
+            };
+          }
+        } catch (e) {
+          console.warn('Failed to search stored libraries:', e);
+        }
+
+        figma.notify(`Variable "${name}" not found, skipping...`);
+        throw new Error(`Variable not found: ${name}`);
+      }
+
+      return {
+        type: 'variable',
+        variableId: varData.id,
+        variableName: varData.name,
+        isLibraryVariable: varData.isLibrary
+      };
+    } else {
+      // Style reference
+      // Try to find it in all style types
+      let styleData: { name: string, key: string, isLocal: boolean } | undefined;
+      let styleType: StyleBindingType | undefined;
+
+      // Check Paint Styles
+      styleData = data.paintStyles.find(s => s.name === name);
+      if (styleData) styleType = 'PAINT';
+
+      // Check Text Styles
+      if (!styleData) {
+        styleData = data.textStyles.find(s => s.name === name);
+        if (styleData) styleType = 'TEXT';
+      }
+
+      // Check Effect Styles
+      if (!styleData) {
+        styleData = data.effectStyles.find(s => s.name === name);
+        if (styleData) styleType = 'EFFECT';
+      }
+
+      // Check Grid Styles
+      if (!styleData) {
+        styleData = data.gridStyles.find(s => s.name === name);
+        if (styleData) styleType = 'GRID';
+      }
+
+      if (!styleData) {
+        // Fallback for Library Styles (unimported)
+        try {
+          const libraries = await getStoredLibraries();
+          let foundItem: LibraryItem | undefined;
+
+          // Search all libraries for the style
+          for (const libName of Object.keys(libraries)) {
+            const items = libraries[libName];
+            // Check for any style type
+            foundItem = items.find(i => i[0] === name && ['PAINT', 'TEXT', 'EFFECT', 'GRID'].includes(i[2]));
+            if (foundItem) break;
+          }
+
+          if (foundItem) {
+            // Import it!
+            try {
+              await figma.importStyleByKeyAsync(foundItem[1]);
+              return {
+                type: 'style',
+                styleKey: foundItem[1],
+                styleType: foundItem[2] as StyleBindingType
+              };
+            } catch (e) {
+              console.error("Failed to import style:", e);
+              throw new Error(`Failed to import library style: ${name}`);
+            }
+          }
+        } catch (e) {
+          console.warn('Failed to search stored libraries for style:', e);
+        }
+
+        figma.notify(`Style "${name}" not found, skipping...`);
+        throw new Error(`Style not found: ${name}`);
+      }
+
+      // Lazy import if it's a library style
+      if (!styleData.isLocal && styleData.key) {
+        try {
+          await figma.importStyleByKeyAsync(styleData.key);
+        } catch (e) {
+          console.error("Failed to import style:", e);
+          throw new Error(`Failed to import library style: ${name} `);
+        }
+      }
+
+      return {
+        type: 'style',
+        styleKey: styleData.key,
+        styleType: styleType
+      };
+    }
+  }
+
+  // Literal hex color (fallback for paint)
+  const hexMatch = cleanValue.match(/#?([0-9a-fA-F]{3,6})/);
+  if (hexMatch) {
+    let hex = hexMatch[1];
+    if (hex.length === 3) {
+      hex = hex.split('').map(c => c + c).join('');
+    }
+
+    if (hex.length === 6) {
+      const r = parseInt(hex.substring(0, 2), 16) / 255;
+      const g = parseInt(hex.substring(2, 4), 16) / 255;
+      const b = parseInt(hex.substring(4, 6), 16) / 255;
+
+      return {
+        type: 'literal',
+        color: { r, g, b }
+      };
+    }
+  }
+
+  throw new Error(`Invalid style or color format: ${cleanValue}`);
 }
 

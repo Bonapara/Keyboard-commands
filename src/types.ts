@@ -3,7 +3,7 @@ export type SpecialCondition = 'IsAutoLayout' | 'IsInAutoLayout' | 'IsAbsoluteIn
 
 export type ValueFormat = 'number' | 'hex' | 'string';
 
-export type StyleBindingType = 'PAINT' | 'TEXT' | 'EFFECT';
+export type StyleBindingType = 'PAINT' | 'TEXT' | 'EFFECT' | 'GRID';
 export type VariableResolvedType = 'BOOLEAN' | 'COLOR' | 'FLOAT' | 'STRING';
 
 export interface BindingSupport {
@@ -63,7 +63,17 @@ export interface PaintResolution {
   color?: RGB;
 }
 
-export type LibraryItemType = 'PAINT' | 'TEXT' | 'EFFECT' | 'COMPONENT' | 'VARIABLE_COLOR' | 'VARIABLE_FLOAT' | 'VARIABLE_STRING' | 'VARIABLE_BOOLEAN';
+export interface StyleResolution {
+  type: 'style' | 'variable' | 'literal';
+  styleKey?: string;
+  styleType?: StyleBindingType;
+  variableId?: string;
+  variableName?: string;
+  isLibraryVariable?: boolean;
+  color?: RGB;
+}
+
+export type LibraryItemType = 'PAINT' | 'TEXT' | 'EFFECT' | 'GRID' | 'COMPONENT' | 'VARIABLE_COLOR' | 'VARIABLE_FLOAT' | 'VARIABLE_STRING' | 'VARIABLE_BOOLEAN';
 export type LibraryItem = [string, string, LibraryItemType, string?];
 
 export type LibraryData = Record<string, LibraryItem[]>;
