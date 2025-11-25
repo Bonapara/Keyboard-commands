@@ -13,7 +13,7 @@ import {
 } from './utils';
 import { searchLibraries } from './implementations/library';
 import * as impl from './implementations';
-import { getIconWithOpacity } from './icons';
+import { getIconWithOpacity, getIconWithColor } from './icons';
 
 let originalInput = '';
 
@@ -386,10 +386,10 @@ function handleMatchedCommand(
     const previousValue = previousCommands[matchedCommand.name];
     const hint = previousValue ? `ℹ️ already set to '${previousValue}'` : matchedCommand.suggestion;
     const suggestionText = `${matchedCommand.alias.join(', ')} · ${matchedCommand.name} -- ${hint}`;
-    
+
     // Get icon with 80% opacity for the first result (more prominent than others at 40%)
-    const icon = matchedCommand.icon ? getIconWithOpacity(matchedCommand.icon, 0.8) : undefined;
-    
+    const icon = matchedCommand.icon ? getIconWithColor(matchedCommand.icon, '#BC3114', 1.0) : undefined;
+
     if (icon) {
       suggestions.push({ name: suggestionText, data: suggestionText, icon });
     } else {

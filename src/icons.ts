@@ -209,3 +209,16 @@ export function getIconWithOpacity(name: string, opacity: number): string | unde
   return icon.replace(/opacity="0\.4"/, `opacity="${opacity}"`);
 }
 
+/**
+ * Get an SVG icon string by name with custom color and opacity
+ * Used for the first search result to make it stand out with accent color
+ */
+export function getIconWithColor(name: string, color: string, opacity: number = 1.0): string | undefined {
+  const icon = ICONS[name as IconName];
+  if (!icon) return undefined;
+  // Replace stroke color and opacity
+  return icon
+    .replace(/stroke="currentColor"/, `stroke="${color}"`)
+    .replace(/opacity="0\.4"/, `opacity="${opacity}"`);
+}
+
