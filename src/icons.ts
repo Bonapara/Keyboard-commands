@@ -30,6 +30,10 @@ export const ICONS = {
   'arrow-down': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 5l0 14"/><path d="M18 13l-6 6"/><path d="M6 13l6 6"/>'),
   'arrow-left': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l14 0"/><path d="M5 12l6 6"/><path d="M5 12l6 -6"/>'),
   'arrow-right': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l14 0"/><path d="M13 18l6 -6"/><path d="M13 6l6 6"/>'),
+  'chevron-down': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M6 9l6 6l6 -6"/>'),
+  'chevron-up': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M6 15l6 -6l6 6"/>'),
+  'chevrons-down': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 7l5 5l5 -5"/><path d="M7 13l5 5l5 -5"/>'),
+  'chevrons-up': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 11l5 -5l5 5"/><path d="M7 17l5 -5l5 5"/>'),
   'pin': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M15 4.5l-4 4l-4 1.5l-1.5 1.5l7 7l1.5 -1.5l1.5 -4l4 -4"/><path d="M9 15l-4.5 4.5"/><path d="M14.5 4l5.5 5.5"/>'),
   'crosshair': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 12h4m4 0h8"/><path d="M12 4v4m0 4v8"/><path d="M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0"/>'),
 
@@ -50,7 +54,8 @@ export const ICONS = {
   'layout-off': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M8 4h10a2 2 0 0 1 2 2v10m-.586 3.414a2 2 0 0 1 -1.414 .586h-12a2 2 0 0 1 -2 -2v-12c0 -.547 .22 -1.043 .576 -1.405"/><path d="M4 9h6m4 0h6"/><path d="M9 4v2m0 4v10"/><path d="M3 3l18 18"/>'),
   'text-wrap': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 6l16 0"/><path d="M4 18l5 0"/><path d="M4 12h13a3 3 0 0 1 0 6h-4l2 -2m0 4l-2 -2"/>'),
   'spacing-horizontal': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 20h-2a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h2"/><path d="M4 20h2a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2"/><path d="M12 8v8"/>'),
-  'spacing-vertical': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 20v-2a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v2"/><path d="M4 4v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"/><path d="M8 12h8"/>'),
+  'spacing-vertical': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 20v-2a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v2"/><path d="M4 4v2a2 2 0 0 0 2 -2h12a2 2 0 0 0 2 -2v-2"/><path d="M8 12h8"/>'),
+  'box-padding': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 4h16v16h-16z"/><path d="M8 8h8v8h-8z"/>'),
 
   // Transform
   'flip-horizontal': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12l18 0"/><path d="M7 16l10 0l-10 5l0 -5"/><path d="M7 8l10 0l-10 -5l0 5"/>'),
@@ -166,6 +171,12 @@ export const ICONS = {
   'arrow-bar-to-right': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 12l-10 0"/><path d="M14 12l-4 4"/><path d="M14 12l-4 -4"/><path d="M20 4l0 16"/>'),
   'arrow-bar-to-up': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 10l0 10"/><path d="M12 10l4 4"/><path d="M12 10l-4 4"/><path d="M4 4l16 0"/>'),
   'arrow-bar-to-down': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 14l0 -10"/><path d="M12 14l4 -4"/><path d="M12 14l-4 -4"/><path d="M4 20l16 0"/>'),
+
+  // Transitions
+  'transition-left': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M18 3a3 3 0 0 1 3 3v12a3 3 0 0 1 -3 3"/><path d="M6 18v-12a3 3 0 1 0 -6 0v12a3 3 0 0 0 6 0z"/><path d="M15 12h-8"/><path d="M10 9l-3 3l3 3"/>'),
+  'transition-right': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M6 3a3 3 0 0 0 -3 3v12a3 3 0 0 0 3 3"/><path d="M18 18v-12a3 3 0 1 1 6 0v12a3 3 0 0 1 -6 0z"/><path d="M9 12h8"/><path d="M14 9l3 3l-3 3"/>'),
+  'transition-top': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M21 6a3 3 0 0 0 -3 -3h-12a3 3 0 0 0 -3 3"/><path d="M3 21m0 -3a3 3 0 0 1 3 3h12a3 3 0 0 1 3 -3v0a3 3 0 0 1 -3 -3h-12a3 3 0 0 1 -3 3z"/><path d="M12 15v-8"/><path d="M9 10l3 -3l3 3"/>'),
+  'transition-bottom': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M21 18a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3"/><path d="M3 3m0 3a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v0a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3z"/><path d="M12 9v8"/><path d="M9 14l3 3l3 -3"/>'),
 
   // Layers
   'stack': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 6l-8 4l8 4l8 -4l-8 -4"/><path d="M4 14l8 4l8 -4"/>'),

@@ -540,7 +540,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['p'],
     valueFormat: "number",
     suggestion: "Enter padding for all sides",
-    icon: 'spacing-vertical',
+    icon: 'box-padding',
     functionWithParam: (value: string) => impl.setPadding({ paddingLeft: value, paddingRight: value, paddingTop: value, paddingBottom: value }),
     supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
   },
@@ -702,7 +702,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['rl'],
     valueFormat: 'number' as const,
     suggestion: 'Left side radius',
-    icon: 'border-radius',
+    icon: 'transition-left',
     functionWithParam: (value: string) => impl.setRadius({
       topLeftRadius: value,
       bottomLeftRadius: value
@@ -714,7 +714,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['rt'],
     valueFormat: 'number' as const,
     suggestion: 'Top side radius',
-    icon: 'border-radius',
+    icon: 'transition-top',
     functionWithParam: (value: string) => impl.setRadius({
       topLeftRadius: value,
       topRightRadius: value
@@ -726,7 +726,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['rr'],
     valueFormat: 'number' as const,
     suggestion: 'Right side radius',
-    icon: 'border-radius',
+    icon: 'transition-right',
     functionWithParam: (value: string) => impl.setRadius({
       topRightRadius: value,
       bottomRightRadius: value
@@ -738,7 +738,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['rb'],
     valueFormat: 'number' as const,
     suggestion: 'Bottom side radius',
-    icon: 'border-radius',
+    icon: 'transition-bottom',
     functionWithParam: (value: string) => impl.setRadius({
       bottomLeftRadius: value,
       bottomRightRadius: value
@@ -1649,28 +1649,28 @@ export const COMMAND_DEFINITIONS = {
     type: "commandWithoutValue",
     alias: ['zf'],
     suggestion: 'Bring to Front',
-    icon: 'stack-front',
+    icon: 'chevrons-up',
     functionWithoutParam: () => impl.reorderLayer('FRONT'),
   },
   BringForward: {
     type: "commandWithoutValue",
     alias: ['zu'],
     suggestion: 'Bring Forward',
-    icon: 'bring-forward',
+    icon: 'chevron-up',
     functionWithoutParam: () => impl.reorderLayer('FORWARD'),
   },
   SendBackward: {
     type: "commandWithoutValue",
     alias: ['zd'],
     suggestion: 'Send Backward',
-    icon: 'send-backward',
+    icon: 'chevron-down',
     functionWithoutParam: () => impl.reorderLayer('BACKWARD'),
   },
   SendToBack: {
     type: "commandWithoutValue",
     alias: ['zb'],
     suggestion: 'Send to Back',
-    icon: 'stack-back',
+    icon: 'chevrons-down',
     functionWithoutParam: () => impl.reorderLayer('BACK'),
   },
   SwapFillStroke: {
