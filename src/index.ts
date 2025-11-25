@@ -13,6 +13,7 @@ import {
 } from './utils';
 import { searchLibraries } from './implementations/library';
 import * as impl from './implementations';
+import { getIconWithOpacity } from './icons';
 
 let originalInput = '';
 
@@ -375,7 +376,7 @@ function handleMatchedCommand(
         matchedCommand.valueFormat === 'number' ? hasNumber : true
     );
 
-  let suggestions: string[] = [];
+  let suggestions: Array<string | { name: string; data: string; icon?: string }> = [];
 
   // Show "already set" indicator if command was used earlier
   if (
@@ -384,21 +385,42 @@ function handleMatchedCommand(
   ) {
     const previousValue = previousCommands[matchedCommand.name];
     const hint = previousValue ? `ℹ️ already set to '${previousValue}'` : matchedCommand.suggestion;
-    suggestions.push(`${matchedCommand.alias.join(', ')} · ${matchedCommand.name} -- ${hint}`);
+    const suggestionText = `${matchedCommand.alias.join(', ')} · ${matchedCommand.name} -- ${hint}`;
+    
+    // Get icon with 80% opacity for the first result (more prominent than others at 40%)
+    const icon = matchedCommand.icon ? getIconWithOpacity(matchedCommand.icon, 0.8) : undefined;
+    
+    if (icon) {
+      suggestions.push({ name: suggestionText, data: suggestionText, icon });
+    } else {
+      suggestions.push(suggestionText);
+    }
   }
 
   // Display computed values in suggestion
   if (isValidValue && (hasHex || hasNumber)) {
     if (matchedCommand.valueFormat === 'hex' && hasHex) {
       completeCommands.push(`${matchedCommand.name}:${hasHex[0]}`);
-      suggestions[0] = completeCommands.join(' | ');
+      const newText = completeCommands.join(' | ');
+      // Preserve icon if first suggestion had one
+      if (suggestions[0] && typeof suggestions[0] === 'object') {
+        suggestions[0] = { ...suggestions[0], name: newText, data: newText };
+      } else {
+        suggestions[0] = newText;
+      }
     } else if (matchedCommand.valueFormat === 'number' && hasNumber) {
       try {
         completeCommands.push(`${matchedCommand.name}:${calculateExpression(hasNumber[0])}`);
       } catch {
         completeCommands.push(`${matchedCommand.name}:${hasNumber[0]}`);
       }
-      suggestions[0] = completeCommands.join(' | ');
+      const newText = completeCommands.join(' | ');
+      // Preserve icon if first suggestion had one
+      if (suggestions[0] && typeof suggestions[0] === 'object') {
+        suggestions[0] = { ...suggestions[0], name: newText, data: newText };
+      } else {
+        suggestions[0] = newText;
+      }
     }
   }
 
@@ -408,7 +430,13 @@ function handleMatchedCommand(
         ? `${matchedCommand.name} -- ${matchedCommand.suggestion}`
         : matchedCommand.name
     );
-    suggestions[0] = completeCommands.join(' | ');
+    const newText = completeCommands.join(' | ');
+    // Preserve icon if first suggestion had one
+    if (suggestions[0] && typeof suggestions[0] === 'object') {
+      suggestions[0] = { ...suggestions[0], name: newText, data: newText };
+    } else {
+      suggestions[0] = newText;
+    }
   }
 
   // Add related commands

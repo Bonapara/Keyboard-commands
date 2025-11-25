@@ -198,3 +198,14 @@ export function getIcon(name: string): string | undefined {
   return ICONS[name as IconName];
 }
 
+/**
+ * Get an SVG icon string by name with custom opacity
+ * Used for the first search result which should be more prominent (80% opacity)
+ */
+export function getIconWithOpacity(name: string, opacity: number): string | undefined {
+  const icon = ICONS[name as IconName];
+  if (!icon) return undefined;
+  // Replace the default opacity (0.4) with the custom opacity
+  return icon.replace(/opacity="0\.4"/, `opacity="${opacity}"`);
+}
+
