@@ -7,9 +7,10 @@
 /**
  * Creates a 16x16 SVG string from Tabler icon paths
  * Uses currentColor for stroke to inherit Figma's text color
+ * Icons are rendered at 40% opacity for better visual hierarchy
  */
 function createIcon(paths: string, strokeWidth: number = 2): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round" opacity="0.4">${paths}</svg>`;
 }
 
 // ==================================
@@ -84,6 +85,10 @@ export const ICONS = {
   // Stroke & Border
   'border-style': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 18v.01"/><path d="M8 18v.01"/><path d="M12 18v.01"/><path d="M16 18v.01"/><path d="M20 18v.01"/><path d="M18 12h2"/><path d="M11 12h2"/><path d="M4 12h2"/><path d="M4 6h16"/>'),
   'border-radius': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 12v-4a4 4 0 0 1 4 -4h4"/><path d="M16 4l0 16"/><path d="M4 16l0 4"/>'),
+  'radius-top-left': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 19v-6a8 8 0 0 1 8 -8h6" />'),
+  'radius-top-right': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 5h6a8 8 0 0 1 8 8v6" />'),
+  'radius-bottom-left': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M19 19h-6a8 8 0 0 1 -8 -8v-6" />'),
+  'radius-bottom-right': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M19 5v6a8 8 0 0 1 -8 8h-6" />'),
   'border-top': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 4l16 0"/><path d="M4 8l0 .01"/><path d="M12 8l0 .01"/><path d="M20 8l0 .01"/><path d="M4 12l0 .01"/><path d="M8 12l0 .01"/><path d="M12 12l0 .01"/><path d="M16 12l0 .01"/><path d="M20 12l0 .01"/><path d="M4 16l0 .01"/><path d="M12 16l0 .01"/><path d="M20 16l0 .01"/><path d="M4 20l0 .01"/><path d="M8 20l0 .01"/><path d="M12 20l0 .01"/><path d="M16 20l0 .01"/><path d="M20 20l0 .01"/>'),
   'border-bottom': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 20l16 0"/><path d="M4 16l0 .01"/><path d="M12 16l0 .01"/><path d="M20 16l0 .01"/><path d="M4 12l0 .01"/><path d="M8 12l0 .01"/><path d="M12 12l0 .01"/><path d="M16 12l0 .01"/><path d="M20 12l0 .01"/><path d="M4 8l0 .01"/><path d="M12 8l0 .01"/><path d="M20 8l0 .01"/><path d="M4 4l0 .01"/><path d="M8 4l0 .01"/><path d="M12 4l0 .01"/><path d="M16 4l0 .01"/><path d="M20 4l0 .01"/>'),
   'border-left': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 4l0 16"/><path d="M8 4l0 .01"/><path d="M8 12l0 .01"/><path d="M8 20l0 .01"/><path d="M12 4l0 .01"/><path d="M12 8l0 .01"/><path d="M12 12l0 .01"/><path d="M12 16l0 .01"/><path d="M12 20l0 .01"/><path d="M16 4l0 .01"/><path d="M16 12l0 .01"/><path d="M16 20l0 .01"/><path d="M20 4l0 .01"/><path d="M20 8l0 .01"/><path d="M20 12l0 .01"/><path d="M20 16l0 .01"/><path d="M20 20l0 .01"/>'),
@@ -140,6 +145,10 @@ export const ICONS = {
   'layout-align-middle': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 12l5 0"/><path d="M15 12l5 0"/><path d="M9 6m0 2a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2z"/>'),
   'layout-distribute-vertical': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 4l16 0"/><path d="M4 20l16 0"/><path d="M6 9m0 2a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v2a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2z"/>'),
   'layout-distribute-horizontal': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 4l0 16"/><path d="M20 4l0 16"/><path d="M9 6m0 2a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2z"/>'),
+  'corner-up-left': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M18 18v-6a3 3 0 0 0 -3 -3h-10l4 -4m0 8l-4 -4" />'),
+  'corner-up-right': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M6 18v-6a3 3 0 0 1 3 -3h10l-4 -4m0 8l4 -4" />'),
+  'corner-down-left': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M18 6v6a3 3 0 0 1 -3 3h-10l4 -4m0 8l-4 -4" />'),
+  'corner-down-right': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M6 6v6a3 3 0 0 0 3 3h10l-4 -4m0 8l4 -4" />'),
 
   // Constraints
   'anchor': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9a2 2 0 1 0 0 -4a2 2 0 0 0 0 4z"/><path d="M12 9v12"/><path d="M4 13l3 3l-3 3"/><path d="M20 13l-3 3l3 3"/><path d="M7 16h-3v-2"/><path d="M17 16h3v-2"/>'),
@@ -168,8 +177,6 @@ export const ICONS = {
   'box': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3l8 4.5l0 9l-8 4.5l-8 -4.5l0 -9l8 -4.5"/><path d="M12 12l8 -4.5"/><path d="M12 12l0 9"/><path d="M12 12l-8 -4.5"/>'),
   'brand-figma': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M15 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0"/><path d="M6 3m0 3a3 3 0 0 1 3 -3h6a3 3 0 0 1 3 3v0a3 3 0 0 1 -3 3h-6a3 3 0 0 1 -3 -3z"/><path d="M9 9a3 3 0 0 0 0 6h3m-3 0a3 3 0 1 0 3 3v-15"/>'),
   'device-floppy': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M6 4h10l4 4v10a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2"/><path d="M12 14m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/><path d="M14 4l0 4l-6 0l0 -4"/>'),
-  'corner-down-left': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M18 6v6a3 3 0 0 1 -3 3h-10l4 -4m0 8l-4 -4"/>'),
-  'corner-up-right': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M6 18v-6a3 3 0 0 1 3 -3h10l-4 -4m0 8l4 -4"/>'),
 } as const;
 
 export type IconName = keyof typeof ICONS;

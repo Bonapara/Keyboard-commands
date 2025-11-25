@@ -29,15 +29,15 @@ let indexBuilt = false;
 // Build the index lazily on first use to avoid circular dependency issues
 function ensureCommandIndex() {
   if (indexBuilt) return;
-  
+
   aliasToCommand = new Map<string, CommandWithName>();
   nameToCommand = new Map<string, CommandWithName>();
   allAliasesByCommand = new Map<string, string[]>();
-  
+
   for (const cmd of COMMANDS) {
     // Index by name (lowercase)
     nameToCommand.set(cmd.name.toLowerCase(), cmd);
-    
+
     // Index by each alias (lowercase)
     const aliases = Array.isArray(cmd.alias) ? cmd.alias : [cmd.alias];
     allAliasesByCommand.set(cmd.name, aliases);
@@ -45,7 +45,7 @@ function ensureCommandIndex() {
       aliasToCommand.set(alias.toLowerCase(), cmd);
     }
   }
-  
+
   indexBuilt = true;
 }
 
@@ -107,7 +107,7 @@ function supportsCurrentSelection(cmd: Command, selection: readonly SceneNode[])
 export function findCommand(part: string): Array<Command & { name: CommandName }> {
   // Ensure command index is built (lazy initialization)
   ensureCommandIndex();
-  
+
   const commandPart = part.match(COMMAND_PART_REGEX)?.[0];
 
   if (!commandPart) {
@@ -282,10 +282,10 @@ export function getCommandSuggestions(
 
     const separator = infoText ? ' -- ' : '';
     const suggestionText = `${cmd.alias.join(', ')} · ${cmd.name}${separator}${infoText}`;
-    
+
     // Get icon if command has one defined
     const icon = cmd.icon ? getIcon(cmd.icon) : undefined;
-    
+
     // Return object with icon if available, otherwise plain string
     if (icon) {
       return {
@@ -388,12 +388,12 @@ let cache: StyleVariableCache | null = null;
 async function resolveVariableColor(variable: VariableCacheEntry): Promise<RGB | undefined> {
   // Already resolved
   if (variable.color) return variable.color;
-  
+
   // Not a color variable
   if (variable.type !== 'COLOR' || !variable._rawColorValue) return undefined;
-  
+
   let value = variable._rawColorValue;
-  
+
   // Resolve VARIABLE_ALIAS by following the reference chain
   let attempts = 0;
   while (value && typeof value === 'object' && 'type' in value && (value as { type: string }).type === 'VARIABLE_ALIAS' && attempts < 10) {
@@ -415,13 +415,13 @@ async function resolveVariableColor(variable: VariableCacheEntry): Promise<RGB |
       break;
     }
   }
-  
+
   // Extract RGB if we have a color value
   if (value && typeof value === 'object' && 'r' in value && 'g' in value && 'b' in value) {
     variable.color = value as RGB;
     return variable.color;
   }
-  
+
   return undefined;
 }
 
@@ -487,7 +487,7 @@ export async function getCachedStylesAndVariables(): Promise<StyleVariableCache>
     const paints = s.paints || [];
     for (const paint of paints) {
       if (paint.visible === false) continue;
-      
+
       if (paint.type === 'SOLID') {
         color = paint.color;
         break;
@@ -549,7 +549,7 @@ export async function getCachedStylesAndVariables(): Promise<StyleVariableCache>
         rawColorValue = v.valuesByMode[modeKeys[0]];
       }
     }
-    
+
     return {
       id: v.id,
       name: v.name,
@@ -735,11 +735,11 @@ export async function searchStylesAndVariables(
     key: 'paintStyles' | 'textStyles' | 'effectStyles' | 'gridStyles';
     bindingKey: StyleBindingType;
   }> = [
-    { key: 'paintStyles', bindingKey: 'PAINT' },
-    { key: 'textStyles', bindingKey: 'TEXT' },
-    { key: 'effectStyles', bindingKey: 'EFFECT' },
-    { key: 'gridStyles', bindingKey: 'GRID' },
-  ];
+      { key: 'paintStyles', bindingKey: 'PAINT' },
+      { key: 'textStyles', bindingKey: 'TEXT' },
+      { key: 'effectStyles', bindingKey: 'EFFECT' },
+      { key: 'gridStyles', bindingKey: 'GRID' },
+    ];
 
   for (const { key, bindingKey } of styleConfigs) {
     if (!bindingSupport.styles?.includes(bindingKey)) continue;
@@ -748,7 +748,7 @@ export async function searchStylesAndVariables(
       .filter(s => flexibleMatch(searchTerm, s.name))
       .forEach(s => {
         const location = s.isLocal ? 'Local' : 'Library';
-        
+
         const imageHashValue = 'imageHash' in s ? (s as { imageHash?: string }).imageHash : undefined;
         resultsMap.set(s.name, {
           score: calculateSearchScore(searchTerm, s.name),
@@ -810,7 +810,7 @@ export async function searchStylesAndVariables(
 
         let hexColor: string | undefined;
         let imageHash: string | undefined;
-        
+
         if (colorOrImageRef?.startsWith('IMAGE:')) {
           imageHash = colorOrImageRef.substring(6);
         } else {
@@ -819,7 +819,7 @@ export async function searchStylesAndVariables(
 
         const existing = resultsMap.get(name);
         const finalImageHash = imageHash || existing?.imageHash;
-        
+
         resultsMap.set(name, {
           score,
           text,
@@ -859,7 +859,7 @@ export async function searchStylesAndVariables(
         icon: createColorSwatchSVG(hexColor)
       };
     }
-    
+
     if (r.imageHash) {
       return {
         name: r.text,
@@ -867,13 +867,13 @@ export async function searchStylesAndVariables(
         icon: getImageStyleIcon()
       };
     }
-    
+
     // Lazy resolve variable color if needed
     let color = r.color;
     if (!color && r.variableEntry) {
       color = await resolveVariableColor(r.variableEntry);
     }
-    
+
     if (color) {
       return {
         name: r.text,
