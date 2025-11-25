@@ -140,25 +140,52 @@ function extractPropertyValue(property: string | boolean | { value: string | boo
 async function searchVariantOptions(instances: InstanceNode[], propertyName: string, optionFilter: string = ''): Promise<string[]> {
 
   for (const instance of instances) {
+    // First check main component properties
     const mainComponent = await getCachedMainComponent(instance);
-    if (!mainComponent) continue;
+    if (mainComponent) {
+      const allProperties = getComponentPropertyDefinitions(mainComponent);
+      const { key: realPropertyKey, definition: propertyDef } = findPropertyKey(propertyName, allProperties);
 
-    const allProperties = getComponentPropertyDefinitions(mainComponent);
-    const { key: realPropertyKey, definition: propertyDef } = findPropertyKey(propertyName, allProperties);
+      if (realPropertyKey && propertyDef && propertyDef.type === 'VARIANT' && propertyDef.variantOptions) {
 
-    if (realPropertyKey && propertyDef && propertyDef.type === 'VARIANT' && propertyDef.variantOptions) {
+        let options = propertyDef.variantOptions;
+        if (optionFilter) {
+          const filterLower = optionFilter.toLowerCase();
+          options = options.filter((opt: string) => opt.toLowerCase().includes(filterLower));
+        }
 
-      let options = propertyDef.variantOptions;
-      if (optionFilter) {
-        const filterLower = optionFilter.toLowerCase();
-        options = options.filter((opt: string) => opt.toLowerCase().includes(filterLower));
+        if (options.length === 0) {
+          return [`No options matching "${optionFilter}" for "${cleanPropertyName(realPropertyKey)}"`];
+        }
+
+        return options.map((option: string) => `${realPropertyKey}:${option}`);
       }
+    }
 
-      if (options.length === 0) {
-        return [`No options matching "${optionFilter}" for "${propertyName}"`];
+    // Then check exposed instances (nested components)
+    if (instance.exposedInstances && instance.exposedInstances.length > 0) {
+      for (const exposedInstance of instance.exposedInstances) {
+        const exposedMainComponent = await getCachedMainComponent(exposedInstance);
+        if (!exposedMainComponent) continue;
+
+        const exposedProperties = getComponentPropertyDefinitions(exposedMainComponent);
+        const { key: exposedRealKey, definition: exposedPropDef } = findPropertyKey(propertyName, exposedProperties);
+
+        if (exposedRealKey && exposedPropDef && exposedPropDef.type === 'VARIANT' && exposedPropDef.variantOptions) {
+
+          let options = exposedPropDef.variantOptions;
+          if (optionFilter) {
+            const filterLower = optionFilter.toLowerCase();
+            options = options.filter((opt: string) => opt.toLowerCase().includes(filterLower));
+          }
+
+          if (options.length === 0) {
+            return [`No options matching "${optionFilter}" for "${cleanPropertyName(exposedRealKey)}"`];
+          }
+
+          return options.map((option: string) => `${exposedRealKey}:${option}`);
+        }
       }
-
-      return options.map((option: string) => `${realPropertyKey}:${option}`);
     }
   }
 
