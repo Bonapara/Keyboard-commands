@@ -189,11 +189,10 @@ function getDropdownValue(
   return null;
 }
 
-// Extract color identifier from suggestion text (strips usage info and hints)
+// Extract color identifier from suggestion text (strips usage info)
 // "ColorName (Type) - X uses in locations" -> "ColorName (Type)"
-// "ColorName (Type) - X → Type :: to swap" -> "ColorName (Type)"
 function extractColorIdentifier(text: string): string {
-  return text.replace(/\s-\s\d+.*$/, '').trim();
+  return text.replace(/\s-\s\d+\suses?.*$/, '').trim();
 }
 
 // Extract the first suggestion's name from suggestion results

@@ -365,6 +365,131 @@ async function setTextProperty(instances: InstanceNode[], propertyName: string, 
   }
 }
 
+// Helper to resolve preferred values for INSTANCE_SWAP properties
+async function resolvePreferredValues(
+  preferredValues: InstanceSwapPreferredValue[] | undefined
+): Promise<Array<{ name: string; key: string; library: string; isPreferred: true }>> {
+  if (!preferredValues || preferredValues.length === 0) {
+    return [];
+  }
+
+  const results: Array<{ name: string; key: string; library: string; isPreferred: true }> = [];
+  const seenNames = new Set<string>(); // Deduplicate by name (avoid showing same ComponentSet multiple times)
+  const [libraries, activeLibraries] = await Promise.all([
+    getStoredLibraries(),
+    getActiveLibraries()
+  ]);
+
+  for (const pref of preferredValues) {
+    const componentKey = pref.key;
+
+    // Try to find the component in stored libraries first
+    let foundName: string | null = null;
+    let foundLibrary: string | null = null;
+
+    for (const libName of activeLibraries) {
+      const items = libraries[libName];
+      if (items) {
+        const match = items.find(item => item[1] === componentKey && item[2] === 'COMPONENT');
+        if (match) {
+          foundName = match[0];
+          foundLibrary = libName;
+          break;
+        }
+      }
+    }
+
+    // If not found in libraries, try to import and get the name
+    if (!foundName) {
+      try {
+        // Use appropriate import function based on preferred value type
+        if (pref.type === 'COMPONENT_SET') {
+          const componentSet = await figma.importComponentSetByKeyAsync(componentKey);
+          if (componentSet) {
+            // Use ComponentSet name, not variant name
+            foundName = componentSet.name;
+            foundLibrary = 'External';
+          }
+        } else {
+          const component = await figma.importComponentByKeyAsync(componentKey);
+          if (component) {
+            // If this is a variant inside a ComponentSet, use the ComponentSet name
+            if (component.parent?.type === 'COMPONENT_SET') {
+              foundName = component.parent.name;
+            } else {
+              foundName = component.name;
+            }
+            foundLibrary = 'External';
+          }
+        }
+      } catch {
+        // Component might not be accessible, skip it
+        continue;
+      }
+    }
+
+    // Deduplicate by name (e.g., multiple variants from same ComponentSet)
+    if (foundName && foundLibrary && !seenNames.has(foundName)) {
+      seenNames.add(foundName);
+      results.push({
+        name: foundName,
+        key: componentKey,
+        library: foundLibrary,
+        isPreferred: true
+      });
+    }
+  }
+
+  return results;
+}
+
+// Helper to get components from the same frame as the instance's main component
+async function getSameFrameComponents(
+  instances: InstanceNode[]
+): Promise<Array<{ name: string; library: string }>> {
+  const sameFrameComponents: Array<{ name: string; library: string }> = [];
+  const seenComponentIds = new Set<string>();
+
+  for (const instance of instances) {
+    const mainComponent = await getCachedMainComponent(instance);
+    if (!mainComponent) continue;
+
+    // If main component is inside a ComponentSet, get the ComponentSet's parent frame
+    let parentFrame = mainComponent.parent;
+    if (parentFrame && parentFrame.type === 'COMPONENT_SET') {
+      parentFrame = parentFrame.parent;
+    }
+
+    // Also get the ComponentSet ID if main component is a variant
+    const mainComponentSetId = mainComponent.parent?.type === 'COMPONENT_SET' ? mainComponent.parent.id : null;
+
+    if (parentFrame && 'children' in parentFrame) {
+      for (const sibling of parentFrame.children) {
+        // Show standalone Component nodes
+        if (sibling.type === 'COMPONENT' && sibling.id !== mainComponent.id && !seenComponentIds.has(sibling.id)) {
+          seenComponentIds.add(sibling.id);
+          sameFrameComponents.push({
+            name: sibling.name,
+            library: figma.root.name
+          });
+        }
+        // Show ComponentSets (using ComponentSet name), excluding the current one
+        else if (sibling.type === 'COMPONENT_SET' && sibling.id !== mainComponentSetId && !seenComponentIds.has(sibling.id)) {
+          seenComponentIds.add(sibling.id);
+          sameFrameComponents.push({
+            name: sibling.name,
+            library: figma.root.name
+          });
+        }
+      }
+    }
+    // Only process first instance to avoid duplicates
+    break;
+  }
+
+  return sameFrameComponents;
+}
+
 async function searchLibraryComponents(searchTerm: string, limit: number = 100, libraryFilter?: string): Promise<Array<{ name: string; key: string; library: string }>> {
   const [libraries, activeLibraries] = await Promise.all([
     getStoredLibraries(),
@@ -438,63 +563,46 @@ export async function searchInstanceProperties(searchTerm: string): Promise<Arra
             return [`${cleanName}: Type what you want to replace '${currentValue}' with`];
           }
         } else if (propertyDef.type === 'INSTANCE_SWAP') {
-          // Determine context library from current value
-          let currentLibrary: string | undefined;
+          // For initial display (empty value), show preferred values and same-frame components first
+          if (value === '') {
+            // Get preferred values
+            const preferredComponents = await resolvePreferredValues(propertyDef.preferredValues);
+            const preferredResults = preferredComponents.map(c => ({
+              name: `${c.name} (${c.library})`,
+              data: `${propertyName}:${c.name} (${c.library})`
+            }));
 
-          if (realPropertyKey && instance.componentProperties[realPropertyKey]) {
-            const currentId = instance.componentProperties[realPropertyKey].value;
-            if (typeof currentId === 'string') {
-              try {
-                const node = await figma.getNodeByIdAsync(currentId);
-                if (node && (node.type === 'COMPONENT' || node.type === 'COMPONENT_SET')) {
-                  // Find which library has this key
-                  const [libraries, activeLibs] = await Promise.all([
-                    getStoredLibraries(),
-                    getActiveLibraries()
-                  ]);
+            // Get same-frame components
+            const sameFrameComponents = await getSameFrameComponents(instances);
+            const preferredNames = new Set(preferredComponents.map(p => p.name));
+            const sameFrameResults = sameFrameComponents
+              .filter(c => !preferredNames.has(c.name))
+              .map(c => ({
+                name: `${c.name} (${c.library})`,
+                data: `${propertyName}:${c.name} (${c.library})`
+              }));
 
-                  // Check active libraries first
-                  for (const libName of activeLibs) {
-                    const items = libraries[libName];
-                    if (items) {
-                      // item[1] is key
-                      // We need the node's key.
-                      // Wait, node.key is available on ComponentNode? Yes.
-                      // But `key` property on ComponentNode is only available if it's a published component?
-                      // Local components have keys too.
-                      // Let's assume we can access .key
-                      const componentKey = (node as ComponentNode | ComponentSetNode).key;
-                      if (componentKey) {
-                        const match = items.find(item => item[1] === componentKey);
-                        if (match) {
-                          currentLibrary = libName;
-                          break;
-                        }
-                      }
-                    }
-                  }
-                }
-              } catch (e) {
-                // Ignore error resolving node
-              }
+            // Then get library components
+            const usedNames = new Set([...preferredNames, ...sameFrameComponents.map(c => c.name)]);
+            const components = await searchLibraryComponents('', 100);
+            const otherComponents = components
+              .filter(c => !usedNames.has(c.name))
+              .map(c => ({
+                name: `${c.name} (${c.library})`,
+                data: `${propertyName}:${c.name} (${c.library})`
+              }));
+
+            const allResults = [...preferredResults, ...sameFrameResults, ...otherComponents];
+            if (allResults.length === 0) {
+              return ['No components found'];
             }
+            return allResults;
           }
 
-          // If value is empty, use the current library as filter
-          // If value is not empty, search globally (or maybe prioritize? User said "default suggestion")
-          // "Default suggestion" usually means empty search state.
-
-          const filter = (value === '' && currentLibrary) ? currentLibrary : undefined;
-
-          const components = await searchLibraryComponents(value, 100, filter);
+          // When searching, search all components
+          const components = await searchLibraryComponents(value, 100);
 
           if (components.length === 0) {
-            if (filter) {
-              // If filtered search returned nothing (maybe library empty?), try global?
-              // But user wanted "part of the same library".
-              // Let's just return empty or maybe a message.
-              return [`No components found in "${filter}"`];
-            }
             return [`No components found matching "${value}"`];
           }
           return components.map(c => ({
@@ -534,7 +642,42 @@ export async function searchInstanceProperties(searchTerm: string): Promise<Arra
                 return [`${cleanName}: Type what you want to replace '${currentValue}' with`];
               }
             } else if (exposedPropDef.type === 'INSTANCE_SWAP') {
-              // Similar logic as above for instance swap
+              // For initial display (empty value), show preferred values and same-frame components first
+              if (value === '') {
+                // Get preferred values
+                const preferredComponents = await resolvePreferredValues(exposedPropDef.preferredValues);
+                const preferredResults = preferredComponents.map(c => ({
+                  name: `${c.name} (${c.library})`,
+                  data: `${propertyName}:${c.name} (${c.library})`
+                }));
+
+                // Get same-frame components
+                const sameFrameComponents = await getSameFrameComponents(instances);
+                const preferredNames = new Set(preferredComponents.map(p => p.name));
+                const sameFrameResults = sameFrameComponents
+                  .filter(c => !preferredNames.has(c.name))
+                  .map(c => ({
+                    name: `${c.name} (${c.library})`,
+                    data: `${propertyName}:${c.name} (${c.library})`
+                  }));
+
+                // Then get library components
+                const usedNames = new Set([...preferredNames, ...sameFrameComponents.map(c => c.name)]);
+                const components = await searchLibraryComponents('', 100);
+                const otherComponents = components
+                  .filter(c => !usedNames.has(c.name))
+                  .map(c => ({
+                    name: `${c.name} (${c.library})`,
+                    data: `${propertyName}:${c.name} (${c.library})`
+                  }));
+
+                const allResults = [...preferredResults, ...sameFrameResults, ...otherComponents];
+                if (allResults.length === 0) {
+                  return ['No components found'];
+                }
+                return allResults;
+              }
+
               const components = await searchLibraryComponents(value, 100);
               if (components.length === 0) {
                 return [`No components found matching "${value}"`];
@@ -1232,6 +1375,32 @@ async function findAndImportComponent(value: string): Promise<{ component: Compo
 }
 
 export async function searchComponentsForSwap(searchTerm: string): Promise<string[]> {
+  const selection = figma.currentPage.selection;
+  const instances = selection.filter(node => node.type === 'INSTANCE') as InstanceNode[];
+
+  // For initial display (empty search), prioritize components from the same frame
+  if (searchTerm === '' && instances.length > 0) {
+    // Get same-frame components
+    const sameFrameComponents = await getSameFrameComponents(instances);
+    const sameFrameResults = sameFrameComponents.map(c => `${c.name} (${c.library})`);
+
+    // Get library components
+    const libraryComponents = await searchLibraryComponents('', 100);
+
+    // Filter out duplicates from library results
+    const sameFrameNames = new Set(sameFrameComponents.map(c => c.name));
+    const otherResults = libraryComponents
+      .filter(c => !sameFrameNames.has(c.name))
+      .map(c => `${c.name} (${c.library})`);
+
+    const allResults = [...sameFrameResults, ...otherResults];
+    if (allResults.length === 0) {
+      return ['No components found'];
+    }
+    return allResults;
+  }
+
+  // When searching, search all components
   const components = await searchLibraryComponents(searchTerm);
 
   if (components.length === 0) {
@@ -1253,16 +1422,82 @@ export async function swapInstance(value: string) {
 
   if (component) {
     let successCount = 0;
+    let propertiesPreservedCount = 0;
+
     for (const inst of instances) {
       try {
+        // Capture current VARIANT properties before swap (cleaned name -> value)
+        const oldProperties = new Map<string, string | boolean>();
+        const oldMainComponent = await getCachedMainComponent(inst);
+
+        if (oldMainComponent) {
+          const oldPropDefs = getComponentPropertyDefinitions(oldMainComponent);
+          for (const [propKey, propValue] of Object.entries(inst.componentProperties)) {
+            const propDef = oldPropDefs[propKey];
+            // Only preserve VARIANT properties
+            if (propDef && propDef.type === 'VARIANT') {
+              const cleanedName = cleanPropertyName(propKey);
+              oldProperties.set(cleanedName.toLowerCase(), propValue.value);
+            }
+          }
+        }
+
+        // Perform the swap
         inst.swapComponent(component);
         successCount++;
+
+        // After swap, get the new main component and its property definitions
+        const newMainComponent = await inst.getMainComponentAsync();
+        if (!newMainComponent) continue;
+
+        const newPropDefs = getComponentPropertyDefinitions(newMainComponent);
+
+        // Build properties to set: start with ALL current variant values, then override with old matching values
+        const propertiesToSet: Record<string, string | boolean> = {};
+        let hasChanges = false;
+
+        // First, collect all current variant property values
+        for (const [propKey, propDef] of Object.entries(newPropDefs)) {
+          if (propDef.type === 'VARIANT') {
+            const currentValue = inst.componentProperties[propKey];
+            if (currentValue) {
+              propertiesToSet[propKey] = String(extractPropertyValue(currentValue));
+            }
+          }
+        }
+
+        // Then, override with old values where they match and are valid
+        for (const [propKey, propDef] of Object.entries(newPropDefs)) {
+          if (propDef.type === 'VARIANT') {
+            const cleanedName = cleanPropertyName(propKey).toLowerCase();
+            const oldValue = oldProperties.get(cleanedName);
+
+            // Check if old value exists and is valid for the new property
+            if (oldValue !== undefined && propDef.variantOptions) {
+              const valueStr = String(oldValue);
+              if (propDef.variantOptions.includes(valueStr)) {
+                // Only count as preserved if the value is different from current
+                if (propertiesToSet[propKey] !== valueStr) {
+                  propertiesToSet[propKey] = valueStr;
+                  propertiesPreservedCount++;
+                  hasChanges = true;
+                }
+              }
+            }
+          }
+        }
+
+        // Apply preserved properties (only if we have changes)
+        if (hasChanges && Object.keys(propertiesToSet).length > 0) {
+          inst.setProperties(propertiesToSet);
+        }
       } catch (e) {
         console.error(`[SwapInstance] Error swapping instance "${inst.name}":`, e);
       }
     }
     if (successCount > 0) {
-      figma.notify(`Swapped ${successCount} instance${successCount > 1 ? 's' : ''} to "${component.name}"`);
+      const propsMsg = propertiesPreservedCount > 0 ? ` (${propertiesPreservedCount} ${pluralize(propertiesPreservedCount, 'property', 'properties')} preserved)` : '';
+      figma.notify(`Swapped ${successCount} instance${successCount > 1 ? 's' : ''} to "${component.name}"${propsMsg}`);
     } else {
       figma.notify(`Failed to swap instances to "${name}"`, { error: true });
     }
