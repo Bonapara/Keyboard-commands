@@ -273,8 +273,8 @@ export function getCommandSuggestions(
       // If we previously set this command
       infoText =
         cmd.type === 'commandWithoutValue'
-          ? 'ℹ️ already set'
-          : `ℹ️ already set to '${previousValue}'`;
+          ? 'already set'
+          : `already set to '${previousValue}'`;
     } else if (includeSuggestion && index === 0) {
       // If this is the top suggestion, show the command's built-in suggestion (if any)
       infoText = cmd.suggestion || '';
@@ -755,7 +755,7 @@ export async function searchStylesAndVariables(
           text: `${s.name} (${location})`,
           collection: location,
           name: s.name,
-          color: 'color' in s ? s.color : undefined,
+          color: 'color' in s ? (s as { color?: RGB }).color : undefined,
           imageHash: imageHashValue
         });
       });

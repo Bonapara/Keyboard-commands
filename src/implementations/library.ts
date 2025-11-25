@@ -70,7 +70,7 @@ export async function publishLibrary() {
         let colorHex: string | undefined;
         for (const paint of s.paints) {
             if (paint.visible === false) continue;
-            
+
             if (paint.type === 'SOLID') {
                 colorHex = rgbToHex(paint.color);
                 break;
@@ -252,10 +252,10 @@ export async function getLibrarySuggestions(): Promise<string[]> {
 
     const active = await getActiveLibraries();
 
-    // Format: "☑ LibraryName (ItemCount items)" or "☐ LibraryName (ItemCount items)"
+    // Format: "[x] LibraryName (ItemCount items)" or "[ ] LibraryName (ItemCount items)"
     return libraryNames.map(name => {
         const isActive = active.indexOf(name) >= 0;
-        const checkbox = isActive ? '☑' : '☐';
+        const checkbox = isActive ? '[x]' : '[ ]';
         const itemCount = libraries[name].length;
         return `${checkbox} ${name} (${itemCount} items)`;
     });
@@ -278,7 +278,7 @@ export async function searchLibraries(searchTerm: string): Promise<string[]> {
         .filter(name => name.toLowerCase().indexOf(searchLower) >= 0)
         .map(name => {
             const isActive = active.indexOf(name) >= 0;
-            const checkbox = isActive ? '☑' : '☐';
+            const checkbox = isActive ? '[x]' : '[ ]';
             const itemCount = libraries[name].length;
             return `${checkbox} ${name} (${itemCount} items)`;
         });
@@ -302,10 +302,10 @@ export async function toggleLibrary() {
 
 // We need a version that takes a parameter for the actual action
 export async function toggleLibraryByName(nameOrFormatted: string) {
-    // Parse library name from formatted string: "☑ Twenty (216 items)" -> "Twenty"
+    // Parse library name from formatted string: "[x] Twenty (216 items)" -> "Twenty"
     // or handle plain name: "Twenty"
     let name = nameOrFormatted;
-    const formattedMatch = nameOrFormatted.match(/^[☑☐]\s+(.+?)\s+\(\d+\s+items\)$/);
+    const formattedMatch = nameOrFormatted.match(/^\[[x ]\]\s+(.+?)\s+\(\d+\s+items\)$/);
     if (formattedMatch) {
         name = formattedMatch[1];
     }
@@ -342,7 +342,7 @@ export async function removeLibrary() {
     const active = await getActiveLibraries();
     const suggestions = libraryNames.map(name => {
         const isActive = active.indexOf(name) >= 0;
-        const checkbox = isActive ? '☑' : '☐';
+        const checkbox = isActive ? '[x]' : '[ ]';
         const itemCount = libraries[name].length;
         return `${checkbox} ${name} (${itemCount} items)`;
     });
@@ -351,10 +351,10 @@ export async function removeLibrary() {
 }
 
 export async function removeLibraryByName(nameOrFormatted: string) {
-    // Parse library name from formatted string: "☑ Twenty (216 items)" -> "Twenty"
+    // Parse library name from formatted string: "[x] Twenty (216 items)" -> "Twenty"
     // or handle plain name: "Twenty"
     let name = nameOrFormatted;
-    const formattedMatch = nameOrFormatted.match(/^[☑☐]\s+(.+?)\s+\(\d+\s+items\)$/);
+    const formattedMatch = nameOrFormatted.match(/^\[[x ]\]\s+(.+?)\s+\(\d+\s+items\)$/);
     if (formattedMatch) {
         name = formattedMatch[1];
     }

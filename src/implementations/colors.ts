@@ -270,7 +270,7 @@ export async function searchSelectionColors(searchTerm: string): Promise<Array<s
             const hex = rgbToHex(color.rgb);
             const _locations = color.locations.join(', ');
             const usageText = `${color.usageCount}`;
-            const hint = index === 0 ? ' → Type :: to swap' : '';
+            const hint = index === 0 ? ' -> Type :: to swap' : '';
 
             let displayName: string;
             if (color.name) {

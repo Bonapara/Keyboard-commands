@@ -384,7 +384,7 @@ function handleMatchedCommand(
     matchedCommand.alias.some(alias => alias.toLowerCase().includes(currentPart.toLowerCase()))
   ) {
     const previousValue = previousCommands[matchedCommand.name];
-    const hint = previousValue ? `ℹ️ already set to '${previousValue}'` : matchedCommand.suggestion;
+    const hint = previousValue ? `already set to '${previousValue}'` : matchedCommand.suggestion;
     const suggestionText = `${matchedCommand.alias.join(', ')} · ${matchedCommand.name} -- ${hint}`;
 
     // Get icon with 80% opacity for the first result (more prominent than others at 40%)

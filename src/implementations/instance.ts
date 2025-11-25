@@ -299,7 +299,7 @@ async function setVariantProperty(instances: InstanceNode[], propertyName: strin
 
     const wasPartialMatch = matchedPropertyName.toLowerCase() !== propertyName.toLowerCase();
     const message = wasPartialMatch
-      ? `Matched "${matchedPropertyName}" → set to "${optionValue}" on ${successCount} instance${successCount > 1 ? 's' : ''}`
+      ? `Matched "${matchedPropertyName}" -> set to "${optionValue}" on ${successCount} instance${successCount > 1 ? 's' : ''}`
       : `Set "${matchedPropertyName}" to "${optionValue}" on ${successCount} instance${successCount > 1 ? 's' : ''}`;
 
     figma.notify(message);
@@ -354,7 +354,7 @@ async function setTextProperty(instances: InstanceNode[], propertyName: string, 
 
     const wasPartialMatch = matchedPropertyName.toLowerCase() !== propertyName.toLowerCase();
     const message = wasPartialMatch
-      ? `Matched "${matchedPropertyName}" → set to "${textValue}" on ${successCount} instance${successCount > 1 ? 's' : ''}`
+      ? `Matched "${matchedPropertyName}" -> set to "${textValue}" on ${successCount} instance${successCount > 1 ? 's' : ''}`
       : `Set "${matchedPropertyName}" to "${textValue}" on ${successCount} instance${successCount > 1 ? 's' : ''}`;
 
     figma.notify(message);
@@ -802,9 +802,9 @@ async function formatPropertySuggestion(propertyName: string, data: PropertyData
       if (currentValues.length === 1) {
         // Capitalize the boolean value for display
         const currentValue = currentValues[0] === 'true' ? 'True' : 'False';
-        optionsDisplay = `${currentValue} → Toggle`;
+        optionsDisplay = `${currentValue} -> Toggle`;
       } else if (currentValues.length > 1) {
-        optionsDisplay = 'Mixed → Toggle';
+        optionsDisplay = 'Mixed -> Toggle';
       } else {
         optionsDisplay = 'true, false';
       }
@@ -813,19 +813,19 @@ async function formatPropertySuggestion(propertyName: string, data: PropertyData
     case 'VARIANT': {
       const currentValues = Array.from(data.values);
       if (currentValues.length === 1) {
-        optionsDisplay = `${currentValues[0]} → type: to change`;
+        optionsDisplay = `${currentValues[0]} -> type: to change`;
       } else if (currentValues.length > 1) {
-        optionsDisplay = 'Mixed → type: to change';
+        optionsDisplay = 'Mixed -> type: to change';
       } else if (data.propertyDef.variantOptions) {
         // Fallback: show options if no current value
         const options = data.propertyDef.variantOptions;
         const maxDisplay = 3;
         if (options.length <= maxDisplay) {
-          optionsDisplay = `${options.join(', ')} → type: to change`;
+          optionsDisplay = `${options.join(', ')} -> type: to change`;
         } else {
           const displayedOptions = options.slice(0, maxDisplay).join(', ');
           const remaining = options.length - maxDisplay;
-          optionsDisplay = `${displayedOptions}, +${remaining} → type: to change`;
+          optionsDisplay = `${displayedOptions}, +${remaining} -> type: to change`;
         }
       }
       break;
@@ -833,17 +833,17 @@ async function formatPropertySuggestion(propertyName: string, data: PropertyData
     case 'TEXT': {
       const currentValues = Array.from(data.values);
       if (currentValues.length === 1) {
-        optionsDisplay = `${currentValues[0]} → type :text to change`;
+        optionsDisplay = `${currentValues[0]} -> type :text to change`;
       } else if (currentValues.length > 1) {
-        optionsDisplay = 'Mixed → type :text to change';
+        optionsDisplay = 'Mixed -> type :text to change';
       } else {
-        optionsDisplay = 'Text input → type :text to set';
+        optionsDisplay = 'Text input -> type :text to set';
       }
       break;
     }
     case 'INSTANCE_SWAP': {
       const currentValues = Array.from(data.values);
-      
+
       // Resolve current component name from ID
       let currentName = 'None';
       if (currentValues.length === 1) {
@@ -859,7 +859,7 @@ async function formatPropertySuggestion(propertyName: string, data: PropertyData
         currentName = 'Mixed';
       }
 
-      optionsDisplay = `${currentName} → type: to change`;
+      optionsDisplay = `${currentName} -> type: to change`;
       break;
     }
     default:
@@ -1671,7 +1671,7 @@ function parseOverrideReference(ref: string): { nodeId: string | null, field: st
       return { nodeId: data.nodeId, field: data.field, nodeName: data.nodeName };
     }
   } catch (e) {
-    const match = ref.match(/^(.+?)\s*→\s*(.+)$/);
+    const match = ref.match(/^(.+?)\s*->\s*(.+)$/);
     if (match) {
       const nodeName = match[1].trim();
       let field = match[2].trim().replace(/\s+/g, '').replace(/^(.)/, m => m.toLowerCase());
@@ -1794,7 +1794,7 @@ export async function searchInstanceOverrides(searchTerm: string): Promise<Array
               .map(w => w.charAt(0).toUpperCase() + w.slice(1))
               .join(' ');
 
-        const displayName = `${nodeName} → ${fieldLabel}`;
+        const displayName = `${nodeName} -> ${fieldLabel}`;
 
         if (searchTerm && !displayName.toLowerCase().includes(searchTerm.toLowerCase())) continue;
 
@@ -1813,7 +1813,7 @@ export async function searchInstanceOverrides(searchTerm: string): Promise<Array
 
 /**
  * Reset a specific override on selected instances
- * @param overrideReference String in format "NodeName → Field" or JSON data from dropdown
+ * @param overrideReference String in format "NodeName -> Field" or JSON data from dropdown
  */
 export async function resetSpecificOverride(overrideReference: string) {
   const selection = figma.currentPage.selection;
