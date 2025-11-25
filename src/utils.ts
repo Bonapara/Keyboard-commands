@@ -1,4 +1,5 @@
 import { BindingSupport, Command, PaintResolution, StyleResolution, NumberResolution, StyleBindingType, ValueFormat, VariableResolvedType, LibraryItem, SpecialCondition } from './types';
+import { getIcon } from './icons';
 import { getStoredLibraries } from './storage';
 import { COMMANDS, CommandName } from './commands';
 import {
@@ -263,7 +264,7 @@ export function getCommandSuggestions(
     return a.name.localeCompare(b.name);
   });
 
-  // Build suggestion strings
+  // Build suggestion objects with icons
   return sortedCommands.map((cmd, index) => {
     const previousValue = previousCommands[cmd.name];
     let infoText = '';
@@ -280,7 +281,20 @@ export function getCommandSuggestions(
     }
 
     const separator = infoText ? ' -- ' : '';
-    return `${cmd.alias.join(', ')} · ${cmd.name}${separator}${infoText}`;
+    const suggestionText = `${cmd.alias.join(', ')} · ${cmd.name}${separator}${infoText}`;
+    
+    // Get icon if command has one defined
+    const icon = cmd.icon ? getIcon(cmd.icon) : undefined;
+    
+    // Return object with icon if available, otherwise plain string
+    if (icon) {
+      return {
+        name: suggestionText,
+        data: suggestionText,
+        icon
+      };
+    }
+    return suggestionText;
   });
 }
 

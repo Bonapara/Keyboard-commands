@@ -24,6 +24,7 @@ export type CommandWithValue = {
   valueFormat: ValueFormat;
   functionWithParam: (value: string) => void;
   suggestion: string;
+  icon?: string;
   supportedNodes?: SupportedNodeType[];
   specialConditions?: SpecialCondition[];
   bindingSupport?: BindingSupport;
@@ -34,6 +35,7 @@ export type CommandWithoutValue = {
   alias: Array<string>;
   functionWithoutParam: () => void;
   suggestion: string;
+  icon?: string;
   supportedNodes?: SupportedNodeType[];
   specialConditions?: SpecialCondition[];
   bindingSupport?: BindingSupport;
@@ -44,6 +46,7 @@ export type OptionalValueCommand = {
   alias: Array<string>;
   valueFormat?: ValueFormat;
   suggestion: string;
+  icon?: string;
   functionWithoutParam: () => void;
   functionWithParam: (value: string) => void;
   supportedNodes?: SupportedNodeType[];
