@@ -10,7 +10,9 @@
  * Icons are rendered at 40% opacity for better visual hierarchy
  */
 function createIcon(paths: string, strokeWidth: number = 2, viewBox: string = "0 0 24 24"): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="${viewBox}" fill="none" stroke="currentColor" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round" opacity="0.4">${paths}</svg>`;
+  // Inject a style block to handle responsive colors based on the user's system theme
+  // This works because the SVG is rendered as an image, so it respects its own internal media queries
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="${viewBox}" fill="none" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round" opacity="0.4"><style>:root{stroke:#000000;}@media(prefers-color-scheme:dark){:root{stroke:#FFFFFF;}}</style>${paths}</svg>`;
 }
 
 // ==================================
@@ -233,9 +235,12 @@ export function getIconWithOpacity(name: string, opacity: number): string | unde
 export function getIconWithColor(name: string, color: string, opacity: number = 1.0): string | undefined {
   const icon = ICONS[name as IconName];
   if (!icon) return undefined;
-  // Replace stroke color and opacity
+
+  // Remove the style block to disable responsive behavior and apply the specific color
+  // We add the stroke attribute to the svg tag
   return icon
-    .replace(/stroke="currentColor"/, `stroke="${color}"`)
+    .replace(/<style>.*?<\/style>/, '')
+    .replace(/<svg/, `<svg stroke="${color}"`)
     .replace(/opacity="0\.4"/, `opacity="${opacity}"`);
 }
 
