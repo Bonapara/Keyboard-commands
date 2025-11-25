@@ -149,6 +149,15 @@ export const ICONS = {
   'corner-up-right': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M6 18v-6a3 3 0 0 1 3 -3h10l-4 -4m0 8l4 -4" />'),
   'corner-down-left': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M18 6v6a3 3 0 0 1 -3 3h-10l4 -4m0 8l-4 -4" />'),
   'corner-down-right': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M6 6v6a3 3 0 0 0 3 3h10l-4 -4m0 8l4 -4" />'),
+  'align-box-center-top': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 19v-14a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2z" /><path d="M11 13h2" /><path d="M9 10h6" /><path d="M10 7h4" />'),
+  'align-box-center-middle': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 19v-14a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2z" /><path d="M11 15h2" /><path d="M9 12h6" /><path d="M10 9h4" />'),
+  'align-box-center-bottom': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 19v-14a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2z" /><path d="M11 17h2" /><path d="M9 14h6" /><path d="M10 11h4" />'),
+  'align-box-left-middle': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 3m0 2a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2z" /><path d="M9 15h-2" /><path d="M13 12h-6" /><path d="M11 9h-4" />'),
+  'align-box-right-middle': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M15 15h2" /><path d="M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14z" /><path d="M11 12h6" /><path d="M13 9h4" />'),
+  'align-box-left-top': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 3m0 2a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2z" /><path d="M9 13h-2" /><path d="M13 10h-6" /><path d="M11 7h-4" />'),
+  'align-box-right-top': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 3m0 2a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2z" /><path d="M15 13h2" /><path d="M11 10h6" /><path d="M13 7h4" />'),
+  'align-box-left-bottom': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 3m0 2a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2z" /><path d="M9 17h-2" /><path d="M13 14h-6" /><path d="M11 11h-4" />'),
+  'align-box-right-bottom': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 3m0 2a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2z" /><path d="M15 17h2" /><path d="M11 14h6" /><path d="M13 11h4" />'),
 
   // Constraints
   'anchor': createIcon('<path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9a2 2 0 1 0 0 -4a2 2 0 0 0 0 4z"/><path d="M12 9v12"/><path d="M4 13l3 3l-3 3"/><path d="M20 13l-3 3l3 3"/><path d="M7 16h-3v-2"/><path d="M17 16h3v-2"/>'),
