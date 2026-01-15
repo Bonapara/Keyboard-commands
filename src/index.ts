@@ -511,13 +511,11 @@ setupInputHandler();
 
 figma.on('run', async (parameters) => {
   // Use the selected dropdown value if available, otherwise use what was typed
-  // This handles the case where user types partial text then selects from dropdown
   let commandString = originalInput.trim();
+  const selectedValue = parameters.parameters?.command;
   
   // Check if user selected a suggestion from the dropdown
-  if (parameters.parameters?.command && parameters.parameters.command !== commandString) {
-    const selectedValue = parameters.parameters.command;
-    
+  if (selectedValue && selectedValue !== commandString) {
     // Skip summary strings (contain pipe separator)
     if (!selectedValue.includes('|')) {
       // If it contains the middle dot separator, it's a formatted suggestion: "alias · CommandName -- description"
@@ -530,12 +528,27 @@ figma.on('run', async (parameters) => {
             commandString = extractedCmd;
           }
         }
+      } 
+      // Check if this is a binding mode selection (originalInput contains ?)
+      // In this case, selectedValue is the data from dropdown, not a full command
+      else if (originalInput.includes('?')) {
+        // Extract the binding command alias from originalInput (e.g., "rio?Vector" -> "rio")
+        const bindingMatch = originalInput.match(/([a-z]+)\?/i);
+        if (bindingMatch) {
+          const bindingAlias = bindingMatch[1];
+          // Reconstruct the command with the selected value
+          commandString = `${bindingAlias}?${selectedValue}`;
+        }
       } else {
         // Direct selection without formatting (e.g., "Width:100")
         commandString = selectedValue;
       }
     }
   }
+
+  // Strip description suffix if present (e.g., "HorizontalFill -- Horizontal Fill" → "HorizontalFill")
+  // This handles cases where suggestion data includes " -- description" format
+  commandString = commandString.split(' -- ')[0];
 
   // Parse command chain (e.g., "w100  h200  f?blue" → 3 segments)
   const segments = commandString.split(COMMAND_BREAK_PATTERN);
@@ -574,9 +587,7 @@ figma.on('run', async (parameters) => {
 });
 
 async function executeCommand(cmd: string, skipNotification: boolean = false): Promise<void> {
-  if (!cmd) {
-    return;
-  }
+  if (!cmd) return;
 
   // Extract command from suggestion text (remove aliases, descriptions, etc.)
   const cleanCmd = cmd.split('•')[0]  // Remove everything after the bullet point
@@ -586,9 +597,7 @@ async function executeCommand(cmd: string, skipNotification: boolean = false): P
 
   const command = findCommand(cleanCmd)[0];
 
-  if (!command) {
-    return;
-  }
+  if (!command) return;
 
   const loadingNotification = skipNotification ? null : figma.notify(`Executing command(s)...`, { timeout: 0 });
 

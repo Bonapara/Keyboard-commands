@@ -318,6 +318,14 @@ export function extractValue(text: string, format: ValueFormat): string | null {
     }
   }
 
+  // Check for JSON value format: "command {json...}" or "command -> format"
+  // This handles instance override references and similar JSON data
+  const jsonMatch = text.match(/^([a-z]+)\s+(\{.+\}|\S+\s*->\s*.+)$/i);
+  if (jsonMatch) {
+    // Format: "rio {json}" or "rio NodeName -> Field" -> extract the value part
+    return text.substring(text.indexOf(' ') + 1).trim();
+  }
+
   // Check for instance property format: "PropertyName:Value"
   // This is used for instance property binding mode
   const instancePropertyMatch = text.match(/^([a-z]+)\s+([^:]+):(.+)$/i);

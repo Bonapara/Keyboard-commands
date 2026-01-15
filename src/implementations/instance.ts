@@ -1568,13 +1568,21 @@ function getFieldsToReset(field: string): string[] {
 }
 
 /**
- * Helper to find the source node in the main component hierarchy corresponding to a target node
+ * Helper to find the source node in the main component hierarchy corresponding to a target node.
+ * 
+ * IMPORTANT: This always resolves from the SELECTED instance's main component, NOT from
+ * deeply nested component definitions. This ensures that when resetting overrides, we reset
+ * to the value defined in the component (which may itself have overrides), not the original
+ * source component.
+ * 
+ * Example: If "Breadcrumb Item Editable" component has Vector with strokeWeight=1.33px (overriding
+ * the original "user" component's 1px), resetting an instance should reset to 1.33px, not 1px.
  */
 async function findSourceNode(instance: InstanceNode, targetNode: SceneNode): Promise<BaseNode | null> {
   try {
-    // 1. Build the index path from targetNode up to the top-level instance
+    // Build the full index path from targetNode up to the selected instance
     const indexPath: number[] = [];
-    let currentNode = targetNode;
+    let currentNode: SceneNode = targetNode;
     let depth = 0;
     const MAX_DEPTH = 100;
 
@@ -1590,20 +1598,21 @@ async function findSourceNode(instance: InstanceNode, targetNode: SceneNode): Pr
       depth++;
     }
 
-    // 2. Traverse down from the Main Component
-    let currentSource: BaseNode | null = await getCachedMainComponent(instance);
-    if (!currentSource) return null;
+    // Get the main component of the SELECTED instance
+    let sourceNode: BaseNode | null = await getCachedMainComponent(instance);
+    if (!sourceNode) return null;
 
-    for (const index of indexPath) {
-      if (!currentSource || !('children' in currentSource)) return null;
+    // Navigate down the main component using the path
+    for (const idx of indexPath) {
+      if (!sourceNode || !('children' in sourceNode)) return null;
 
-      const children: readonly SceneNode[] = (currentSource as ChildrenMixin).children;
-      if (index >= children.length) return null;
+      const children: readonly SceneNode[] = (sourceNode as ChildrenMixin).children;
+      if (idx >= children.length) return null;
 
-      currentSource = children[index];
+      sourceNode = children[idx];
     }
 
-    return currentSource;
+    return sourceNode;
   } catch (e) {
     return null;
   }
@@ -1728,17 +1737,20 @@ async function restoreOverride(nodeToReset: SceneNode, sourceNode: BaseNode, fie
       (nodeToReset as InstanceNode).setProperties(defaultProps);
       didReset = true;
     } catch (err) {
-      console.error(`Failed to reset componentProperties on ${nodeToReset.name}:`, err);
+      // Failed to reset componentProperties
     }
   } else {
     const fieldsToReset = getFieldsToReset(field);
     const sourceRecord = sourceNode as unknown as Record<string, unknown>;
+    
     for (const f of fieldsToReset) {
       if (f in sourceNode) {
         try {
           await resetProperty(nodeToReset, f, sourceRecord[f]);
           didReset = true;
-        } catch (err) { /* ignore */ }
+        } catch (err) {
+          // Failed to reset field
+        }
       }
     }
   }
@@ -1862,8 +1874,7 @@ export async function resetSpecificOverride(overrideReference: string) {
       // Filter by nodeId if provided
       if (nodeId && override.id !== nodeId) continue;
 
-      // If we are matching by name (from typed command), we need to verify the node name
-      // Note: We do NOT update nodeId here, to allow matching multiple instances by name
+      // If matching by name, verify the node name
       if (!nodeId && nodeName) {
         try {
           const node = await figma.getNodeByIdAsync(override.id);
@@ -1885,7 +1896,7 @@ export async function resetSpecificOverride(overrideReference: string) {
             if (success) resetCount++;
           }
         } catch (e) {
-          console.error('Error resetting override:', e);
+          // Error resetting override
         }
       }
     }
