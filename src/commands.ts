@@ -1377,21 +1377,21 @@ export const COMMAND_DEFINITIONS = {
   },
   ExportSVG: {
     type: "commandWithoutValue",
-    alias: ['svg'],
+    alias: ['svg', 'exportsvg'],
     suggestion: 'Export as SVG',
     icon: 'file-type-svg',
     functionWithoutParam: () => impl.exportAs({ format: 'SVG', constraintType: 'SCALE', constraintValue: '1' }),
   },
   ExportPDF: {
     type: "commandWithoutValue",
-    alias: ['pdf'],
+    alias: ['pdf', 'exportpdf'],
     suggestion: 'Export as PDF',
     icon: 'file-type-pdf',
     functionWithoutParam: () => impl.exportAs({ format: 'PDF', constraintType: 'SCALE', constraintValue: '1' }),
   },
   ExportPNG: {
     type: "optionalValueCommand",
-    alias: ['png'],
+    alias: ['png', 'exportpng'],
     valueFormat: 'number' as const,
     suggestion: 'Opt: Scale (e.g. png2 = 2x)',
     icon: 'photo',
@@ -1400,7 +1400,7 @@ export const COMMAND_DEFINITIONS = {
   },
   ExportJPG: {
     type: "optionalValueCommand",
-    alias: ['jpg'],
+    alias: ['jpg', 'jpeg', 'exportjpg'],
     valueFormat: 'number' as const,
     suggestion: 'Opt: Scale (e.g. jpg2 = 2x)',
     icon: 'jpg',

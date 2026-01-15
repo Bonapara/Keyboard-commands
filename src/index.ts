@@ -510,7 +510,32 @@ function setupInputHandler() {
 setupInputHandler();
 
 figma.on('run', async (parameters) => {
-  const commandString = originalInput.trim();
+  // Use the selected dropdown value if available, otherwise use what was typed
+  // This handles the case where user types partial text then selects from dropdown
+  let commandString = originalInput.trim();
+  
+  // Check if user selected a suggestion from the dropdown
+  if (parameters.parameters?.command && parameters.parameters.command !== commandString) {
+    const selectedValue = parameters.parameters.command;
+    
+    // Skip summary strings (contain pipe separator)
+    if (!selectedValue.includes('|')) {
+      // If it contains the middle dot separator, it's a formatted suggestion: "alias · CommandName -- description"
+      if (selectedValue.includes('·')) {
+        const commandNameMatch = selectedValue.match(/·\s*(\w+)/);
+        if (commandNameMatch) {
+          // Verify the extracted command exists before using it
+          const extractedCmd = commandNameMatch[1];
+          if (findCommand(extractedCmd).length > 0) {
+            commandString = extractedCmd;
+          }
+        }
+      } else {
+        // Direct selection without formatting (e.g., "Width:100")
+        commandString = selectedValue;
+      }
+    }
+  }
 
   // Parse command chain (e.g., "w100  h200  f?blue" → 3 segments)
   const segments = commandString.split(COMMAND_BREAK_PATTERN);
@@ -555,6 +580,7 @@ async function executeCommand(cmd: string, skipNotification: boolean = false): P
 
   // Extract command from suggestion text (remove aliases, descriptions, etc.)
   const cleanCmd = cmd.split('•')[0]  // Remove everything after the bullet point
+    .split('·')[0]    // Also split on middle dot (used in suggestions)
     .split(',')[0]    // Take only the first part before any comma
     .trim();          // Remove whitespace
 

@@ -1061,7 +1061,7 @@ export function resetInstance() {
 
   for (const instance of instances) {
     try {
-      instance.resetOverrides();
+      instance.removeOverrides();
       successCount++;
     } catch (error) {
       console.error('Error resetting instance:', error);

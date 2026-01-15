@@ -1,5 +1,7 @@
 <html>
 <head>
+    <!-- JSZip library for bundling multiple files -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 <body>
     <script>
@@ -9,16 +11,6 @@
         // Helper functions to determine file types
         function typedArrayToBuffer(array) {
             return array.buffer.slice(array.byteOffset, array.byteLength + array.byteOffset)
-        }
-        
-        function exportTypeToBlobType(type) {
-            switch(type) {
-                case "PDF": return 'application/pdf'
-                case "SVG": return 'image/svg+xml'
-                case "PNG": return 'image/png'
-                case "JPG": return 'image/jpeg'
-                default: return 'image/png'
-            }
         }
         
         function exportTypeToFileExtension(type) {
@@ -37,24 +29,44 @@
             
             const exportResults = event.data.pluginMessage;
             
-            // Process each exported item
-            for (const data of exportResults) {
-                const { bytes, name, format } = data;
+            // Single file: download directly
+            if (exportResults.length === 1) {
+                const { bytes, name, format } = exportResults[0];
                 const cleanBytes = typedArrayToBuffer(bytes);
-                const type = exportTypeToBlobType(format);
                 const extension = exportTypeToFileExtension(format);
                 
-                // Create blob and trigger download
-                const blob = new Blob([cleanBytes], { type });
+                const blob = new Blob([cleanBytes], { type: 'application/octet-stream' });
                 const blobURL = window.URL.createObjectURL(blob);
                 const link = document.createElement('a');
                 link.href = blobURL;
                 link.download = `${name}${extension}`;
-                
-                // Trigger the download
+                document.body.appendChild(link);
                 link.click();
+                document.body.removeChild(link);
+                window.URL.revokeObjectURL(blobURL);
+            } 
+            // Multiple files: bundle into ZIP
+            else {
+                const zip = new JSZip();
+                const format = exportResults[0].format;
+                const extension = exportTypeToFileExtension(format);
                 
-                // Clean up
+                // Add each file to the ZIP
+                for (const data of exportResults) {
+                    const { bytes, name } = data;
+                    const cleanBytes = typedArrayToBuffer(bytes);
+                    zip.file(`${name}${extension}`, cleanBytes);
+                }
+                
+                // Generate and download the ZIP
+                const zipBlob = await zip.generateAsync({ type: 'blob' });
+                const blobURL = window.URL.createObjectURL(zipBlob);
+                const link = document.createElement('a');
+                link.href = blobURL;
+                link.download = `export-${exportResults.length}-files.zip`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
                 window.URL.revokeObjectURL(blobURL);
             }
             
