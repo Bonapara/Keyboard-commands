@@ -606,37 +606,118 @@ function naturalSort(a: string, b: string): number {
   return aParts.length - bParts.length;
 }
 
+function normalizeSearchTerm(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[/\-_]/g, ' ')
+    .replace(/([a-z])(\d)/g, '$1 $2')
+    .replace(/(\d)([a-z])/g, '$1 $2')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function compactSearchTerm(value: string): string {
+  return normalizeSearchTerm(value).replace(/\s+/g, '');
+}
+
+function tokenizeSearchTerm(value: string): string[] {
+  return normalizeSearchTerm(value).split(' ').filter(Boolean);
+}
+
+interface TokenMatchAnalysis {
+  matched: boolean;
+  contiguous: boolean;
+  gaps: number;
+  startIndex: number;
+  exactMatches: number;
+  prefixMatches: number;
+}
+
+function analyzeTokenMatch(searchTerm: string, targetName: string): TokenMatchAnalysis {
+  const searchTokens = tokenizeSearchTerm(searchTerm);
+  const targetTokens = tokenizeSearchTerm(targetName);
+
+  if (searchTokens.length === 0) {
+    return {
+      matched: true,
+      contiguous: true,
+      gaps: 0,
+      startIndex: 0,
+      exactMatches: 0,
+      prefixMatches: 0
+    };
+  }
+
+  const matchedIndices: number[] = [];
+  let searchIndex = 0;
+  let exactMatches = 0;
+  let prefixMatches = 0;
+
+  for (let targetIndex = 0; targetIndex < targetTokens.length; targetIndex++) {
+    if (searchIndex >= searchTokens.length) break;
+
+    const targetToken = targetTokens[targetIndex];
+    const searchToken = searchTokens[searchIndex];
+
+    if (!targetToken.includes(searchToken)) {
+      continue;
+    }
+
+    matchedIndices.push(targetIndex);
+
+    if (targetToken === searchToken) {
+      exactMatches++;
+    }
+
+    if (targetToken.startsWith(searchToken)) {
+      prefixMatches++;
+    }
+
+    searchIndex++;
+  }
+
+  if (searchIndex !== searchTokens.length) {
+    return {
+      matched: false,
+      contiguous: false,
+      gaps: Number.MAX_SAFE_INTEGER,
+      startIndex: Number.MAX_SAFE_INTEGER,
+      exactMatches: 0,
+      prefixMatches: 0
+    };
+  }
+
+  let gaps = 0;
+  for (let i = 1; i < matchedIndices.length; i++) {
+    gaps += matchedIndices[i] - matchedIndices[i - 1] - 1;
+  }
+
+  return {
+    matched: true,
+    contiguous: gaps === 0,
+    gaps,
+    startIndex: matchedIndices[0] ?? 0,
+    exactMatches,
+    prefixMatches
+  };
+}
+
 function flexibleMatch(searchTerm: string, targetName: string): boolean {
-  // Normalize both strings: lowercase and replace separators with spaces
-  const normalizeString = (str: string) =>
-    str.toLowerCase().replace(/[/\-_]/g, ' ').replace(/\s+/g, ' ').trim();
+  const normalizedSearch = normalizeSearchTerm(searchTerm);
+  if (!normalizedSearch) return true;
 
-  const normalizedSearch = normalizeString(searchTerm);
-  const normalizedTarget = normalizeString(targetName);
-
-  // Simple substring match on normalized strings
+  const normalizedTarget = normalizeSearchTerm(targetName);
   if (normalizedTarget.includes(normalizedSearch)) {
     return true;
   }
 
-  // Also check if all search tokens appear in the target (in order)
-  const searchTokens = normalizedSearch.split(' ').filter(t => t.length > 0);
-  const targetTokens = normalizedTarget.split(' ').filter(t => t.length > 0);
-
-  if (searchTokens.length === 0) return true;
-
-  // Check if all search tokens appear in target tokens in order
-  let searchIndex = 0;
-  for (const targetToken of targetTokens) {
-    if (searchIndex >= searchTokens.length) break;
-
-    if (targetToken.includes(searchTokens[searchIndex]) ||
-      searchTokens[searchIndex].includes(targetToken)) {
-      searchIndex++;
-    }
+  const compactSearch = compactSearchTerm(searchTerm);
+  const compactTarget = compactSearchTerm(targetName);
+  if (compactSearch && compactTarget.includes(compactSearch)) {
+    return true;
   }
 
-  return searchIndex === searchTokens.length;
+  return analyzeTokenMatch(searchTerm, targetName).matched;
 }
 
 function calculateSearchScore(searchTerm: string, targetName: string): number {
@@ -644,30 +725,57 @@ function calculateSearchScore(searchTerm: string, targetName: string): number {
     return 100;
   }
 
-  const normalizeString = (str: string) =>
-    str.toLowerCase().replace(/[/\-_]/g, ' ').replace(/\s+/g, ' ').trim();
-
-  const normalizedSearch = normalizeString(searchTerm);
-  const normalizedTarget = normalizeString(targetName);
+  const normalizedSearch = normalizeSearchTerm(searchTerm);
+  const normalizedTarget = normalizeSearchTerm(targetName);
+  const compactSearch = compactSearchTerm(searchTerm);
+  const compactTarget = compactSearchTerm(targetName);
+  const searchTokens = tokenizeSearchTerm(searchTerm);
+  const tokenMatch = analyzeTokenMatch(searchTerm, targetName);
   const targetLower = targetName.toLowerCase();
   const searchLower = searchTerm.toLowerCase();
 
   // Exact match (highest priority)
-  if (targetLower === searchLower || normalizedTarget === normalizedSearch) {
-    return 1000;
+  if (
+    targetLower === searchLower ||
+    normalizedTarget === normalizedSearch ||
+    compactTarget === compactSearch
+  ) {
+    return 1200;
+  }
+
+  let score = 100;
+
+  if (tokenMatch.matched) {
+    score += 280;
+    score += tokenMatch.exactMatches * 120;
+    score += tokenMatch.prefixMatches * 30;
+    score -= tokenMatch.gaps * 45;
+    score -= tokenMatch.startIndex * 15;
+
+    if (tokenMatch.contiguous) {
+      score += searchTokens.length > 1 ? 280 : 220;
+    }
   }
 
   // Starts with (high priority)
-  if (targetLower.startsWith(searchLower) || normalizedTarget.startsWith(normalizedSearch)) {
-    return 500;
+  if (
+    targetLower.startsWith(searchLower) ||
+    normalizedTarget.startsWith(normalizedSearch) ||
+    compactTarget.startsWith(compactSearch)
+  ) {
+    score = Math.max(score, 820);
   }
 
   // Contains as substring (medium priority)
-  if (targetLower.includes(searchLower) || normalizedTarget.includes(normalizedSearch)) {
-    return 300;
+  if (
+    targetLower.includes(searchLower) ||
+    normalizedTarget.includes(normalizedSearch) ||
+    compactTarget.includes(compactSearch)
+  ) {
+    score = Math.max(score, 620);
   }
 
-  return 100;
+  return score;
 }
 
 import { LibraryData } from './types';
@@ -1113,4 +1221,3 @@ export async function resolveNumberValue(rawValue: string): Promise<NumberResolu
 
   return { type: 'literal', value, unit: isPercentage ? 'PERCENT' : 'PIXELS' };
 }
-
