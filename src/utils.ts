@@ -1,4 +1,4 @@
-import { BindingSupport, Command, PaintResolution, StyleResolution, NumberResolution, StyleBindingType, ValueFormat, VariableResolvedType, LibraryItem, SpecialCondition } from './types';
+import { BindingSupport, Command, PaintResolution, StyleResolution, NumberResolution, StyleBindingType, ValueFormat, VariableResolvedType, SpecialCondition } from './types';
 import { getIcon } from './icons';
 import { getStoredLibraries } from './storage';
 import { COMMANDS, CommandName } from './commands';
@@ -1061,7 +1061,7 @@ async function lookupStyle(
     if (found) {
       // Lazy import if it's a library style
       if (!found.isLocal && found.key) {
-        await figma.importStyleByKeyAsync(found.key).catch(e => {
+        await figma.importStyleByKeyAsync(found.key).catch(() => {
           throw new Error(`Failed to import library style: ${name}`);
         });
       }
@@ -1075,7 +1075,7 @@ async function lookupStyle(
     for (const libName of Object.keys(libraries)) {
       const foundItem = libraries[libName].find(i => i[0] === name && allowedTypes.includes(i[2] as StyleBindingType));
       if (foundItem) {
-        await figma.importStyleByKeyAsync(foundItem[1]).catch(e => {
+        await figma.importStyleByKeyAsync(foundItem[1]).catch(() => {
           throw new Error(`Failed to import library style: ${name}`);
         });
         return { styleKey: foundItem[1], styleType: foundItem[2] as StyleBindingType };

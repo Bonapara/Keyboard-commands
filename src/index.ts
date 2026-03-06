@@ -13,7 +13,7 @@ import {
 } from './utils';
 import { searchLibraries } from './implementations/library';
 import * as impl from './implementations';
-import { getIconWithOpacity, getIconWithColor } from './icons';
+import { getIconWithColor } from './icons';
 
 let originalInput = '';
 
@@ -376,7 +376,7 @@ function handleMatchedCommand(
         matchedCommand.valueFormat === 'number' ? hasNumber : true
     );
 
-  let suggestions: Array<string | { name: string; data: string; icon?: string }> = [];
+  const suggestions: Array<string | { name: string; data: string; icon?: string }> = [];
 
   // Show "already set" indicator if command was used earlier
   if (
@@ -529,17 +529,10 @@ figma.on('run', async (parameters) => {
           }
         }
       } 
-      // Check if this is a binding mode selection (originalInput contains ?)
-      // In this case, selectedValue is the data from dropdown, not a full command
-      else if (originalInput.includes('?')) {
-        // Extract the binding command alias from originalInput (e.g., "rio?Vector" -> "rio")
-        const bindingMatch = originalInput.match(/([a-z]+)\?/i);
-        if (bindingMatch) {
-          const bindingAlias = bindingMatch[1];
-          // Reconstruct the command with the selected value
-          commandString = `${bindingAlias}?${selectedValue}`;
-        }
-      } else {
+      // For binding selections, keep the original typed command intact.
+      // The selected dropdown value is resolved later per binding segment,
+      // which preserves preceding commands in the same segment (e.g. "r40 f?blue9").
+      else if (!originalInput.includes('?')) {
         // Direct selection without formatting (e.g., "Width:100")
         commandString = selectedValue;
       }
@@ -646,4 +639,3 @@ async function executeCommand(cmd: string, skipNotification: boolean = false): P
     }
   }
 }
-
