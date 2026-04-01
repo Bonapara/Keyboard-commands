@@ -470,6 +470,174 @@ async function resolvePreferredValues(
   return results;
 }
 
+function matchesComponentSearchTerm(name: string, searchTerm: string): boolean {
+  return searchTerm === '' || name.toLowerCase().includes(searchTerm.toLowerCase());
+}
+
+function normalizeComponentPathSegment(segment: string): string {
+  return segment.trim().toLowerCase();
+}
+
+function getComponentFolderSegments(componentName: string): string[] {
+  const segments = componentName
+    .split('/')
+    .map(segment => normalizeComponentPathSegment(segment))
+    .filter(Boolean);
+
+  if (segments.length < 2) {
+    return [];
+  }
+
+  return segments.slice(0, -1);
+}
+
+function getComponentSwapSourceName(mainComponent: ComponentNode): string {
+  return mainComponent.parent?.type === 'COMPONENT_SET'
+    ? mainComponent.parent.name
+    : mainComponent.name;
+}
+
+async function findContainingInstanceSwapProperty(
+  instance: InstanceNode,
+  propertyReference: string
+): Promise<PropertyDefinition | null> {
+  let current: BaseNode | null = instance.parent;
+
+  while (current) {
+    if (current.type === 'COMPONENT' || current.type === 'COMPONENT_SET') {
+      const { definition } = findPropertyKey(propertyReference, current.componentPropertyDefinitions);
+      if (definition) {
+        return definition;
+      }
+    } else if (current.type === 'INSTANCE') {
+      const mainComponent = await getCachedMainComponent(current);
+      if (mainComponent) {
+        const { definition } = findPropertyKey(propertyReference, getComponentPropertyDefinitions(mainComponent));
+        if (definition) {
+          return definition;
+        }
+      }
+    }
+
+    current = current.parent;
+  }
+
+  return null;
+}
+
+async function resolvePreferredSwapComponents(
+  instances: InstanceNode[]
+): Promise<Array<{ name: string; key: string; library: string; isPreferred: true }>> {
+  const collectedPreferredValues: InstanceSwapPreferredValue[] = [];
+  const seenKeys = new Set<string>();
+
+  for (const instance of instances) {
+    const propertyReference = instance.componentPropertyReferences?.mainComponent;
+    if (!propertyReference) continue;
+
+    const propertyDef = await findContainingInstanceSwapProperty(instance, propertyReference);
+    if (!propertyDef || propertyDef.type !== 'INSTANCE_SWAP' || !propertyDef.preferredValues) {
+      continue;
+    }
+
+    for (const preferredValue of propertyDef.preferredValues) {
+      const dedupeKey = `${preferredValue.type}:${preferredValue.key}`;
+      if (seenKeys.has(dedupeKey)) continue;
+
+      seenKeys.add(dedupeKey);
+      collectedPreferredValues.push(preferredValue);
+    }
+  }
+
+  return resolvePreferredValues(collectedPreferredValues);
+}
+
+function getCommonPrefixLength(a: string[], b: string[]): number {
+  const maxLength = Math.min(a.length, b.length);
+  let index = 0;
+
+  while (index < maxLength && a[index] === b[index]) {
+    index++;
+  }
+
+  return index;
+}
+
+type ComponentFolderMatch = {
+  commonPrefixLength: number;
+  distance: number;
+};
+
+function compareComponentFolderMatches(a: ComponentFolderMatch, b: ComponentFolderMatch): number {
+  if (a.commonPrefixLength !== b.commonPrefixLength) {
+    return b.commonPrefixLength - a.commonPrefixLength;
+  }
+
+  if (a.distance !== b.distance) {
+    return a.distance - b.distance;
+  }
+
+  return 0;
+}
+
+function getBestComponentFolderMatch(
+  componentName: string,
+  selectedFolderSegments: string[][]
+): ComponentFolderMatch | null {
+  const componentFolderSegments = getComponentFolderSegments(componentName);
+  if (componentFolderSegments.length === 0) {
+    return null;
+  }
+
+  let bestMatch: ComponentFolderMatch | null = null;
+
+  for (const selectedFolder of selectedFolderSegments) {
+    const commonPrefixLength = getCommonPrefixLength(componentFolderSegments, selectedFolder);
+    if (commonPrefixLength === 0) {
+      continue;
+    }
+
+    const distance =
+      (componentFolderSegments.length - commonPrefixLength) +
+      (selectedFolder.length - commonPrefixLength);
+    const match = {
+      commonPrefixLength,
+      distance
+    };
+
+    if (
+      !bestMatch ||
+      match.commonPrefixLength > bestMatch.commonPrefixLength ||
+      (match.commonPrefixLength === bestMatch.commonPrefixLength && match.distance < bestMatch.distance)
+    ) {
+      bestMatch = match;
+    }
+  }
+
+  return bestMatch;
+}
+
+async function getSelectedComponentFolderSegments(instances: InstanceNode[]): Promise<string[][]> {
+  const folderPaths: string[][] = [];
+  const seenFolderPaths = new Set<string>();
+
+  for (const instance of instances) {
+    const mainComponent = await getCachedMainComponent(instance);
+    if (!mainComponent) continue;
+
+    const folderPath = getComponentFolderSegments(getComponentSwapSourceName(mainComponent));
+    if (folderPath.length > 0) {
+      const dedupeKey = folderPath.join('/');
+      if (!seenFolderPaths.has(dedupeKey)) {
+        seenFolderPaths.add(dedupeKey);
+        folderPaths.push(folderPath);
+      }
+    }
+  }
+
+  return folderPaths;
+}
+
 // Helper to get components from the same frame as the instance's main component
 async function getSameFrameComponents(
   instances: InstanceNode[]
@@ -515,6 +683,73 @@ async function getSameFrameComponents(
   }
 
   return sameFrameComponents;
+}
+
+async function buildSwapComponentResults(
+  instances: InstanceNode[],
+  searchTerm: string
+): Promise<Array<{ name: string; library: string }>> {
+  const [preferredComponents, sameFrameComponents, selectedFolderSegments, libraryComponents] = await Promise.all([
+    resolvePreferredSwapComponents(instances),
+    instances.length > 0 ? getSameFrameComponents(instances) : Promise.resolve([]),
+    getSelectedComponentFolderSegments(instances),
+    searchLibraryComponents(searchTerm, 100)
+  ]);
+
+  const preferredResults = preferredComponents
+    .filter(component => matchesComponentSearchTerm(component.name, searchTerm))
+    .map(({ name, library }) => ({ name, library }));
+  const usedNames = new Set(preferredResults.map(component => component.name));
+
+  const folderMatchedResults = [
+    ...sameFrameComponents.map(component => ({
+      ...component,
+      isSameFrame: true,
+      match: getBestComponentFolderMatch(component.name, selectedFolderSegments)
+    })),
+    ...libraryComponents.map(component => ({
+      name: component.name,
+      library: component.library,
+      isSameFrame: false,
+      match: getBestComponentFolderMatch(component.name, selectedFolderSegments)
+    }))
+  ]
+    .filter(component => (
+      !usedNames.has(component.name) &&
+      component.match !== null &&
+      matchesComponentSearchTerm(component.name, searchTerm)
+    ))
+    .sort((a, b) => {
+      const matchComparison = compareComponentFolderMatches(
+        a.match as ComponentFolderMatch,
+        b.match as ComponentFolderMatch
+      );
+      if (matchComparison !== 0) {
+        return matchComparison;
+      }
+
+      if (a.isSameFrame !== b.isSameFrame) {
+        return a.isSameFrame ? -1 : 1;
+      }
+
+      return a.name.localeCompare(b.name);
+    })
+    .map(({ name, library }) => ({ name, library }));
+
+  folderMatchedResults.forEach(component => usedNames.add(component.name));
+
+  const sameFrameResults = sameFrameComponents.filter(component => (
+    matchesComponentSearchTerm(component.name, searchTerm) &&
+    !usedNames.has(component.name)
+  ));
+
+  sameFrameResults.forEach(component => usedNames.add(component.name));
+
+  const otherResults = libraryComponents
+    .filter(component => !usedNames.has(component.name))
+    .map(({ name, library }) => ({ name, library }));
+
+  return [...preferredResults, ...folderMatchedResults, ...sameFrameResults, ...otherResults];
 }
 
 async function searchLibraryComponents(searchTerm: string, limit: number = 100, libraryFilter?: string): Promise<Array<{ name: string; key: string; library: string }>> {
@@ -1278,6 +1513,19 @@ export async function pushOverridesToMain() {
   figma.notify('Pushed supported overrides (Fills, Strokes, Effects, Radius) to Main Component');
 }
 // Helper to find and import a component based on name/library string
+async function findLocalComponentByName(componentName: string): Promise<ComponentNode | ComponentSetNode | null> {
+  await figma.loadAllPagesAsync();
+  // eslint-disable-next-line @figma/figma-plugins/dynamic-page-find-method-advice
+  const found = figma.root.findOne(node =>
+    (node.type === 'COMPONENT' || node.type === 'COMPONENT_SET') &&
+    node.name === componentName
+  );
+
+  return found && (found.type === 'COMPONENT' || found.type === 'COMPONENT_SET')
+    ? found
+    : null;
+}
+
 async function findAndImportComponent(value: string): Promise<{ component: ComponentNode | null, name: string }> {
   const [libraries, activeLibraries] = await Promise.all([
     getStoredLibraries(),
@@ -1304,6 +1552,17 @@ async function findAndImportComponent(value: string): Promise<{ component: Compo
     const lastParenIndex = value.lastIndexOf(' (');
     if (lastParenIndex > 0 && value.endsWith(')')) {
       componentName = value.substring(0, lastParenIndex).trim();
+    }
+  }
+
+  const shouldSearchLocal = !targetLibrary || targetLibrary === figma.root.name;
+  if (shouldSearchLocal) {
+    const localNode = await findLocalComponentByName(componentName);
+    if (localNode) {
+      return {
+        component: localNode.type === 'COMPONENT_SET' ? localNode.defaultVariant : localNode,
+        name: componentName
+      };
     }
   }
 
@@ -1405,33 +1664,10 @@ export async function searchComponentsForSwap(searchTerm: string): Promise<strin
   const selection = figma.currentPage.selection;
   const instances = selection.filter(node => node.type === 'INSTANCE') as InstanceNode[];
 
-  // For initial display (empty search), prioritize components from the same frame
-  if (searchTerm === '' && instances.length > 0) {
-    // Get same-frame components
-    const sameFrameComponents = await getSameFrameComponents(instances);
-    const sameFrameResults = sameFrameComponents.map(c => `${c.name} (${c.library})`);
-
-    // Get library components
-    const libraryComponents = await searchLibraryComponents('', 100);
-
-    // Filter out duplicates from library results
-    const sameFrameNames = new Set(sameFrameComponents.map(c => c.name));
-    const otherResults = libraryComponents
-      .filter(c => !sameFrameNames.has(c.name))
-      .map(c => `${c.name} (${c.library})`);
-
-    const allResults = [...sameFrameResults, ...otherResults];
-    if (allResults.length === 0) {
-      return ['No components found'];
-    }
-    return allResults;
-  }
-
-  // When searching, search all components
-  const components = await searchLibraryComponents(searchTerm);
+  const components = await buildSwapComponentResults(instances, searchTerm);
 
   if (components.length === 0) {
-    return [`No components found matching "${searchTerm}"`];
+    return [searchTerm === '' ? 'No components found' : `No components found matching "${searchTerm}"`];
   }
 
   return components.map(c => `${c.name} (${c.library})`);
@@ -1549,6 +1785,248 @@ const FIELD_MAPPING: Record<string, string> = {
   'stroke': 'stroke'
 };
 
+interface ComponentPropertyValueEntry {
+  key: string;
+  name: string;
+  value: string | boolean | undefined;
+}
+
+interface ParsedOverrideReference {
+  nodeId: string | null;
+  field: string | null;
+  nodeName: string | null;
+  componentPropertyKey: string | null;
+  componentPropertyName: string | null;
+}
+
+interface OverrideSearchContext {
+  selectedInstance: InstanceNode;
+  ownerInstance: InstanceNode;
+}
+
+interface OverrideSuggestionPayload {
+  nodeId: string | null;
+  field: string;
+  nodeName: string;
+  componentPropertyKey?: string | null;
+  componentPropertyName?: string | null;
+}
+
+interface OverrideSuggestionEntry {
+  baseName: string;
+  payload: OverrideSuggestionPayload;
+  selectedInstanceIds: Set<string>;
+}
+
+function isNodeInSubtree(node: BaseNode | null, subtreeRoot: SceneNode): boolean {
+  let current: BaseNode | null = node;
+
+  while (current) {
+    if (current.id === subtreeRoot.id) return true;
+    current = 'parent' in current ? current.parent : null;
+  }
+
+  return false;
+}
+
+function getOverrideSearchContexts(instances: InstanceNode[]): OverrideSearchContext[] {
+  const contexts: OverrideSearchContext[] = [];
+  const seen = new Set<string>();
+
+  for (const selectedInstance of instances) {
+    let current: BaseNode | null = selectedInstance;
+
+    while (current) {
+      if (current.type === 'INSTANCE') {
+        const key = `${selectedInstance.id}:${current.id}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          contexts.push({
+            selectedInstance,
+            ownerInstance: current
+          });
+        }
+      }
+
+      current = 'parent' in current ? current.parent : null;
+    }
+  }
+
+  return contexts;
+}
+
+function matchesInstanceByName(instance: InstanceNode, nodeName: string | null): boolean {
+  return !nodeName || instance.name === nodeName;
+}
+
+function getNearestParentInstance(instance: InstanceNode): InstanceNode | null {
+  let current: BaseNode | null = instance.parent;
+
+  while (current) {
+    if (current.type === 'INSTANCE') {
+      return current;
+    }
+
+    current = 'parent' in current ? current.parent : null;
+  }
+
+  return null;
+}
+
+async function getDirectComponentPropertySourceNode(instance: InstanceNode): Promise<BaseNode | null> {
+  const parentInstance = getNearestParentInstance(instance);
+
+  if (parentInstance) {
+    const parentDefinedSource = await findSourceNode(parentInstance, instance);
+    if (parentDefinedSource) {
+      return parentDefinedSource;
+    }
+  }
+
+  return findSourceNode(instance, instance);
+}
+
+function addOverrideSuggestion(
+  suggestions: Map<string, OverrideSuggestionEntry>,
+  mergeKey: string,
+  baseName: string,
+  payload: OverrideSuggestionPayload,
+  selectedInstanceId: string
+) {
+  const existing = suggestions.get(mergeKey);
+
+  if (existing) {
+    existing.selectedInstanceIds.add(selectedInstanceId);
+    if (!existing.payload.nodeId && payload.nodeId) {
+      existing.payload.nodeId = payload.nodeId;
+    }
+    return;
+  }
+
+  suggestions.set(mergeKey, {
+    baseName,
+    payload: { ...payload },
+    selectedInstanceIds: new Set([selectedInstanceId])
+  });
+}
+
+function buildOverrideSuggestionsList(
+  suggestions: Map<string, OverrideSuggestionEntry>
+): Array<{ name: string; data: string }> {
+  return Array.from(suggestions.values()).map(entry => {
+    const count = entry.selectedInstanceIds.size;
+    const payload = count > 1
+      ? { ...entry.payload, nodeId: null }
+      : entry.payload;
+
+    return {
+      name: count > 1 ? `${entry.baseName} · ${count} selected` : entry.baseName,
+      data: JSON.stringify(payload)
+    };
+  });
+}
+
+function formatFieldLabel(field: string): string {
+  if (field === 'cornerRadius') return 'Corner Radius';
+  if (field === 'stroke') return 'Stroke';
+
+  return field
+    .replace(/_/g, ' ')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+function getComponentPropertyValueMap(node: BaseNode): Map<string, ComponentPropertyValueEntry> {
+  const properties = new Map<string, ComponentPropertyValueEntry>();
+
+  if (node.type === 'INSTANCE') {
+    for (const [key, property] of Object.entries(node.componentProperties)) {
+      const name = cleanPropertyName(key);
+      properties.set(name.toLowerCase(), {
+        key,
+        name,
+        value: extractPropertyValue(property)
+      });
+    }
+  } else if (node.type === 'COMPONENT' || node.type === 'COMPONENT_SET') {
+    const definitions = node.type === 'COMPONENT'
+      ? getComponentPropertyDefinitions(node)
+      : node.componentPropertyDefinitions;
+
+    for (const [key, definition] of Object.entries(definitions)) {
+      const name = cleanPropertyName(key);
+      properties.set(name.toLowerCase(), {
+        key,
+        name,
+        value: definition.defaultValue
+      });
+    }
+  }
+
+  return properties;
+}
+
+function getOverriddenComponentProperties(
+  node: SceneNode,
+  sourceNode: BaseNode | null
+): ComponentPropertyValueEntry[] {
+  if (node.type !== 'INSTANCE' || !sourceNode) return [];
+
+  const currentProperties = getComponentPropertyValueMap(node);
+  const sourceProperties = getComponentPropertyValueMap(sourceNode);
+  const overrides: ComponentPropertyValueEntry[] = [];
+
+  for (const [lookupKey, currentEntry] of currentProperties.entries()) {
+    const sourceEntry = sourceProperties.get(lookupKey);
+    if (!sourceEntry || sourceEntry.value === undefined) continue;
+
+    if (!isEqual(sourceEntry.value, currentEntry.value)) {
+      overrides.push(currentEntry);
+    }
+  }
+
+  return overrides;
+}
+
+function resolveComponentPropertyResetTarget(
+  node: SceneNode,
+  sourceNode: BaseNode,
+  componentPropertyKey: string | null,
+  componentPropertyName: string | null
+): { key: string; value: string | boolean } | null {
+  if (node.type !== 'INSTANCE') {
+    return null;
+  }
+
+  const currentProperties = getComponentPropertyValueMap(node);
+  const sourceProperties = getComponentPropertyValueMap(sourceNode);
+  const lookupKeys = new Set<string>();
+
+  if (componentPropertyKey) {
+    lookupKeys.add(cleanPropertyName(componentPropertyKey).toLowerCase());
+  }
+
+  if (componentPropertyName) {
+    lookupKeys.add(cleanPropertyName(componentPropertyName).toLowerCase());
+  }
+
+  for (const lookupKey of lookupKeys) {
+    const currentEntry = currentProperties.get(lookupKey);
+    const sourceEntry = sourceProperties.get(lookupKey);
+
+    if (currentEntry && sourceEntry && sourceEntry.value !== undefined) {
+      return {
+        key: currentEntry.key,
+        value: sourceEntry.value
+      };
+    }
+  }
+
+  return null;
+}
+
 /**
  * Helper to check if a field belongs to a group and return the group name
  */
@@ -1641,6 +2119,11 @@ async function resetProperty(node: SceneNode, field: string, value: unknown) {
     await nodeWithStyles.setEffectStyleIdAsync(value as string);
   } else if (field === 'textStyleId' && nodeWithStyles.setTextStyleIdAsync) {
     await nodeWithStyles.setTextStyleIdAsync(value as string);
+  } else if (field === 'fontName' && node.type === 'TEXT') {
+    const fontName = value as FontName | typeof figma.mixed;
+    if (fontName === figma.mixed) return;
+    await figma.loadFontAsync(fontName);
+    node.fontName = fontName;
   }
   // For array properties, clone to prevent reference issues
   else if (Array.isArray(value)) {
@@ -1700,42 +2183,104 @@ async function isOverrideReal(instance: InstanceNode, node: SceneNode, field: st
 /**
  * Helper to parse override reference string or JSON
  */
-function parseOverrideReference(ref: string): { nodeId: string | null, field: string | null, nodeName: string | null } {
+function parseOverrideReference(ref: string): ParsedOverrideReference {
   try {
     const data = JSON.parse(ref);
-    if (data.nodeId && data.field) {
-      return { nodeId: data.nodeId, field: data.field, nodeName: data.nodeName };
+    if (data.field) {
+      return {
+        nodeId: data.nodeId || null,
+        field: data.field,
+        nodeName: data.nodeName || null,
+        componentPropertyKey: data.componentPropertyKey || null,
+        componentPropertyName: data.componentPropertyName || null
+      };
     }
   } catch (e) {
     const match = ref.match(/^(.+?)\s*->\s*(.+)$/);
     if (match) {
       const nodeName = match[1].trim();
-      let field = match[2].trim().replace(/\s+/g, '').replace(/^(.)/, m => m.toLowerCase());
+      const rawField = match[2].trim();
+      const propertyMatch = rawField.match(/^Property:\s*(.+)$/i);
+
+      if (propertyMatch) {
+        return {
+          nodeId: null,
+          field: 'componentProperties',
+          nodeName,
+          componentPropertyKey: null,
+          componentPropertyName: propertyMatch[1].trim()
+        };
+      }
+
+      let field = rawField.replace(/\s+/g, '').replace(/^(.)/, m => m.toLowerCase());
       field = FIELD_MAPPING[field.toLowerCase()] || field;
-      return { nodeId: null, field, nodeName };
+      return {
+        nodeId: null,
+        field,
+        nodeName,
+        componentPropertyKey: null,
+        componentPropertyName: null
+      };
     }
   }
-  return { nodeId: null, field: null, nodeName: null };
+  return {
+    nodeId: null,
+    field: null,
+    nodeName: null,
+    componentPropertyKey: null,
+    componentPropertyName: null
+  };
 }
 
 /**
  * Helper to restore an override from source
  */
-async function restoreOverride(nodeToReset: SceneNode, sourceNode: BaseNode, field: string): Promise<boolean> {
+async function restoreOverride(
+  nodeToReset: SceneNode,
+  sourceNode: BaseNode,
+  field: string,
+  componentPropertyKey: string | null = null,
+  componentPropertyName: string | null = null
+): Promise<boolean> {
   let didReset = false;
 
   if (field === 'componentProperties') {
     try {
-      const defaultProps: Record<string, string | boolean> = {};
-      if (sourceNode.type === 'INSTANCE') {
-        const props = (sourceNode as InstanceNode).componentProperties;
-        Object.entries(props).forEach(([k, v]) => defaultProps[k] = v.value);
-      } else if (sourceNode.type === 'COMPONENT' || sourceNode.type === 'COMPONENT_SET') {
-        const definitions = (sourceNode as ComponentNode | ComponentSetNode).componentPropertyDefinitions;
-        Object.entries(definitions).forEach(([k, v]) => defaultProps[k] = v.defaultValue);
+      if (componentPropertyKey || componentPropertyName) {
+        const propertyToReset = resolveComponentPropertyResetTarget(
+          nodeToReset,
+          sourceNode,
+          componentPropertyKey,
+          componentPropertyName
+        );
+
+        if (propertyToReset) {
+          (nodeToReset as InstanceNode).setProperties({
+            [propertyToReset.key]: propertyToReset.value
+          });
+          didReset = true;
+        }
+      } else {
+        const defaultProps: Record<string, string | boolean> = {};
+        if (sourceNode.type === 'INSTANCE') {
+          const props = sourceNode.componentProperties;
+          Object.entries(props).forEach(([k, v]) => defaultProps[k] = v.value);
+        } else if (sourceNode.type === 'COMPONENT' || sourceNode.type === 'COMPONENT_SET') {
+          const definitions = sourceNode.type === 'COMPONENT'
+            ? getComponentPropertyDefinitions(sourceNode)
+            : sourceNode.componentPropertyDefinitions;
+          Object.entries(definitions).forEach(([k, v]) => {
+            if (v.defaultValue !== undefined) {
+              defaultProps[k] = v.defaultValue;
+            }
+          });
+        }
+
+        if (Object.keys(defaultProps).length > 0) {
+          (nodeToReset as InstanceNode).setProperties(defaultProps);
+          didReset = true;
+        }
       }
-      (nodeToReset as InstanceNode).setProperties(defaultProps);
-      didReset = true;
     } catch (err) {
       // Failed to reset componentProperties
     }
@@ -1763,6 +2308,7 @@ async function restoreOverride(nodeToReset: SceneNode, sourceNode: BaseNode, fie
 export async function searchInstanceOverrides(searchTerm: string): Promise<Array<string | { name: string; data: unknown }>> {
   const selection = figma.currentPage.selection;
   const instances = selection.filter(node => node.type === 'INSTANCE') as InstanceNode[];
+  const contexts = getOverrideSearchContexts(instances);
 
   if (instances.length === 0) {
     return ['No instances selected'];
@@ -1770,8 +2316,8 @@ export async function searchInstanceOverrides(searchTerm: string): Promise<Array
 
   // Collect all unique node IDs from overrides for batch lookup
   const uniqueNodeIds = new Set<string>();
-  for (const instance of instances) {
-    for (const override of instance.overrides) {
+  for (const context of contexts) {
+    for (const override of context.ownerInstance.overrides) {
       uniqueNodeIds.add(override.id);
     }
   }
@@ -1794,56 +2340,126 @@ export async function searchInstanceOverrides(searchTerm: string): Promise<Array
     nodeMap.set(id, nodeResults[index]);
   });
 
-  const overridesList: Array<{ name: string; data: string }> = [];
-  const seenOverrides = new Set<string>();
+  const mergedSuggestions = new Map<string, OverrideSuggestionEntry>();
 
-  for (const instance of instances) {
-    for (const override of instance.overrides) {
+  for (const context of contexts) {
+    const { selectedInstance, ownerInstance } = context;
+
+    for (const override of ownerInstance.overrides) {
       const nodeId = override.id;
       const fields = override.overriddenFields;
       const node = nodeMap.get(nodeId);
 
       if (!node) continue;
+      if (!isNodeInSubtree(node, selectedInstance)) {
+        continue;
+      }
 
       const nodeName = 'name' in node ? node.name : 'Unknown';
 
       // Process fields
       for (const field of fields) {
-        // Check for groups first
-        const groupName = getGroupedField(field);
-        const effectiveField = groupName || field;
-        const overrideKey = `${nodeId}:${effectiveField}`;
+        if (field === 'componentProperties' && node.type === 'INSTANCE') {
+          const sourceNode = await findSourceNode(ownerInstance, node);
+          const propertyOverrides = getOverriddenComponentProperties(node, sourceNode);
 
-        if (seenOverrides.has(overrideKey)) continue;
+          for (const propertyOverride of propertyOverrides) {
+            const displayName = `${nodeName} -> Property: ${propertyOverride.name}`;
+            if (searchTerm && !displayName.toLowerCase().includes(searchTerm.toLowerCase())) continue;
 
-        // Check if the override is real (value differs from source)
-        const isReal = await isOverrideReal(instance, node, effectiveField);
-        if (!isReal) {
-          seenOverrides.add(overrideKey);
+            addOverrideSuggestion(
+              mergedSuggestions,
+              `property:${nodeName.toLowerCase()}:${propertyOverride.name.toLowerCase()}`,
+              displayName,
+              {
+                nodeId,
+                field: 'componentProperties',
+                nodeName,
+                componentPropertyKey: propertyOverride.key,
+                componentPropertyName: propertyOverride.name
+              },
+              selectedInstance.id
+            );
+          }
+
+          const displayName = `${nodeName} -> ${formatFieldLabel(field)}`;
+          if (searchTerm && !displayName.toLowerCase().includes(searchTerm.toLowerCase())) continue;
+
+          addOverrideSuggestion(
+            mergedSuggestions,
+            `field:${nodeName.toLowerCase()}:componentProperties`,
+            displayName,
+            { nodeId, field, nodeName },
+            selectedInstance.id
+          );
           continue;
         }
 
-        seenOverrides.add(overrideKey);
+        // Check for groups first
+        const groupName = getGroupedField(field);
+        const effectiveField = groupName || field;
 
-        // Format display name
-        const fieldLabel = effectiveField === 'cornerRadius' ? 'Corner Radius' :
-          effectiveField === 'stroke' ? 'Stroke' :
-            effectiveField.replace(/_/g, ' ').toLowerCase()
-              .split(' ')
-              .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-              .join(' ');
+        // Check if the override is real (value differs from source)
+        const isReal = await isOverrideReal(ownerInstance, node, effectiveField);
+        if (!isReal) continue;
 
-        const displayName = `${nodeName} -> ${fieldLabel}`;
+        const displayName = `${nodeName} -> ${formatFieldLabel(effectiveField)}`;
 
         if (searchTerm && !displayName.toLowerCase().includes(searchTerm.toLowerCase())) continue;
 
-        overridesList.push({
-          name: displayName,
-          data: JSON.stringify({ nodeId, field: effectiveField, nodeName })
-        });
+        addOverrideSuggestion(
+          mergedSuggestions,
+          `field:${nodeName.toLowerCase()}:${effectiveField.toLowerCase()}`,
+          displayName,
+          { nodeId, field: effectiveField, nodeName },
+          selectedInstance.id
+        );
       }
     }
   }
+
+  for (const instance of instances) {
+    const sourceNode = await getDirectComponentPropertySourceNode(instance);
+    const propertyOverrides = getOverriddenComponentProperties(instance, sourceNode);
+
+    for (const propertyOverride of propertyOverrides) {
+      const displayName = `${instance.name} -> Property: ${propertyOverride.name}`;
+      if (searchTerm && !displayName.toLowerCase().includes(searchTerm.toLowerCase())) continue;
+
+      addOverrideSuggestion(
+        mergedSuggestions,
+        `property:${instance.name.toLowerCase()}:${propertyOverride.name.toLowerCase()}`,
+        displayName,
+        {
+          nodeId: instance.id,
+          field: 'componentProperties',
+          nodeName: instance.name,
+          componentPropertyKey: propertyOverride.key,
+          componentPropertyName: propertyOverride.name
+        },
+        instance.id
+      );
+    }
+
+    if (propertyOverrides.length > 0) {
+      const displayName = `${instance.name} -> ${formatFieldLabel('componentProperties')}`;
+      if (!searchTerm || displayName.toLowerCase().includes(searchTerm.toLowerCase())) {
+        addOverrideSuggestion(
+          mergedSuggestions,
+          `field:${instance.name.toLowerCase()}:componentProperties`,
+          displayName,
+          {
+            nodeId: instance.id,
+            field: 'componentProperties',
+            nodeName: instance.name
+          },
+          instance.id
+        );
+      }
+    }
+  }
+
+  const overridesList = buildOverrideSuggestionsList(mergedSuggestions);
 
   return overridesList.length === 0
     ? (searchTerm ? [`No overrides found matching "${searchTerm}"`] : ['No overrides found on selected instances'])
@@ -1857,10 +2473,17 @@ export async function searchInstanceOverrides(searchTerm: string): Promise<Array
 export async function resetSpecificOverride(overrideReference: string) {
   const selection = figma.currentPage.selection;
   const instances = selection.filter(node => node.type === 'INSTANCE') as InstanceNode[];
+  const contexts = getOverrideSearchContexts(instances);
 
   if (instances.length === 0) throw new Error('No instances selected');
 
-  const { nodeId, field, nodeName } = parseOverrideReference(overrideReference);
+  const {
+    nodeId,
+    field,
+    nodeName,
+    componentPropertyKey,
+    componentPropertyName
+  } = parseOverrideReference(overrideReference);
 
   if (!field) {
     figma.notify('Invalid override reference format', { error: true });
@@ -1869,8 +2492,10 @@ export async function resetSpecificOverride(overrideReference: string) {
 
   let resetCount = 0;
 
-  for (const instance of instances) {
-    for (const override of instance.overrides) {
+  for (const context of contexts) {
+    const { selectedInstance, ownerInstance } = context;
+
+    for (const override of ownerInstance.overrides) {
       // Filter by nodeId if provided
       if (nodeId && override.id !== nodeId) continue;
 
@@ -1882,17 +2507,27 @@ export async function resetSpecificOverride(overrideReference: string) {
         } catch { continue; }
       }
 
+      const nodeToReset = await figma.getNodeByIdAsync(override.id) as SceneNode | null;
+      if (!nodeToReset) continue;
+      if (!isNodeInSubtree(nodeToReset, selectedInstance)) {
+        continue;
+      }
+
       const fieldsToReset = getFieldsToReset(field);
       const hasMatchingField = override.overriddenFields.some(f => fieldsToReset.includes(f));
 
       if (hasMatchingField) {
         try {
-          const nodeToReset = await figma.getNodeByIdAsync(override.id) as SceneNode;
-          if (!nodeToReset) continue;
+          const sourceNode = await findSourceNode(ownerInstance, nodeToReset);
 
-          const sourceNode = await findSourceNode(instance, nodeToReset);
           if (sourceNode) {
-            const success = await restoreOverride(nodeToReset, sourceNode, field);
+            const success = await restoreOverride(
+              nodeToReset,
+              sourceNode,
+              field,
+              componentPropertyKey,
+              componentPropertyName
+            );
             if (success) resetCount++;
           }
         } catch (e) {
@@ -1902,8 +2537,32 @@ export async function resetSpecificOverride(overrideReference: string) {
     }
   }
 
+  if (field === 'componentProperties') {
+    for (const instance of instances) {
+      if (nodeId && instance.id !== nodeId) continue;
+      if (!matchesInstanceByName(instance, nodeName)) continue;
+
+      try {
+        const sourceNode = await getDirectComponentPropertySourceNode(instance);
+        if (!sourceNode) continue;
+
+        const success = await restoreOverride(
+          instance,
+          sourceNode,
+          field,
+          componentPropertyKey,
+          componentPropertyName
+        );
+
+        if (success) resetCount++;
+      } catch (e) {
+        // Error resetting direct instance component property fallback
+      }
+    }
+  }
+
   if (resetCount > 0) {
-    const displayField = field.replace(/([A-Z])/g, ' $1').trim();
+    const displayField = componentPropertyName || formatFieldLabel(field);
     figma.notify(`Reset "${displayField}" on ${resetCount} ${pluralize(resetCount, 'node')}${nodeName ? ` (${nodeName})` : ''}`);
   } else {
     figma.notify('No matching overrides found to reset', { error: true });
