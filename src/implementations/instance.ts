@@ -1,6 +1,7 @@
 
 
 import { getStoredLibraries, getActiveLibraries } from './library';
+import { getRecentValues } from '../recent-values';
 
 const PROPERTY_ID_SUFFIX_REGEX = /#\d+:\d+$/;
 const VARIANT_SPACING = 20;
@@ -137,6 +138,39 @@ function extractPropertyValue(property: string | boolean | { value: string | boo
   return property;
 }
 
+type SuggestionItem = string | { name: string; data: unknown };
+
+function isInfoSuggestion(text: string): boolean {
+  return text.startsWith('No ');
+}
+
+function prefixChainedSuggestion(item: SuggestionItem, prefix: string): SuggestionItem {
+  if (typeof item === 'string') {
+    if (isInfoSuggestion(item)) return item;
+    // Keep the dropdown label clean; thread the committed chain through `data`
+    // so execution still resolves every pair.
+    return { name: item, data: prefix + item };
+  }
+
+  const data = typeof item.data === 'string' && !isInfoSuggestion(item.data)
+    ? prefix + item.data
+    : item.data;
+
+  return { ...item, data };
+}
+
+function getUnanimousCurrentValue(nodes: InstanceNode[], propertyKey: string): string | null {
+  let value: string | null = null;
+  for (const node of nodes) {
+    const prop = node.componentProperties[propertyKey];
+    if (prop === undefined) return null;
+    const extracted = String(extractPropertyValue(prop));
+    if (value === null) value = extracted;
+    else if (value !== extracted) return null;
+  }
+  return value;
+}
+
 async function searchVariantOptions(instances: InstanceNode[], propertyName: string, optionFilter: string = ''): Promise<string[]> {
 
   for (const instance of instances) {
@@ -154,11 +188,16 @@ async function searchVariantOptions(instances: InstanceNode[], propertyName: str
           options = options.filter((opt: string) => opt.toLowerCase().includes(filterLower));
         }
 
+        const currentValue = getUnanimousCurrentValue(instances, realPropertyKey);
+        if (currentValue !== null) {
+          options = options.filter(opt => opt !== currentValue);
+        }
+
         if (options.length === 0) {
           return [`No options matching "${optionFilter}" for "${cleanPropertyName(realPropertyKey)}"`];
         }
 
-        return options.map((option: string) => `${realPropertyKey}:${option}`);
+        return options.map((option: string) => `${cleanPropertyName(realPropertyKey)}:${option}`);
       }
     }
 
@@ -179,17 +218,73 @@ async function searchVariantOptions(instances: InstanceNode[], propertyName: str
             options = options.filter((opt: string) => opt.toLowerCase().includes(filterLower));
           }
 
+          const currentValue = getUnanimousCurrentValue([exposedInstance], exposedRealKey);
+          if (currentValue !== null) {
+            options = options.filter(opt => opt !== currentValue);
+          }
+
           if (options.length === 0) {
             return [`No options matching "${optionFilter}" for "${cleanPropertyName(exposedRealKey)}"`];
           }
 
-          return options.map((option: string) => `${exposedRealKey}:${option}`);
+          return options.map((option: string) => `${cleanPropertyName(exposedRealKey)}:${option}`);
         }
       }
     }
   }
 
   return [`No variant options found for "${propertyName}"`];
+}
+
+async function searchAllVariantOptions(
+  instances: InstanceNode[],
+  optionFilter: string
+): Promise<string[]> {
+  const filterLower = optionFilter.toLowerCase();
+  const results: string[] = [];
+  const seen = new Set<string>();
+
+  const collectFrom = (allProperties: ComponentPropertyDefinitions, sourceNodes: InstanceNode[]) => {
+    for (const key of Object.keys(allProperties)) {
+      const def = allProperties[key];
+      if (!def || def.type !== 'VARIANT' || !def.variantOptions) continue;
+
+      const currentValue = getUnanimousCurrentValue(sourceNodes, key);
+
+      const displayKey = cleanPropertyName(key);
+      for (const option of def.variantOptions) {
+        if (currentValue !== null && option === currentValue) continue;
+        if (filterLower && !option.toLowerCase().includes(filterLower)) continue;
+        const entry = `${displayKey}:${option}`;
+        if (seen.has(entry)) continue;
+        seen.add(entry);
+        results.push(entry);
+      }
+    }
+  };
+
+  for (const instance of instances) {
+    const mainComponent = await getCachedMainComponent(instance);
+    if (mainComponent) {
+      collectFrom(getComponentPropertyDefinitions(mainComponent), instances);
+    }
+
+    if (instance.exposedInstances) {
+      for (const exposedInstance of instance.exposedInstances) {
+        const exposedMain = await getCachedMainComponent(exposedInstance);
+        if (!exposedMain) continue;
+        collectFrom(getComponentPropertyDefinitions(exposedMain), [exposedInstance]);
+      }
+    }
+  }
+
+  if (results.length === 0) {
+    return optionFilter
+      ? [`No variant options matching "${optionFilter}"`]
+      : ['No variant options available'];
+  }
+
+  return results;
 }
 
 async function applyToExposedInstances(
@@ -222,6 +317,54 @@ async function applyToExposedInstances(
   }
 
   return count;
+}
+
+// A bare property name (no ":") can only drive a BOOLEAN toggle — other types
+// need a value. Prefer a BOOLEAN match so fuzzy inputs like "h" don't resolve
+// to an INSTANCE_SWAP/VARIANT sibling that just prints a hint and bails.
+async function findBooleanPropertyInInstanceOrExposed(
+  instance: InstanceNode,
+  propertyName: string
+): Promise<{ definition: PropertyDefinition | null; keyInMain: string | null }> {
+  const searchLower = propertyName.toLowerCase();
+
+  const scan = (allProperties: ComponentPropertyDefinitions) => {
+    const keys = Object.keys(allProperties);
+    const predicates: Array<(c: string) => boolean> = [
+      (c) => c === searchLower,
+      (c) => c.startsWith(searchLower),
+      (c) => c.includes(searchLower),
+    ];
+
+    for (const predicate of predicates) {
+      for (const key of keys) {
+        const def = allProperties[key];
+        if (!def || def.type !== 'BOOLEAN') continue;
+        const cleanedKey = cleanPropertyName(key).toLowerCase();
+        if (predicate(cleanedKey)) {
+          return { key, definition: def };
+        }
+      }
+    }
+    return null;
+  };
+
+  const mainComponent = await getCachedMainComponent(instance);
+  if (mainComponent) {
+    const hit = scan(getComponentPropertyDefinitions(mainComponent));
+    if (hit) return { definition: hit.definition, keyInMain: hit.key };
+  }
+
+  if (instance.exposedInstances) {
+    for (const exposedInstance of instance.exposedInstances) {
+      const exposedMain = await getCachedMainComponent(exposedInstance);
+      if (!exposedMain) continue;
+      const hit = scan(getComponentPropertyDefinitions(exposedMain));
+      if (hit) return { definition: hit.definition, keyInMain: null };
+    }
+  }
+
+  return { definition: null, keyInMain: null };
 }
 
 async function findPropertyInInstanceOrExposed(
@@ -794,6 +937,21 @@ export async function searchInstanceProperties(searchTerm: string): Promise<Arra
     return ['No instances selected'];
   }
 
+  // Comma-chained pairs: "Type:Primary,Size:Large,Icon:Foo" — committed pairs
+  // stay as-is; suggestions are for the active (last) pair, prefixed on return.
+  const commaIdx = searchTerm.lastIndexOf(',');
+  if (commaIdx !== -1) {
+    const prefix = searchTerm.slice(0, commaIdx + 1);
+    const active = searchTerm.slice(commaIdx + 1).replace(/^\s+/, '');
+    const inner = await searchInstanceProperties(active);
+    return inner.map(item => prefixChainedSuggestion(item, prefix));
+  }
+
+  // "ip?:value" — empty property name, search variant options across all properties.
+  if (searchTerm.startsWith(':')) {
+    return await searchAllVariantOptions(instances, searchTerm.slice(1).trim());
+  }
+
   const propertyWithValueMatch = searchTerm.match(/^(.+):(.*)$/);
   if (propertyWithValueMatch) {
     const propertyName = propertyWithValueMatch[1].trim();
@@ -1134,6 +1292,15 @@ async function formatPropertySuggestion(propertyName: string, data: PropertyData
 }
 
 export async function setInstanceProperty(propertyReference: string) {
+  // Chained pairs: "Type:Primary,Size:Large,Icon:Search" — apply each in order.
+  if (propertyReference.includes(',')) {
+    const pairs = propertyReference.split(',').map(p => p.trim()).filter(Boolean);
+    for (const pair of pairs) {
+      await setInstanceProperty(pair);
+    }
+    return;
+  }
+
   const selection = figma.currentPage.selection;
   const instances = selection.filter(node => node.type === 'INSTANCE') as InstanceNode[];
 
@@ -1222,7 +1389,14 @@ export async function setInstanceProperty(propertyReference: string) {
   let errorCount = 0;
 
   for (const instance of instances) {
-    const { definition: propertyDef, keyInMain: realPropertyKey } = await findPropertyInInstanceOrExposed(instance, propertyName);
+    // Bare name: prefer BOOLEAN. Fall back to general lookup only when no
+    // BOOLEAN matches, so typed/variant/swap properties can still show hints.
+    let { definition: propertyDef, keyInMain: realPropertyKey } = await findBooleanPropertyInInstanceOrExposed(instance, propertyName);
+    if (!propertyDef) {
+      const fallback = await findPropertyInInstanceOrExposed(instance, propertyName);
+      propertyDef = fallback.definition;
+      realPropertyKey = fallback.keyInMain;
+    }
 
     if (!propertyDef) {
       errorCount++;

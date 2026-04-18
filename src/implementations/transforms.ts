@@ -2,62 +2,55 @@
 // Transform Functions
 // ================================
 
-export function rotate(value: number) {
-  if (!value && value !== 0) throw new Error('No value provided');
+import { resolveDelta } from '../utils';
+
+export function rotate(value: number | string) {
   const selection = figma.currentPage.selection;
-  
+
   if (selection.length === 0) {
     throw new Error('No items selected');
   }
-  
+
   for (const node of selection) {
-    if ('rotation' in node) {
-      // If rotating to 0, clean up stored plugin data to prevent memory leak
-      if (value === 0) {
-        node.rotation = 0;
-        node.setPluginData('originalX', '');
-        node.setPluginData('originalY', '');
-        continue;
-      }
-      
-      // Get or store original position
-      let originalX = node.getPluginData('originalX');
-      let originalY = node.getPluginData('originalY');
-      
-      // If no stored position, use current position and store it
-      if (!originalX || !originalY) {
-        originalX = node.x.toString();
-        originalY = node.y.toString();
-        node.setPluginData('originalX', originalX);
-        node.setPluginData('originalY', originalY);
-      }
-      
-      // Convert to numbers
-      const origX = parseFloat(originalX);
-      const origY = parseFloat(originalY);
-      
-      // Reset rotation
-      node.rotation = 0;
-      const theta = value * (Math.PI/180); // radians
-      
-      // Use original position for center calculation
-      const cx = origX + node.width/2;
-      const cy = origY + node.height/2;
-      
-      // Calculate new position using original coordinates
-      const newx = Math.cos(theta) * origX + origY * Math.sin(theta) 
-      - cy * Math.sin(theta) - cx * Math.cos(theta) + cx;
-      const newy = -Math.sin(theta) * origX + cx * Math.sin(theta) 
-      + origY * Math.cos(theta) - cy * Math.cos(theta) + cy;
-      
-      node.relativeTransform = [
-        [Math.cos(theta), Math.sin(theta), newx],
-        [-Math.sin(theta), Math.cos(theta), newy]
-      ];
+    if (!('rotation' in node)) continue;
+
+    // Resolve per-node so deltas like "+15" / "-90" rotate relative to current.
+    const target = typeof value === 'number'
+      ? value
+      : resolveDelta(value, node.rotation);
+
+    if (Number.isNaN(target)) {
+      throw new Error('No value provided');
     }
+
+    // Anchor the rotation at the node's *current* visual center, matching
+    // Figma's native rotation behavior. The previous implementation stored an
+    // "original" position in pluginData and rotated around that — which drifted
+    // whenever the user moved the node between rotations and accumulated stale
+    // pluginData in the file. Clean any of that legacy data while we're here.
+    if (node.getPluginData('originalX')) node.setPluginData('originalX', '');
+    if (node.getPluginData('originalY')) node.setPluginData('originalY', '');
+
+    const t = node.relativeTransform;
+    const w = node.width;
+    const h = node.height;
+    const centerX = t[0][2] + (t[0][0] * w + t[0][1] * h) / 2;
+    const centerY = t[1][2] + (t[1][0] * w + t[1][1] * h) / 2;
+
+    const theta = (target * Math.PI) / 180;
+    const cos = Math.cos(theta);
+    const sin = Math.sin(theta);
+
+    const newX = centerX - (cos * w + sin * h) / 2;
+    const newY = centerY - (-sin * w + cos * h) / 2;
+
+    node.relativeTransform = [
+      [cos, sin, newX],
+      [-sin, cos, newY],
+    ];
   }
-  
-  figma.notify(`Rotated ${value}° for all selected items`);
+
+  figma.notify(`Rotated ${value}°`);
 }
 
 export function flip(direction: 'horizontal' | 'vertical') {

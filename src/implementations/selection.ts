@@ -85,13 +85,20 @@ export function deleteSelection() {
   figma.notify('Deleted selection');
 }
 
+const DUPLICATE_OFFSET = 10;
+
 export function duplicate() {
   const selection = figma.currentPage.selection;
   if (selection.length === 0) return;
 
   const newSelection: SceneNode[] = [];
   for (const node of selection) {
+    if (node.type === 'SLOT') continue;
     const clone = node.clone();
+    if ('x' in clone && 'y' in clone) {
+      clone.x += DUPLICATE_OFFSET;
+      clone.y += DUPLICATE_OFFSET;
+    }
     newSelection.push(clone);
   }
   figma.currentPage.selection = newSelection;

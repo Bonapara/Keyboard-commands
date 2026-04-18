@@ -2,6 +2,8 @@
 // Layout Functions
 // ================================
 
+import { resolveDelta } from '../utils';
+
 export function createAutoLayout(direction: 'HORIZONTAL' | 'VERTICAL' = 'HORIZONTAL') {
   const selection = figma.currentPage.selection;
 
@@ -124,10 +126,10 @@ export function setPadding({ paddingLeft, paddingRight, paddingTop, paddingBotto
 
   for (const node of selection) {
     if ('paddingLeft' in node) {
-      if (paddingLeft !== undefined) node.paddingLeft = Number(paddingLeft);
-      if (paddingRight !== undefined) node.paddingRight = Number(paddingRight);
-      if (paddingTop !== undefined) node.paddingTop = Number(paddingTop);
-      if (paddingBottom !== undefined) node.paddingBottom = Number(paddingBottom);
+      if (paddingLeft !== undefined) node.paddingLeft = Math.max(0, resolveDelta(paddingLeft, node.paddingLeft));
+      if (paddingRight !== undefined) node.paddingRight = Math.max(0, resolveDelta(paddingRight, node.paddingRight));
+      if (paddingTop !== undefined) node.paddingTop = Math.max(0, resolveDelta(paddingTop, node.paddingTop));
+      if (paddingBottom !== undefined) node.paddingBottom = Math.max(0, resolveDelta(paddingBottom, node.paddingBottom));
     }
   }
 
@@ -210,7 +212,7 @@ export function setPrimaryGap(gap: string | 'AUTO') {
         figma.notify('Primary gap set to AUTO');
       } else {
         node.primaryAxisAlignItems = 'MIN';
-        node.itemSpacing = Number(gap);
+        node.itemSpacing = Math.max(0, resolveDelta(gap, node.itemSpacing));
         figma.notify(`Primary gap set to ${gap}`);
       }
     } else {
@@ -234,7 +236,8 @@ export function setCounterGap(gap: string | 'AUTO') {
         figma.notify('Counter gap set to AUTO');
       } else {
         node.counterAxisAlignContent = 'AUTO';
-        node.counterAxisSpacing = Number(gap);
+        const current = typeof node.counterAxisSpacing === 'number' ? node.counterAxisSpacing : 0;
+        node.counterAxisSpacing = Math.max(0, resolveDelta(gap, current));
         figma.notify(`Counter gap set to ${gap}`);
       }
     } else {

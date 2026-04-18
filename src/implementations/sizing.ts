@@ -3,27 +3,27 @@
 // ================================
 
 import { MIN_SCALE_FACTOR } from '../constants';
+import { resolveDelta } from '../utils';
 
 export function resize(value: string, resizeType?: 'width' | 'height') {
-  const numValue = Number(value);
-  if (isNaN(numValue)) throw new Error('Invalid number provided');
-  
   const selection = figma.currentPage.selection;
   if (selection.length === 0) {
     throw new Error('No items selected');
   }
-  
+
   for (const node of selection) {
     if ('resize' in node) {
-      const newSize = {
-        width: resizeType ? (resizeType === 'width' ? numValue : node.width) : numValue,
-        height: resizeType ? (resizeType === 'height' ? numValue : node.height) : numValue
-      };
-      node.resize(newSize.width, newSize.height);
+      const width = resizeType === 'height'
+        ? node.width
+        : Math.max(0.01, resolveDelta(value, node.width));
+      const height = resizeType === 'width'
+        ? node.height
+        : Math.max(0.01, resolveDelta(value, node.height));
+      node.resize(width, height);
     }
   }
-  
-  const message = resizeType 
+
+  const message = resizeType
     ? `${resizeType} set to ${value} for all selected items`
     : `width and height set to ${value} for all selected items`;
   figma.notify(message);
@@ -88,18 +88,19 @@ export function maxDimension({ type, direction, null: isNull, value }: Dimension
         } else if (type === 'min' && direction === 'height') {
           node.minHeight = null;
         }
-      } else {
-        // Set the constraint value   
-        if (value !== undefined && Number(value) > 0) {
-          if (type === 'max' && direction === 'width') {
-            node.maxWidth = Number(value);
-          } else if (type === 'max' && direction === 'height') {
-            node.maxHeight = Number(value);
-          } else if (type === 'min' && direction === 'width') {
-            node.minWidth = Number(value);
-          } else if (type === 'min' && direction === 'height') {
-            node.minHeight = Number(value);
-          }
+      } else if (value !== undefined) {
+        const currentMap = {
+          'max:width': node.maxWidth ?? node.width,
+          'max:height': node.maxHeight ?? node.height,
+          'min:width': node.minWidth ?? node.width,
+          'min:height': node.minHeight ?? node.height,
+        };
+        const next = resolveDelta(value, currentMap[`${type}:${direction}`] as number);
+        if (next > 0) {
+          if (type === 'max' && direction === 'width') node.maxWidth = next;
+          else if (type === 'max' && direction === 'height') node.maxHeight = next;
+          else if (type === 'min' && direction === 'width') node.minWidth = next;
+          else if (type === 'min' && direction === 'height') node.minHeight = next;
         }
       }
     }
@@ -121,13 +122,8 @@ export function absolutePosition() {
   
   for (const node of selection) {
     if ('layoutPositioning' in node) {
-      if (node.layoutPositioning === 'ABSOLUTE') {
-        node.layoutPositioning = 'AUTO';
-      } else {
-        node.layoutPositioning = 'ABSOLUTE';
-      }
+      node.layoutPositioning = node.layoutPositioning === 'ABSOLUTE' ? 'AUTO' : 'ABSOLUTE';
     }
-    break;
   }
 }
 

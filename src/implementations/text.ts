@@ -2,7 +2,7 @@
 // Text Functions
 // ================================
 
-import { resolveNumberValue } from '../utils';
+import { resolveNumberValue, resolveDelta } from '../utils';
 
 export async function setTextAutoResize(resizeType: 'NONE' | 'WIDTH_AND_HEIGHT' | 'HEIGHT') {
   const selection = figma.currentPage.selection;
@@ -68,17 +68,17 @@ export async function setFontSize(size: string) {
     throw new Error('No items selected');
   }
 
-  const fontSize = parseInt(size);
-  if (isNaN(fontSize) || fontSize < 1) {
-    throw new Error('Please provide a valid font size greater than 0');
-  }
-
   for (const node of selection) {
     if (node.type === 'TEXT') {
       try {
         if (node.fontName !== figma.mixed) {
           await figma.loadFontAsync(node.fontName);
-          node.fontSize = fontSize;
+          const current = node.fontSize === figma.mixed ? 16 : node.fontSize as number;
+          const next = Math.max(1, resolveDelta(size, current));
+          if (Number.isNaN(next)) {
+            throw new Error('Please provide a valid font size greater than 0');
+          }
+          node.fontSize = next;
         }
       } catch (error) {
         console.error('Error loading font:', error);
@@ -86,7 +86,7 @@ export async function setFontSize(size: string) {
       }
     }
   }
-  figma.notify(`Font size set to ${fontSize}px`);
+  figma.notify(`Font size set to ${size}`);
 }
 
 export async function setFontWeight(weight: string) {
@@ -400,9 +400,23 @@ export async function toggleVerticalTrim() {
   }
 }
 
-export function removeTextStyle() {
-  if (figma.currentPage.selection[0].type === 'TEXT') {
-    figma.currentPage.selection[0].setTextStyleIdAsync('');
+export async function removeTextStyle() {
+  const selection = figma.currentPage.selection;
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+
+  let removed = 0;
+  for (const node of selection) {
+    if (node.type !== 'TEXT') continue;
+    await node.setTextStyleIdAsync('');
+    removed++;
+  }
+
+  if (removed === 0) {
+    figma.notify('Select a text layer to detach its style');
+  } else {
+    figma.notify(`Detached text style from ${removed} layer${removed === 1 ? '' : 's'}`);
   }
 }
 

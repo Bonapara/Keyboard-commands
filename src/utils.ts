@@ -1,5 +1,4 @@
 import { BindingSupport, Command, PaintResolution, StyleResolution, NumberResolution, StyleBindingType, ValueFormat, VariableResolvedType, SpecialCondition } from './types';
-import { getIcon } from './icons';
 import { getStoredLibraries } from './storage';
 import { COMMANDS, CommandName } from './commands';
 import {
@@ -264,7 +263,6 @@ export function getCommandSuggestions(
     return a.name.localeCompare(b.name);
   });
 
-  // Build suggestion objects with icons
   return sortedCommands.map((cmd, index) => {
     const previousValue = previousCommands[cmd.name];
     let infoText = '';
@@ -281,38 +279,83 @@ export function getCommandSuggestions(
     }
 
     const separator = infoText ? ' -- ' : '';
-    const suggestionText = `${cmd.alias.join(', ')} · ${cmd.name}${separator}${infoText}`;
-
-    // Get icon if command has one defined
-    const icon = cmd.icon ? getIcon(cmd.icon) : undefined;
-
-    // Return object with icon if available, otherwise plain string
-    if (icon) {
-      return {
-        name: suggestionText,
-        data: suggestionText,
-        icon
-      };
-    }
-    return suggestionText;
+    return `${cmd.alias.join(', ')} · ${cmd.name}${separator}${infoText}`;
   });
 }
 
+export interface DeltaSpec {
+  op: '+' | '-' | '*' | '/';
+  amount: number;
+}
+
+const DELTA_REGEX = /^([+\-*/])(-?\d+(?:\.\d+)?)$/;
+
+// Parses a value string of the form "+10", "-20", "*2", "/2".
+// Returns null if the value isn't a delta expression.
+export function parseDelta(value: string): DeltaSpec | null {
+  const m = value.match(DELTA_REGEX);
+  if (!m) return null;
+  return { op: m[1] as DeltaSpec['op'], amount: Number(m[2]) };
+}
+
+export function applyDelta(current: number, spec: DeltaSpec): number {
+  switch (spec.op) {
+    case '+': return current + spec.amount;
+    case '-': return current - spec.amount;
+    case '*': return current * spec.amount;
+    case '/': return current / spec.amount;
+  }
+}
+
+// Resolves a value string against a per-node current value.
+// If the value is a delta (e.g. "+10"), applies it to `current`.
+// Otherwise, returns Number(value) — the absolute interpretation.
+export function resolveDelta(value: string, current: number): number {
+  const spec = parseDelta(value);
+  if (spec) return applyDelta(current, spec);
+  return Number(value);
+}
+
+// Parses a comma-separated list of values: "20,30,40,50" → ["20", "30", "40", "50"].
+// Returns a single-element array when there are no commas.
+export function parseNumberList(value: string): string[] {
+  return value.split(',').map(v => v.trim()).filter(v => v.length > 0);
+}
+
 export function extractValue(text: string, format: ValueFormat): string | null {
-  // Check for selection colors format with :: delimiter: "source :: target"
-  // This must be preserved as-is for the swapSelectionColors command
-  if (text.includes('::')) {
+  // Detect "<alias><op><number>" delta form (e.g. "w+10", "h-20", "p*2", "ro+15").
+  // Numeric commands that opt in via resolveDelta() will read the per-node
+  // current value and apply the operator. Commands that don't opt in fall
+  // back to Number(), which silently ignores leading "+" and treats "-N" as
+  // a negative absolute (matching prior behavior).
+  if (format === 'number') {
+    const deltaMatch = text.match(/^[\p{L}][\p{L}\-]*\s*([+\-*/])\s*(-?\d+(?:\.\d+)?)\s*$/u);
+    if (deltaMatch) {
+      return `${deltaMatch[1]}${deltaMatch[2]}`;
+    }
+
+    // Detect "<alias><n>,<n>(,<n>)*" comma-separated list (e.g. "p20,30",
+    // "r10,20,30,40"). Returned as the raw "20,30" string so multi-value
+    // commands can split it via parseNumberList().
+    const listMatch = text.match(/^[\p{L}][\p{L}\-]*\s*(-?\d+(?:\.\d+)?(?:,-?\d+(?:\.\d+)?)+)\s*$/u);
+    if (listMatch) {
+      return listMatch[1];
+    }
+  }
+
+  // Check for selection colors format with : delimiter: "source : target".
+  // Must be preserved as-is for the swapSelectionColors command.
+  if (text.includes(':')) {
     // Extract everything after the command part
     const parts = text.split(' ');
-    // Find the first part that contains ::, join from there
+    // Find the first part that contains :, join from there
     for (let i = 0; i < parts.length; i++) {
-      if (parts[i].includes('::') || (i > 0 && parts.slice(i).join(' ').includes('::'))) {
+      if (parts[i].includes(':') || (i > 0 && parts.slice(i).join(' ').includes(':'))) {
         const result = parts.slice(i).join(' ');
         return result;
       }
     }
-    // If no space found, check if the whole text contains ::
-    const delimiterIndex = text.indexOf('::');
+    const delimiterIndex = text.indexOf(':');
     if (delimiterIndex > 0) {
       return text;
     }
@@ -790,14 +833,14 @@ export async function searchStylesAndVariables(
 ): Promise<Array<string | { name: string; data: unknown }>> {
   // Handle selection colors with two-stage search
   if (bindingSupport.selectionColors) {
-    const delimiterIndex = searchTerm.indexOf('::');
+    const delimiterIndex = searchTerm.indexOf(':');
 
     if (delimiterIndex === -1) {
       // Stage 1: Show colors from selection
       return await searchSelectionColors(searchTerm);
     } else {
       // Stage 2: Show replacement options (styles/variables)
-      const targetSearch = searchTerm.slice(delimiterIndex + 2).trim();
+      const targetSearch = searchTerm.slice(delimiterIndex + 1).trim();
       // Continue with normal search using targetSearch
       searchTerm = targetSearch;
     }

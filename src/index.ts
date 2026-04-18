@@ -11,29 +11,68 @@ import {
   COMMAND_BREAK_PATTERN,
   searchStylesAndVariables
 } from './utils';
+import { applyDropdownSelection } from './command-input';
+import {
+  buildExecutionPlan,
+  parseBindingSegment,
+  parseTypedBindingSegment,
+  type ParsedBinding,
+} from './command-execution-plan';
 import { searchLibraries } from './implementations/library';
+import { recordRecentValue, getRecentValues } from './recent-values';
 import * as impl from './implementations';
-import { getIconWithColor } from './icons';
 
 let originalInput = '';
 
-// ================================
-// Shared Binding Pattern Utilities
-// ================================
-
-const BINDING_PATTERN = /^(.*?)\s*([a-z]+)\?(.*)$/i;
-const SIMPLE_BINDING_PATTERN = /^([a-z]+)\?(.*)$/i;
-
-interface ParsedBinding {
-  prefix: string;
-  alias: string;
-  value: string;
+function getSuggestionDataKey(item: string | { data: unknown }): string | null {
+  if (typeof item === 'string') return item;
+  if (item && typeof item.data === 'string') return item.data;
+  return null;
 }
 
-function parseBindingSegment(segment: string): ParsedBinding | null {
-  const match = segment.match(BINDING_PATTERN);
-  if (!match) return null;
-  return { prefix: match[1].trim(), alias: match[2], value: match[3] };
+// Extract the "active" portion of a chained search (what's after the last ",")
+// and the committed prefix (everything up to and including that ","). Only
+// instance-property chains use "," so other commands pass through untouched.
+function splitActiveSearch(
+  matchedCommand: (typeof COMMANDS)[0],
+  searchTerm: string
+): { active: string; prefix: string; committed: Set<string> } {
+  if (!matchedCommand.bindingSupport?.instanceProperties || !searchTerm.includes(',')) {
+    return { active: searchTerm, prefix: '', committed: new Set() };
+  }
+
+  const commaIdx = searchTerm.lastIndexOf(',');
+  const prefix = searchTerm.slice(0, commaIdx + 1);
+  const active = searchTerm.slice(commaIdx + 1).replace(/^\s+/, '');
+  const committed = new Set(
+    prefix.split(',').map(s => s.trim()).filter(Boolean)
+  );
+  return { active, prefix, committed };
+}
+
+async function buildRecentSuggestions(
+  matchedCommand: (typeof COMMANDS)[0],
+  searchTerm: string,
+  existing: Array<string | { name: string; data: unknown }>
+): Promise<Array<{ name: string; data: unknown }>> {
+  // Libraries don't benefit — they're a selection list, not an action.
+  if (matchedCommand.bindingSupport?.libraries) return [];
+
+  const recents = await getRecentValues(matchedCommand.name);
+  if (recents.length === 0) return [];
+
+  const { active, prefix, committed } = splitActiveSearch(matchedCommand, searchTerm);
+  const activeLower = active.toLowerCase();
+
+  const existingKeys = new Set(
+    existing.map(getSuggestionDataKey).filter((k): k is string => k !== null)
+  );
+
+  return recents
+    .filter(r => !committed.has(r))
+    .filter(r => !activeLower || r.toLowerCase().includes(activeLower))
+    .filter(r => !existingKeys.has(prefix + r))
+    .map(r => ({ name: `${r} (recent)`, data: prefix + r }));
 }
 
 async function generateBindingSuggestions(
@@ -66,7 +105,8 @@ async function generateBindingSuggestions(
       );
     }
 
-    return suggestions;
+    const recentItems = await buildRecentSuggestions(matchedCommand, searchTerm, suggestions);
+    return recentItems.length > 0 ? [...recentItems, ...suggestions] : suggestions;
   } catch (error) {
     console.error('Error searching:', error);
     return [];
@@ -116,11 +156,21 @@ function trackCommandsFromSegment(
         if (hasHex && matchedCommand.valueFormat === 'hex') {
           commands[matchedCommand.name] = hasHex[0];
         } else if (hasNumber) {
-          try {
-            const computedValue = calculateExpression(hasNumber[0]);
-            commands[matchedCommand.name] = computedValue.toString();
-          } catch {
-            commands[matchedCommand.name] = hasNumber[0];
+          // Preserve delta operator (e.g. "w+10" tracked as "+10") and
+          // comma lists (e.g. "p20,30" tracked as "20,30").
+          const deltaMatch = part.match(/^[\p{L}][\p{L}\-]*\s*([+\-*/])\s*(-?\d+(?:\.\d+)?)\s*$/u);
+          const listMatch = part.match(/^[\p{L}][\p{L}\-]*\s*(-?\d+(?:\.\d+)?(?:,-?\d+(?:\.\d+)?)+)\s*$/u);
+          if (deltaMatch) {
+            commands[matchedCommand.name] = `${deltaMatch[1]}${deltaMatch[2]}`;
+          } else if (listMatch) {
+            commands[matchedCommand.name] = listMatch[1];
+          } else {
+            try {
+              const computedValue = calculateExpression(hasNumber[0]);
+              commands[matchedCommand.name] = computedValue.toString();
+            } catch {
+              commands[matchedCommand.name] = hasNumber[0];
+            }
           }
         }
       }
@@ -128,35 +178,6 @@ function trackCommandsFromSegment(
   });
 
   return commands;
-}
-
-interface SegmentParseResult {
-  simpleCommands: string[];
-  bindingSegments: Array<{ segment: string; alias: string }>;
-}
-
-function parseCommandSegments(segments: string[]): SegmentParseResult {
-  const simpleCommands: string[] = [];
-  const bindingSegments: Array<{ segment: string; alias: string }> = [];
-
-  for (const segment of segments) {
-    const trimmed = segment.trim();
-    if (!trimmed) continue;
-
-    const parsed = parseBindingSegment(trimmed);
-    if (parsed) {
-      // Add any simple commands that come before the binding command
-      if (parsed.prefix) {
-        simpleCommands.push(...parsed.prefix.split(COMMAND_SPLITTER_REGEX).filter(Boolean));
-      }
-      bindingSegments.push({ segment: trimmed, alias: parsed.alias });
-    } else {
-      // Normal segment with only simple commands
-      simpleCommands.push(...trimmed.split(COMMAND_SPLITTER_REGEX).filter(Boolean));
-    }
-  }
-
-  return { simpleCommands, bindingSegments };
 }
 
 function getDropdownValue(
@@ -190,65 +211,74 @@ function getDropdownValue(
   return null;
 }
 
-// Extract color identifier from suggestion text (strips usage info)
-// "ColorName (Type) - X uses in locations" -> "ColorName (Type)"
-function extractColorIdentifier(text: string): string {
-  return text.replace(/\s-\s\d+\suses?.*$/, '').trim();
-}
-
-// Extract the first suggestion's name from suggestion results
-function getFirstSuggestionName(suggestions: Array<string | { name: string; data: unknown }>): string | null {
-  if (suggestions.length === 0) return null;
+// Contract: a suggestion's `data` field is the canonical execution value;
+// `name` is display-only (may carry UI hints, counts, etc.). Consumers read
+// `data`, never `name`. When a suggestion is a bare string, it IS the value.
+function getFirstSuggestionName(suggestions: Array<string | { data: unknown }>): string | null {
   const first = suggestions[0];
-  if (typeof first === 'object' && 'name' in first) return extractColorIdentifier(first.name);
-  if (typeof first === 'string') return extractColorIdentifier(first);
+  if (typeof first === 'string') return first;
+  if (first && typeof first === 'object' && typeof first.data === 'string') return first.data;
   return null;
 }
 
-// Resolve two-stage color selection (e.g., "source :: target")
+// Resolve two-stage color selection (e.g., "source : target")
 async function resolveTwoStageValue(
   rawValue: string,
   command: (typeof COMMANDS)[0]
 ): Promise<string> {
-  const [sourceSearch, targetSearch] = rawValue.split('::').map(s => s.trim());
+  const delimiterIndex = rawValue.indexOf(':');
+  const sourceSearch = rawValue.slice(0, delimiterIndex).trim();
+  const targetSearch = rawValue.slice(delimiterIndex + 1).trim();
 
   // Auto-select source
   const sourceSuggestions = await generateBindingSuggestions(command, sourceSearch);
   const resolvedSource = getFirstSuggestionName(sourceSuggestions) || sourceSearch;
 
   // Auto-select target using stage 2 context
-  const targetSuggestions = await generateBindingSuggestions(command, `${sourceSearch} :: ${targetSearch}`);
+  const targetSuggestions = await generateBindingSuggestions(command, `${sourceSearch} : ${targetSearch}`);
   const resolvedTarget = getFirstSuggestionName(targetSuggestions) || targetSearch;
 
-  return `${resolvedSource} :: ${resolvedTarget}`;
+  return `${resolvedSource} : ${resolvedTarget}`;
 }
 
 async function executeBindingCommand(
-  bindingSegment: { segment: string; alias: string },
+  parsed: ParsedBinding,
   parameters: { command?: string },
-  isOnlySegment: boolean,
-  isLastSegment: boolean
+  isOnlyBinding: boolean,
+  isLastBinding: boolean,
 ): Promise<void> {
-  const parsed = parseBindingSegment(bindingSegment.segment);
-  if (!parsed) return;
-
   const matchedCommand = findCommand(parsed.alias)[0];
   const rawValue = parsed.value.trim();
-  const hasDelimiter = rawValue.includes('::');
+  // Only selectionColors commands use ":" as a two-stage separator. Other
+  // binding commands (e.g. instance properties) also use ":" inside their
+  // values, so we must not treat those as two-stage.
+  const isTwoStageBinding = !!matchedCommand?.bindingSupport?.selectionColors;
+  const hasDelimiter = isTwoStageBinding && rawValue.includes(':');
 
   // Check if we should use the dropdown value
-  const dropdownValue = getDropdownValue(parameters, isOnlySegment, isLastSegment);
+  const dropdownValue = getDropdownValue(
+    parameters,
+    isOnlyBinding,
+    isLastBinding
+  );
   let valueToUse = rawValue;
   let isDropdownSelection = false;
 
   if (dropdownValue) {
-    if (!hasDelimiter || dropdownValue.includes('::')) {
+    if (!hasDelimiter || (isTwoStageBinding && dropdownValue.includes(':'))) {
       valueToUse = dropdownValue;
       isDropdownSelection = true;
     } else {
-      // Two-stage: preserve source, use dropdown as target
-      const source = rawValue.split('::')[0].trim();
-      valueToUse = `${source} :: ${dropdownValue}`;
+      // Two-stage: preserve source, use dropdown as target. If the user
+      // omitted the source (e.g. "cs;:blue"), auto-resolve it from the first
+      // selection-color match — same default the no-dropdown path gets via
+      // resolveTwoStageValue.
+      let source = rawValue.slice(0, rawValue.indexOf(':')).trim();
+      if (!source && matchedCommand?.bindingSupport) {
+        const sourceSuggestions = await generateBindingSuggestions(matchedCommand, '');
+        source = getFirstSuggestionName(sourceSuggestions) || '';
+      }
+      valueToUse = `${source} : ${dropdownValue}`;
       isDropdownSelection = true;
     }
   }
@@ -264,6 +294,16 @@ async function executeBindingCommand(
   }
 
   await executeCommand(`${parsed.alias} ${valueToUse}`, true);
+
+  // Record for recent-values. ip chains on ",", each pair is its own entry.
+  if (matchedCommand) {
+    const recordable = matchedCommand.bindingSupport?.instanceProperties
+      ? valueToUse.split(',').map(v => v.trim()).filter(Boolean)
+      : [valueToUse.trim()];
+    for (const entry of recordable) {
+      await recordRecentValue(matchedCommand.name, entry);
+    }
+  }
 }
 
 // ================================
@@ -275,19 +315,14 @@ async function handleBindingMode(
   segment: string,
   result: ParameterInputEvent['result']
 ): Promise<boolean> {
-  // Check for binding patterns
-  const complexMatch = segment.match(/^(.*?)\s+([a-z]+)\?(.*)$/i);
-  const simpleMatch = segment.match(SIMPLE_BINDING_PATTERN);
+  const typed = parseTypedBindingSegment(segment);
+  if (!typed) return false;
 
-  if (!complexMatch && !simpleMatch) return false;
-
-  const cmdAlias = complexMatch ? complexMatch[2] : simpleMatch![1];
-  const searchTerm = complexMatch ? complexMatch[3] : simpleMatch![2];
-  const matchedCommand = findCommand(cmdAlias)[0];
+  const matchedCommand = findCommand(typed.alias)[0];
 
   if (!matchedCommand?.bindingSupport) return false;
 
-  const suggestions = await generateBindingSuggestions(matchedCommand, searchTerm);
+  const suggestions = await generateBindingSuggestions(matchedCommand, typed.searchTerm);
   if (suggestions.length > 0) {
     result.setSuggestions(suggestions);
   } else {
@@ -376,7 +411,7 @@ function handleMatchedCommand(
         matchedCommand.valueFormat === 'number' ? hasNumber : true
     );
 
-  const suggestions: Array<string | { name: string; data: string; icon?: string }> = [];
+  const suggestions: string[] = [];
 
   // Show "already set" indicator if command was used earlier
   if (
@@ -385,42 +420,32 @@ function handleMatchedCommand(
   ) {
     const previousValue = previousCommands[matchedCommand.name];
     const hint = previousValue ? `already set to '${previousValue}'` : matchedCommand.suggestion;
-    const suggestionText = `${matchedCommand.alias.join(', ')} · ${matchedCommand.name} -- ${hint}`;
-
-    // Get icon with 80% opacity for the first result (more prominent than others at 40%)
-    const icon = matchedCommand.icon ? getIconWithColor(matchedCommand.icon, '#BC3114', 1.0) : undefined;
-
-    if (icon) {
-      suggestions.push({ name: suggestionText, data: suggestionText, icon });
-    } else {
-      suggestions.push(suggestionText);
-    }
+    suggestions.push(`${matchedCommand.alias.join(', ')} · ${matchedCommand.name} -- ${hint}`);
   }
 
   // Display computed values in suggestion
   if (isValidValue && (hasHex || hasNumber)) {
     if (matchedCommand.valueFormat === 'hex' && hasHex) {
       completeCommands.push(`${matchedCommand.name}:${hasHex[0]}`);
-      const newText = completeCommands.join(' | ');
-      // Preserve icon if first suggestion had one
-      if (suggestions[0] && typeof suggestions[0] === 'object') {
-        suggestions[0] = { ...suggestions[0], name: newText, data: newText };
-      } else {
-        suggestions[0] = newText;
-      }
+      suggestions[0] = completeCommands.join(' | ');
     } else if (matchedCommand.valueFormat === 'number' && hasNumber) {
-      try {
-        completeCommands.push(`${matchedCommand.name}:${calculateExpression(hasNumber[0])}`);
-      } catch {
-        completeCommands.push(`${matchedCommand.name}:${hasNumber[0]}`);
-      }
-      const newText = completeCommands.join(' | ');
-      // Preserve icon if first suggestion had one
-      if (suggestions[0] && typeof suggestions[0] === 'object') {
-        suggestions[0] = { ...suggestions[0], name: newText, data: newText };
+      // Preserve delta operator (e.g. "w+10" → "Width:+10") and comma lists
+      // (e.g. "p20,30" → "Padding:20,30") so the summary round-trips correctly
+      // through executeCommand's normalization.
+      const deltaMatch = currentPart.match(/^[\p{L}][\p{L}\-]*\s*([+\-*/])\s*(-?\d+(?:\.\d+)?)\s*$/u);
+      const listMatch = currentPart.match(/^[\p{L}][\p{L}\-]*\s*(-?\d+(?:\.\d+)?(?:,-?\d+(?:\.\d+)?)+)\s*$/u);
+      if (deltaMatch) {
+        completeCommands.push(`${matchedCommand.name}:${deltaMatch[1]}${deltaMatch[2]}`);
+      } else if (listMatch) {
+        completeCommands.push(`${matchedCommand.name}:${listMatch[1]}`);
       } else {
-        suggestions[0] = newText;
+        try {
+          completeCommands.push(`${matchedCommand.name}:${calculateExpression(hasNumber[0])}`);
+        } catch {
+          completeCommands.push(`${matchedCommand.name}:${hasNumber[0]}`);
+        }
       }
+      suggestions[0] = completeCommands.join(' | ');
     }
   }
 
@@ -430,13 +455,7 @@ function handleMatchedCommand(
         ? `${matchedCommand.name} -- ${matchedCommand.suggestion}`
         : matchedCommand.name
     );
-    const newText = completeCommands.join(' | ');
-    // Preserve icon if first suggestion had one
-    if (suggestions[0] && typeof suggestions[0] === 'object') {
-      suggestions[0] = { ...suggestions[0], name: newText, data: newText };
-    } else {
-      suggestions[0] = newText;
-    }
+    suggestions[0] = completeCommands.join(' | ');
   }
 
   // Add related commands
@@ -511,33 +530,11 @@ setupInputHandler();
 
 figma.on('run', async (parameters) => {
   // Use the selected dropdown value if available, otherwise use what was typed
-  let commandString = originalInput.trim();
-  const selectedValue = parameters.parameters?.command;
-  
-  // Check if user selected a suggestion from the dropdown
-  if (selectedValue && selectedValue !== commandString) {
-    // Skip summary strings (contain pipe separator)
-    if (!selectedValue.includes('|')) {
-      // If it contains the middle dot separator, it's a formatted suggestion: "alias · CommandName -- description"
-      if (selectedValue.includes('·')) {
-        const commandNameMatch = selectedValue.match(/·\s*(\w+)/);
-        if (commandNameMatch) {
-          // Verify the extracted command exists before using it
-          const extractedCmd = commandNameMatch[1];
-          if (findCommand(extractedCmd).length > 0) {
-            commandString = extractedCmd;
-          }
-        }
-      } 
-      // For binding selections, keep the original typed command intact.
-      // The selected dropdown value is resolved later per binding segment,
-      // which preserves preceding commands in the same segment (e.g. "r40 f?blue9").
-      else if (!originalInput.includes('?')) {
-        // Direct selection without formatting (e.g., "Width:100")
-        commandString = selectedValue;
-      }
-    }
-  }
+  let commandString = applyDropdownSelection(
+    originalInput,
+    parameters.parameters?.command,
+    (name) => findCommand(name).length > 0
+  );
 
   // Strip description suffix if present (e.g., "HorizontalFill -- Horizontal Fill" → "HorizontalFill")
   // This handles cases where suggestion data includes " -- description" format
@@ -546,29 +543,24 @@ figma.on('run', async (parameters) => {
   // Parse command chain (e.g., "w100  h200  f?blue" → 3 segments)
   const segments = commandString.split(COMMAND_BREAK_PATTERN);
 
-  // Separate simple commands from binding commands for execution
-  const { simpleCommands, bindingSegments } = parseCommandSegments(segments);
+  // Build an ordered execution plan so mixed binding/simple chains run left to right.
+  const executionPlan = buildExecutionPlan(segments);
+  const totalBindings = executionPlan.filter((step) => step.kind === 'binding').length;
 
   try {
-    // Execute simple commands first (direct execution)
-    for (const cmd of simpleCommands) {
-      await executeCommand(cmd, true);
-    }
+    let bindingIndex = 0;
 
-    // Execute binding commands with value resolution
-    if (bindingSegments.length > 0) {
-
-      for (let i = 0; i < bindingSegments.length; i++) {
-        const bindingSegment = bindingSegments[i];
-        const isOnlySegment = bindingSegments.length === 1;
-        const isLastSegment = i === bindingSegments.length - 1;
-
+    for (const step of executionPlan) {
+      if (step.kind === 'simple') {
+        await executeCommand(step.command, true);
+      } else {
         await executeBindingCommand(
-          bindingSegment,
+          step.parsed,
           parameters.parameters || {},
-          isOnlySegment,
-          isLastSegment
+          totalBindings === 1,
+          bindingIndex === totalBindings - 1
         );
+        bindingIndex += 1;
       }
     }
 
@@ -581,6 +573,19 @@ figma.on('run', async (parameters) => {
 
 async function executeCommand(cmd: string, skipNotification: boolean = false): Promise<void> {
   if (!cmd) return;
+
+  // Suggestion summaries use the format "CommandName:Value" (e.g. "Rotate:23",
+  // "Width:100", "Fill:#FF0000"). When fed back as input — either because the
+  // user accepted an auto-picked suggestion or because the summary was appended
+  // to a chain — normalize to "alias value" so extractValue's colon handling
+  // (used for selection-color swaps) doesn't swallow the prefix.
+  const summaryMatch = cmd.match(/^([A-Z][A-Za-z]+):(.+)$/);
+  if (summaryMatch) {
+    const summaryCmd = findCommand(summaryMatch[1])[0];
+    if (summaryCmd) {
+      cmd = `${summaryCmd.alias[0]} ${summaryMatch[2]}`;
+    }
+  }
 
   // Extract command from suggestion text (remove aliases, descriptions, etc.)
   const cleanCmd = cmd.split('•')[0]  // Remove everything after the bullet point

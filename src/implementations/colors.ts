@@ -43,6 +43,17 @@ function createColorSwatchSVG(rgb: RGB): string {
 </svg>`;
 }
 
+function createDualColorSwatchSVG(rgbA: RGB, rgbB: RGB): string {
+    const hexA = rgbToHex(rgbA);
+    const hexB = rgbToHex(rgbB);
+    return `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="16" height="16" fill="white"/>
+  <path d="M1 1 H15 V15 Z" fill="${hexA}"/>
+  <path d="M1 1 V15 H15 Z" fill="${hexB}"/>
+  <rect x="0.5" y="0.5" width="15" height="15" stroke="#00000033" stroke-opacity="0.2"/>
+</svg>`;
+}
+
 async function extractColorFromPaint(paint: Paint): Promise<{ rgb: RGB; bindingType: 'style' | 'variable' | 'literal'; name?: string; key?: string } | null> {
     if (paint.type !== 'SOLID' || paint.visible === false) {
         return null;
@@ -270,7 +281,7 @@ export async function searchSelectionColors(searchTerm: string): Promise<Array<s
             const hex = rgbToHex(color.rgb);
             const _locations = color.locations.join(', ');
             const usageText = `${color.usageCount}`;
-            const hint = index === 0 ? ' -> Type :: to swap' : '';
+            const hint = index === 0 ? ' -> Type : to swap' : '';
 
             let displayName: string;
             if (color.name) {
@@ -287,7 +298,39 @@ export async function searchSelectionColors(searchTerm: string): Promise<Array<s
             };
         });
 
+    if (colors.length === 2 && results.length === 2) {
+        const [a, b] = colors;
+        const aDisplay = a.name || rgbToHex(a.rgb);
+        const bDisplay = b.name || rgbToHex(b.rgb);
+        results.push({
+            name: `Swap ${aDisplay} ↔ ${bDisplay}`,
+            data: `${aDisplay} :: ${bDisplay}`,
+            icon: createDualColorSwatchSVG(a.rgb, b.rgb)
+        });
+    }
+
     return results.length > 0 ? results : ['No matching colors'];
+}
+
+export async function swapTwoSelectionColors() {
+    const selection = figma.currentPage.selection;
+
+    if (selection.length === 0) {
+        throw new Error('No items selected');
+    }
+
+    const uniqueColors = await extractUniqueColors(selection);
+
+    if (uniqueColors.length !== 2) {
+        throw new Error(
+            `Selection must contain exactly 2 colors to auto-swap (found ${uniqueColors.length}). Use cs? to pick colors.`
+        );
+    }
+
+    const [a, b] = uniqueColors;
+    const aRef = a.name || rgbToHex(a.rgb);
+    const bRef = b.name || rgbToHex(b.rgb);
+    return await swapSelectionColorsBidirectional(aRef, bRef);
 }
 
 export async function swapSelectionColors(value: string) {
@@ -297,15 +340,31 @@ export async function swapSelectionColors(value: string) {
         throw new Error('No items selected');
     }
 
+    // No ":" means the user didn't supply a source/target pair. Fall back to
+    // auto-swap: if the selection has exactly 2 colors, swap them bidirectionally.
+    if (!value.includes(':')) {
+        return await swapTwoSelectionColors();
+    }
+
+    // "::" marks a bidirectional swap (A↔B) produced by the 3rd autocomplete
+    // suggestion when the selection contains exactly two colors.
+    if (value.includes('::')) {
+        const [aValue, bValue] = value.split('::').map(s => s.trim());
+        if (!aValue || !bValue) {
+            throw new Error('Both colors must be specified for bidirectional swap');
+        }
+        return await swapSelectionColorsBidirectional(aValue, bValue);
+    }
+
     // Parse the value to extract source and target colors
-    const delimiterIndex = value.indexOf('::');
+    const delimiterIndex = value.indexOf(':');
 
     if (delimiterIndex === -1) {
-        throw new Error('Invalid format. Use: scs?sourceColor :: targetColor');
+        throw new Error('Invalid format. Use: scs?sourceColor : targetColor');
     }
 
     const sourceValue = value.substring(0, delimiterIndex).trim();
-    const targetValue = value.substring(delimiterIndex + 2).trim();
+    const targetValue = value.substring(delimiterIndex + 1).trim();
 
     if (!sourceValue || !targetValue) {
         throw new Error('Both source and target colors must be specified');
@@ -554,6 +613,161 @@ export async function swapSelectionColors(value: string) {
     for (const node of selection) {
         await swapColorsInNode(node);
     }
+
+    if (swapCount === 0) {
+        figma.notify('No matching colors found to swap');
+    } else {
+        figma.notify(`Swapped ${swapCount} color${swapCount !== 1 ? 's' : ''}`);
+    }
+}
+
+async function swapSelectionColorsBidirectional(aValue: string, bValue: string) {
+    const selection = figma.currentPage.selection;
+    const uniqueColors = await extractUniqueColors(selection);
+
+    const cleanName = (name: string) => name.split(' (')[0].trim();
+
+    const resolveEndpoint = (val: string): { rgb: RGB; resolution: PaintResolution } | null => {
+        const cleaned = cleanName(val);
+        const lower = cleaned.toLowerCase();
+
+        let match = uniqueColors.find(c => {
+            if (c.name && cleanName(c.name) === cleaned) return true;
+            if (c.bindingType === 'literal' && rgbToHex(c.rgb).toLowerCase() === lower) return true;
+            return false;
+        });
+        if (!match) {
+            match = uniqueColors.find(c => c.name && cleanName(c.name).toLowerCase().includes(lower));
+        }
+        if (!match) return null;
+
+        let resolution: PaintResolution;
+        if (match.bindingType === 'style' && match.key) {
+            resolution = { type: 'style', styleKey: match.key, styleName: match.name, styleType: 'PAINT' };
+        } else if (match.bindingType === 'variable' && match.key) {
+            resolution = { type: 'variable', variableId: match.key, variableName: match.name, isLibraryVariable: true };
+        } else {
+            resolution = { type: 'literal', color: match.rgb };
+        }
+        return { rgb: match.rgb, resolution };
+    };
+
+    const a = resolveEndpoint(aValue);
+    const b = resolveEndpoint(bValue);
+    if (!a || !b) {
+        throw new Error('Could not resolve both colors in selection');
+    }
+
+    let swapCount = 0;
+
+    const buildReplacementPaint = async (paint: Paint, resolution: PaintResolution): Promise<Paint> => {
+        switch (resolution.type) {
+            case 'style':
+                // Style is applied at node level; keep paint as-is
+                return paint;
+            case 'variable': {
+                let variableId = resolution.variableId!;
+                if (resolution.isLibraryVariable) {
+                    const importedVar = await figma.variables.importVariableByKeyAsync(variableId);
+                    variableId = importedVar.id;
+                }
+                const variable = await figma.variables.getVariableByIdAsync(variableId);
+                if (variable && paint.type === 'SOLID') {
+                    return figma.variables.setBoundVariableForPaint(paint as SolidPaint, 'color', variable);
+                }
+                return paint;
+            }
+            case 'literal':
+                return { type: 'SOLID', color: resolution.color! };
+        }
+    };
+
+    const applyStyleToNode = async (node: SceneNode, styleKey: string, property: 'fill' | 'stroke') => {
+        const localStyles = await figma.getLocalPaintStylesAsync();
+        let style = localStyles.find(s => s.key === styleKey);
+        if (!style) {
+            const importedStyle = await figma.importStyleByKeyAsync(styleKey);
+            if (importedStyle.type === 'PAINT') style = importedStyle as PaintStyle;
+        }
+        if (style) {
+            if (property === 'fill' && 'fillStyleId' in node) await node.setFillStyleIdAsync(style.id);
+            if (property === 'stroke' && 'strokeStyleId' in node) await node.setStrokeStyleIdAsync(style.id);
+        }
+    };
+
+    const processPaints = async (
+        paints: readonly Paint[]
+    ): Promise<{ modified: boolean; newPaints: Paint[]; styleKeyToApply?: string }> => {
+        let modified = false;
+        let styleKeyToApply: string | undefined;
+        const newPaints: Paint[] = [];
+
+        for (const paint of paints) {
+            if (paint.type === 'SOLID' && colorsMatch(paint.color, a.rgb)) {
+                modified = true;
+                swapCount++;
+                newPaints.push(await buildReplacementPaint(paint, b.resolution));
+                if (b.resolution.type === 'style') styleKeyToApply = b.resolution.styleKey;
+            } else if (paint.type === 'SOLID' && colorsMatch(paint.color, b.rgb)) {
+                modified = true;
+                swapCount++;
+                newPaints.push(await buildReplacementPaint(paint, a.resolution));
+                if (a.resolution.type === 'style') styleKeyToApply = a.resolution.styleKey;
+            } else {
+                newPaints.push(paint);
+            }
+        }
+
+        return { modified, newPaints, styleKeyToApply };
+    };
+
+    const swapInNode = async (node: SceneNode) => {
+        if ('fills' in node && node.fills !== figma.mixed && Array.isArray(node.fills)) {
+            const { modified, newPaints, styleKeyToApply } = await processPaints(node.fills);
+            if (modified) {
+                node.fills = newPaints;
+                if (styleKeyToApply) await applyStyleToNode(node, styleKeyToApply, 'fill');
+            }
+        }
+
+        if ('strokes' in node && Array.isArray(node.strokes)) {
+            const { modified, newPaints, styleKeyToApply } = await processPaints(node.strokes);
+            if (modified) {
+                node.strokes = newPaints;
+                if (styleKeyToApply) await applyStyleToNode(node, styleKeyToApply, 'stroke');
+            }
+        }
+
+        if ('effects' in node && Array.isArray(node.effects)) {
+            let modified = false;
+            const newEffects: Effect[] = [];
+            for (const effect of node.effects) {
+                if (effect.type === 'DROP_SHADOW' || effect.type === 'INNER_SHADOW') {
+                    const ec: RGB = { r: effect.color.r, g: effect.color.g, b: effect.color.b };
+                    if (colorsMatch(ec, a.rgb) && b.resolution.type === 'literal') {
+                        modified = true;
+                        swapCount++;
+                        newEffects.push({ ...effect, color: { ...effect.color, ...b.resolution.color! } });
+                        continue;
+                    }
+                    if (colorsMatch(ec, b.rgb) && a.resolution.type === 'literal') {
+                        modified = true;
+                        swapCount++;
+                        newEffects.push({ ...effect, color: { ...effect.color, ...a.resolution.color! } });
+                        continue;
+                    }
+                }
+                newEffects.push(effect);
+            }
+            if (modified) node.effects = newEffects;
+        }
+
+        if ('children' in node) {
+            for (const child of node.children) await swapInNode(child);
+        }
+    };
+
+    for (const node of selection) await swapInNode(node);
 
     if (swapCount === 0) {
         figma.notify('No matching colors found to swap');

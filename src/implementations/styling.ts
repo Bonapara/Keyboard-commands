@@ -2,7 +2,7 @@
 // Styling Functions
 // ================================
 
-import { resolvePaintValue, resolveStyleValue } from '../utils';
+import { resolvePaintValue, resolveStyleValue, resolveDelta } from '../utils';
 
 export async function setFill(value: string) {
   const selection = figma.currentPage.selection;
@@ -124,10 +124,10 @@ export function setRadius({
 
   for (const node of selection) {
     if ('topLeftRadius' in node) {
-      if (topLeftRadius !== undefined) node.topLeftRadius = Number(topLeftRadius);
-      if (topRightRadius !== undefined) node.topRightRadius = Number(topRightRadius);
-      if (bottomLeftRadius !== undefined) node.bottomLeftRadius = Number(bottomLeftRadius);
-      if (bottomRightRadius !== undefined) node.bottomRightRadius = Number(bottomRightRadius);
+      if (topLeftRadius !== undefined) node.topLeftRadius = Math.max(0, resolveDelta(topLeftRadius, node.topLeftRadius));
+      if (topRightRadius !== undefined) node.topRightRadius = Math.max(0, resolveDelta(topRightRadius, node.topRightRadius));
+      if (bottomLeftRadius !== undefined) node.bottomLeftRadius = Math.max(0, resolveDelta(bottomLeftRadius, node.bottomLeftRadius));
+      if (bottomRightRadius !== undefined) node.bottomRightRadius = Math.max(0, resolveDelta(bottomRightRadius, node.bottomRightRadius));
     }
   }
 
@@ -140,17 +140,15 @@ export function setCornerSmoothing(value: string) {
     throw new Error('No items selected');
   }
 
-  // Convert value from 0-100 range to 0-1 range and clamp
-  const inputValue = Math.max(0, Math.min(100, Number(value)));
-  const smoothing = inputValue / 100;
-
   for (const node of selection) {
     if ('cornerSmoothing' in node) {
-      node.cornerSmoothing = smoothing;
+      const currentPercent = (node.cornerSmoothing ?? 0) * 100;
+      const next = Math.max(0, Math.min(100, resolveDelta(value, currentPercent)));
+      node.cornerSmoothing = next / 100;
     }
   }
 
-  figma.notify(`Corner smoothing set to ${inputValue}%`);
+  figma.notify(`Corner smoothing set to ${value}`);
 }
 
 export function clipContent() {
@@ -188,7 +186,7 @@ export function swapFillStroke() {
 
     // Get current fills and strokes
     const currentFills = node.fills === figma.mixed ? [] : [...(node.fills as Paint[])];
-    const currentStrokes = node.strokes === figma.mixed ? [] : [...(node.strokes as Paint[])];
+    const currentStrokes = [...node.strokes];
 
     // Only swap if at least one has a solid color
     if (currentFills.length === 0 && currentStrokes.length === 0) {

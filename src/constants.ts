@@ -1,5 +1,8 @@
-export const COMMAND_SPLITTER_REGEX = /[\s,]+/;
-export const COMMAND_PART_REGEX = /^(-(?![\d])|(-)?[\p{L}]+(-[\p{L}]+)*?)(?=\s|[\d]|-[\d]|-$|$|#|:|$|@)/u;
+// Splits on whitespace, OR a comma followed by optional whitespace then a
+// letter (i.e. the start of another command). Plain "," between digits is
+// preserved so multi-value commands like "p20,30" stay as one token.
+export const COMMAND_SPLITTER_REGEX = /\s+|,\s*(?=[a-zA-Z])/;
+export const COMMAND_PART_REGEX = /^(-(?![\d])|(-)?[\p{L}]+(-[\p{L}]+)*?)(?=\s|[\d+*/]|-[\d]|-$|$|#|:|@)/u;
 
 export const COMMAND_BREAK_PATTERN = /\s{2,}/;
 

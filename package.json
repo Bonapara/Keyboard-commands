@@ -4,7 +4,8 @@
   "description": "Design 2x faster with keyboard shortcuts. Manage properties, bind variables and styles, set values, all with keyboard commands",
   "main": "code.js",
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --outfile=dist/index.js --target=es6",
+    "build": "esbuild src/index.ts --bundle --outfile=dist/index.js --target=es6 --minify",
+    "test:input": "esbuild tests/command-input.test.js --bundle --platform=node --format=cjs --outfile=dist-tests/command-input.test.cjs && node dist-tests/command-input.test.cjs",
     "lint": "eslint --ext .ts,.tsx --ignore-pattern node_modules .",
     "lint:fix": "eslint --ext .ts,.tsx --ignore-pattern node_modules --fix .",
     "watch": "npm run build -- --watch"
@@ -13,7 +14,7 @@
   "license": "bonapara",
   "devDependencies": {
     "@figma/eslint-plugin-figma-plugins": "*",
-    "@figma/plugin-typings": "^1.122.0",
+    "@figma/plugin-typings": "^1.124.0",
     "@typescript-eslint/eslint-plugin": "^6.12.0",
     "@typescript-eslint/parser": "^6.12.0",
     "esbuild": "^0.19.0",

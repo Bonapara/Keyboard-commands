@@ -2,6 +2,8 @@
 // Visibility Functions
 // ================================
 
+import { resolveDelta } from '../utils';
+
 export function toggleVisibility() {
   const selection = figma.currentPage.selection;
   if (selection.length === 0) {
@@ -39,13 +41,15 @@ export function setOpacity(value: string) {
   if (selection.length === 0) {
     throw new Error('No items selected');
   }
-  
+
   for (const node of selection) {
     if ('opacity' in node) {
-      node.opacity = Math.max(0, Math.min(100, Number(value))) / 100;
+      const currentPercent = node.opacity * 100;
+      const next = Math.max(0, Math.min(100, resolveDelta(value, currentPercent)));
+      node.opacity = next / 100;
     }
   }
-  
-  figma.notify(`Opacity set to ${Math.min(100, Math.max(0, Number(value)))}%`);
+
+  figma.notify(`Opacity set to ${value}`);
 }
 
