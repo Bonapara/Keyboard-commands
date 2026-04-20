@@ -1,0 +1,627 @@
+{
+  "Width": {
+    "with": "728d49ce0d2869cc259a0f351896648f6394674ecc968d822262bce32aa320c4"
+  },
+  "Height": {
+    "with": "94e4990f642098b5571d6932097b45e17dafd0cbad15884f2f14dceed60e9ca1"
+  },
+  "HeightWidth": {
+    "with": "f68e7d2529bc46dd2fa47187063b90757d537470138b0e8e2c473975fccbbbb9"
+  },
+  "InstanceSwap": {
+    "with": "d96478f6ea4f8c84481a25b4f53d5117c7ab8142d38f54a941d213552ac8c5cf"
+  },
+  "InstanceProperty": {
+    "with": "597b00b6ab206fd9caf3d4598705cb4ac751395cf2d6b0435850fc8136cf0a64"
+  },
+  "ResetInstanceOverrides": {
+    "with": "6391cc6313597f7940566c8971ceb3d9528481d0fd4e7d2c04149efcea70b2b3"
+  },
+  "ResetInstance": {
+    "without": "67e0409ad8aee983b6e25443a28255a9395a1ca021e09756ffdb49e769204c21"
+  },
+  "DetachInstance": {
+    "without": "2feb9cfc67427963e2fabfe7b5c73ba0bc552dfe0e810ae414bfcc42f329c22f"
+  },
+  "SelectSimilar": {
+    "without": "bd3bcfa494f1c6391a42572da625d6cfca467b0ea117b8155ee407c273597698"
+  },
+  "SelectParent": {
+    "without": "936e48a4f63ef9a730ab6efa8bda4188dfc5dbdd739922702ddb9c9e5ab41e59"
+  },
+  "SelectChildren": {
+    "without": "7fb59ea07b48f7debb1d11bc2a75c5a0de7979823f443a7b1ef605f3400355a4"
+  },
+  "PushOverrides": {
+    "without": "c6f6bc0d7bf71d692aa8807cf703f1091169d3b6a455af3498e3c77a56101fbf"
+  },
+  "CreateComponent": {
+    "without": "1786b5de6ffe93e51b49745c14022aa5fd7e96b28af9eb876caca2dadf1862b9"
+  },
+  "AddVariant": {
+    "without": "905a8a7eaf6ff6316e6c1e51256d5866401211699562f3c86d0f5f5522d17e97"
+  },
+  "CreateSlot": {
+    "without": "8ecc4940fbd04c972c49bf453410b0d0de35b115b1f2ff00472dcf669652ae35"
+  },
+  "ResetSlot": {
+    "without": "ddc5b83c740aef4bc5222f73f17b2e43cbbe4de99c373cdf2a8d28ad4ef08ea0"
+  },
+  "MoveTop": {
+    "with": "a482c35237870b42518988b75e2cdc2cc5d79468c508cc9a717a2ddcbe90b6dd"
+  },
+  "MoveBottom": {
+    "with": "548b14d0834cda585902e398b84372b11eb3c6a861b75a634dc31d1e99821e20"
+  },
+  "MoveLeft": {
+    "with": "2b694409af879661df077164e5a169d9d0547133132c7f1c0832138319403f25"
+  },
+  "MoveRight": {
+    "with": "27ea7139ef4c742e9b558e99fde678fc06d21662aeb1a0e1d2c48b3c04ef08fd"
+  },
+  "PositionLeft": {
+    "with": "c22e00479fdeadb43fd079dd8467dcf00cfcf5d863327c582e285c60e392eb8a"
+  },
+  "PositionRight": {
+    "with": "588460b08bb8f68c41fa4633c4a65f43f5fb089e4d87b0d28508a1347dd15e8c"
+  },
+  "PositionTop": {
+    "with": "1e66b3fd3112c2d2569b9d2934f6395cef02c912bbec22be0940bc5148475588"
+  },
+  "PositionBottom": {
+    "with": "721e6e3b90125054df8f1fbb8a2f4c46e8935231650be2e94307f1365334cf37"
+  },
+  "SwapPosition": {
+    "without": "44d760e79f60893752f92b365af0016ae899bfc4d72cee7ab729f7216de10cdc"
+  },
+  "Delete": {
+    "without": "03f1b3f82d8c4dbb05174dbd26ff953ee1ae1922fc5fc0eed433976ecae30280"
+  },
+  "AutoLayout": {
+    "without": "9be46cc9f7e7e878dfda16519a6c19b864d12e8d1ac46a5caf20b05f9f388735"
+  },
+  "AutoLayoutVertical": {
+    "without": "b0c0fbde0020485dfb7f1a39db33c672d3d906579afe2cd63334bf427aef463e"
+  },
+  "RemoveAutoLayout": {
+    "without": "80fa31654751087bf4460c7c97b9a5d3cf6af24b4d3716b8185470c1e82d4860"
+  },
+  "FlipHorizontal": {
+    "without": "38e9f6c4deb5832a266a2a0e9676d7bc98119878edcf8b14c017cc4997717858"
+  },
+  "FlipVertical": {
+    "without": "cd786dfa973ee90a27e2c72e71e4eeb978efed3e71bc56ddd510ec6957ca8b43"
+  },
+  "Group": {
+    "without": "ace23c09cd6e4e2e47b82b9f7a3941775f5f0c1965dc3eb24669b91fb11166b6"
+  },
+  "Ungroup": {
+    "without": "742165d858342aeb555dcdcd5cce4d46cf3772490886ac68b5d56529ad7ee788"
+  },
+  "Union": {
+    "without": "2c805548ec3449bb2c8b93166f8a598fc95c1d1e6cb0f5eac5b8a9a60e2472e6"
+  },
+  "Subtract": {
+    "without": "e1a9a79800688103258100642f635f78abaa67823c778ffefe6a9cb1b19a5021"
+  },
+  "Intersect": {
+    "without": "61dff1721a750db977396c85a56c6eba66a8d7e448e119df0e1b2a0e2511a3c4"
+  },
+  "Exclude": {
+    "without": "057171a1d4151ccbf310662d4fdbb02f274fa24372acbf0301504e94d8d5f94e"
+  },
+  "Lock": {
+    "without": "2ed6926021c463d7211d324376da8702ae8c61b42bf567c199c23ffcd20c05e8"
+  },
+  "Mask": {
+    "without": "012d3b6784e044dbf2c2ac1a95badbdd3b5010e6542e1288f21bc77b82786446"
+  },
+  "Flatten": {
+    "without": "7cbb987812f8bcda2c1c1561ce0f8fa7ac2fab8b8825e9870a271bd2ca5f9003"
+  },
+  "OutlineStroke": {
+    "without": "0d39137ffd0e4cbeef75b23e75a91bcfa372b2e9cc9dd85768953b04bc3831a8"
+  },
+  "VerticalFill": {
+    "without": "ac650b32b0cd1e2129b0609684ab464f0c97ff2327551a6d05c3a5ae394cf631"
+  },
+  "VerticalHug": {
+    "without": "656562db8101f438e1b894ae6af568a16fd0fd65dc41d6277cb23751f6f36205"
+  },
+  "HorizontalFill": {
+    "without": "06f71593b627055ab9c87a0738717a8b61261178332cb264a81b1430b7382bd5"
+  },
+  "HorizontalHug": {
+    "without": "88240f92ab152f16185c4d1d1d0aab45ef8d7f4454611b9d621cc96972c8d0e6"
+  },
+  "Gap": {
+    "with": "352b100751a178c7d04036a329172295a69c981ef1703c3758e882b35ce153a8",
+    "without": "829eb7a3969d3f578069e33e0a316036d0fe567ac6ffb3c912c4ae1319e7d05a"
+  },
+  "SpaceBetween": {
+    "without": "829eb7a3969d3f578069e33e0a316036d0fe567ac6ffb3c912c4ae1319e7d05a"
+  },
+  "VerticalGap": {
+    "with": "fbecfc8e45c14380568a383859efd8be71a419159e42fffaab9bac629d617998",
+    "without": "b80815aff073aa88b3167e8c449c7da18c578835c7516a3c68d9bf7ccdc220d9"
+  },
+  "GridColumnGap": {
+    "with": "352b100751a178c7d04036a329172295a69c981ef1703c3758e882b35ce153a8"
+  },
+  "GridRowGap": {
+    "with": "fbecfc8e45c14380568a383859efd8be71a419159e42fffaab9bac629d617998"
+  },
+  "TidyGap": {
+    "with": "94aeb8eef54146d030f001badc422988d7e43f87e40422ea9d018f93157736e6",
+    "without": "c4401ab5a463ecdc6df04acf6e9852ea5a12fd2984bc35593a5701c8dad0ef8a"
+  },
+  "TidyRowGap": {
+    "with": "f47347830b8c97536182febe0bbc08abda0882a2dbea0a9bcd16c5b342962057"
+  },
+  "VerticalSpaceBetween": {
+    "without": "b80815aff073aa88b3167e8c449c7da18c578835c7516a3c68d9bf7ccdc220d9"
+  },
+  "LayoutHorizontal": {
+    "without": "541364de6ac6f7327228442de91ff7abffeb74876e785f6271a585b7e8e92dde"
+  },
+  "LayoutVertical": {
+    "without": "71b172bdeaf0bd6ed0f39e72e8d6c7e307cf372f5f7b013a8bab64f73a1ff93e"
+  },
+  "LayoutWrap": {
+    "without": "bc409d1a1f18a98b784de67fd227a21c6a998d379efc3548ddf455142477d1e7"
+  },
+  "LayoutGrid": {
+    "with": "4914ed5eefa93de6180d6750cfc0b6940a4608ff52b96480ce77366b10f5f8ca",
+    "without": "dee55d229fd0c53e2dd9d34b0fbcbfc9c822d0653c697058d2ea0b44bb296ea0"
+  },
+  "LayoutGridColumns": {
+    "with": "36154e75740cb54f58046c39ceaf5f3fadff5eaf7d99a907aa969fe36a8dee22"
+  },
+  "LayoutGridRows": {
+    "with": "8ecd8747b0d25862c9aa22474c0bcd7821fca109ff1e9203bb34a36f52caf346"
+  },
+  "LayoutGridGutter": {
+    "with": "bf91571581399f82f736560ce7bc4168d5da6ec5870551e9f378f519d2481586"
+  },
+  "LayoutGridMargin": {
+    "with": "6ebf854e2c5dc836fe7ec85d26dccf1511b43d9f065a14920e6c28539399c81c"
+  },
+  "LayoutGridRemove": {
+    "without": "20d6e21108de591dc88fdce0dc7dd6d8b4956040f757161726f16f23bc4ca9be"
+  },
+  "AbsolutePosition": {
+    "without": "aeb634e0119bb7c3013f8b6a3438376a0bc0c89b171fe8dff10f3b0d0febb374"
+  },
+  "Padding": {
+    "with": "9eac8f8cf037ce328a8d3f9addc6bfdf37ac5e0c696078f3471380d0fe44f5ce",
+    "without": "9b9664b86b0e5423f18a13efc2b807ae4de90ef3120bd03caa8fab1c5660045a"
+  },
+  "PaddingHorizontal": {
+    "with": "b2c5ca7805dfa5384393f38d87d7ee8165972a63859b6577159836fa0bb4d392",
+    "without": "0b50d93ee9573f478637f592c208b78a1e816bd678795735039f1eb1f99cafa7"
+  },
+  "PaddingVertical": {
+    "with": "5108856baecb9fc55f93110b2d461e08ca384ae6602d8598964ac9f51672d9ca",
+    "without": "a8e7105fdbb70339baea03a5aebf6dca857008ead79a0d2674fe092afa2922f5"
+  },
+  "PaddingLeft": {
+    "with": "f1d5daef87c015441ec00f68e442a5c8bbd35902010d53d83df41ea78b03bb39",
+    "without": "d56781e43b0ede13d37d3985dc5b2ecba80d96c259523f6beb357585d562870c"
+  },
+  "PaddingTop": {
+    "with": "2a05b471bbff51a041e99a81e7a0f6a82bc4aee70b014c1b1f95c5b8fac3b58e",
+    "without": "31afd5d36bcaff076f7f4efcc9e283f471c47aafcfc4d0d2cfb92ca34e77c445"
+  },
+  "PaddingRight": {
+    "with": "58d6a5016d4276ac2793056b6d29a6be20e666f8166518647565cd37540ff518",
+    "without": "8857c6a99c47139cb21829500f273530262b6be9bc65e022b5d2ef86e58a4edf"
+  },
+  "PaddingBottom": {
+    "with": "3771126712998c66e012ffde9fc66e68dba3775c5f95db985d96adee71000af3",
+    "without": "67ea772bbf882c10d4bf5f9d2bbe57a2157228418471573a2415b1987d61e176"
+  },
+  "Fill": {
+    "with": "cc01bebfc22b9b016f9e16fbaa82e4178734f21e160f81ae473715349d45fb90",
+    "without": "d4c03a4c33b1299b780c1faee010c80194e63935321224ee85a9ec98cb3a06b9"
+  },
+  "Rotate": {
+    "with": "3f7db53078dcec11e100e664c43322d753b445e3cb48e2c48ad6119804b4ca64",
+    "without": "afaebebec4bf3b1d28209f82d5eba634f155f5b43438c8338b9e7f1e3ea0b1e5"
+  },
+  "Scale": {
+    "with": "75ddbcd4e54035b768fb1ff5996adba4dbc61bef0730d098a0cf18fc590c97db"
+  },
+  "ScaleWidth": {
+    "with": "24a5a5b6d43875876786e2bd1509a1bf203eb03316c4d41e19b4a3ce5240abc2"
+  },
+  "ScaleHeight": {
+    "with": "5a2fba1d70fa4ec7cd8c1aef6ba06ec10b30ce152f9d8be181731e598f0e0aec"
+  },
+  "RadiusTopLeft": {
+    "with": "0b5f416eef3b4df50955f1df5359187e2862f36d16c8fd618c427bcd9c01b6d5",
+    "without": "9c5c7a032a7bbd358b49f7664956399aa7db91575428086dc09ec0ac52a0e8f2"
+  },
+  "RadiusTopRight": {
+    "with": "8a5800ac53e903da35d58d7a3f8f314abbf2c909f99738a5e35bdf7dc15dfb29",
+    "without": "64da1682cbfe11a2e7263268a9c0913f0e743640943b6928ed37a5abb1dbf7ea"
+  },
+  "RadiusBottomRight": {
+    "with": "bb7aadde47b9828471223009001ae5408375272211eff599eab537dbab5a2fb0",
+    "without": "3d44ad4dff78fa51e00a95046c0b440e2372bfa9a800d31dcd44f67f83b40dc6"
+  },
+  "RadiusBottomLeft": {
+    "with": "1daddb3f2628ea3b209667dcc05cd8462713037e654becf37f45ce63c81c13f7",
+    "without": "bc55a543f5cdb18b47ffda0d6cda3d11598a0d5e9ef9bde6627977434043cb73"
+  },
+  "RadiusAll": {
+    "with": "01719ed45bac498d10520bacd638092cea774153ef4e1a23a1a7875c89707499",
+    "without": "e18ebb7a54b141e84b08931c518e782f5353bc80a374a54817c0d378d5cda082"
+  },
+  "RadiusLeft": {
+    "with": "77c32b24d92efd54846e8a3b3d6d5079249519c3e8bfa9b3246cd0226e719933",
+    "without": "b54fd1b536b92648ab11e6bcf7374c9e7fb51837c09a9e473868708a71faebbf"
+  },
+  "RadiusTop": {
+    "with": "fd58456b3efa7539775481a3a7061d3eca1009cede96cd74903875838d12cf22",
+    "without": "1d46f90fb7d7eba47d2c6062096cb4bfe1b02941f542ab86f413e4c43bf0ae8c"
+  },
+  "RadiusRight": {
+    "with": "9f5fa523c83da4454db597efbdfe8fe228e3810e80a24b6802415565a1f9fb82",
+    "without": "8dc6513723c1dec30067a33a4cc2eba7bc11b07efaf37a4d07741d8e02556c9d"
+  },
+  "RadiusBottom": {
+    "with": "4598f6987f46be0ae924c4c5ad07c4953e43f8599d261e215b14d4e823c7408e",
+    "without": "8bdd75f58dcba9795e5916e7cb7f305559539731ee0dd1f9e4227c24fc85ba74"
+  },
+  "ClipContent": {
+    "without": "8065b50b2f663e6a8d63979835f9bec9c42ba5c5b0f59c7acf947584215b0076"
+  },
+  "Visibility": {
+    "without": "e3032f3f1d8919ef414a218c97bf9c9d99ceafcb517131ff3b1c519dea975bf4"
+  },
+  "Opacity": {
+    "with": "a3c5937ca332a0bbc7715b40a29f73c162eb3fe6ed1158adfcaff97086de6bf4",
+    "without": "3da72e023c008f397f5e696cf0ca621e9ac3acaaaac61938d64d32354085098c"
+  },
+  "Duplicate": {
+    "without": "e5fab4978650fdc4597f1112293373f3567dc43982a8d0c76816efb097d7809f"
+  },
+  "Stroke": {
+    "with": "b728cb75ce64203b45e62fa6161af292a3938b1d4fb19d52a4228e195b1f2b10",
+    "without": "b647dbb0e8556d38689cd83798c037d83bb96a2e2cf86ca2772e700d142a4351"
+  },
+  "StrokeLeft": {
+    "with": "ae5036712cc05e0e6c3ac95d046b2e6aca056c644402d7b3911e207bc8add359",
+    "without": "f1d4f77518ce600ea9f0837313de60918368dfc511480786d52373d18e05dff8"
+  },
+  "StrokeRight": {
+    "with": "0e33f921eb7dd93b842b5e5459fc6e03d70bbc92051541e353b50ffec746ed6a",
+    "without": "113b9244483065ed4741339b15a13a04f38f403ecb09a62cf023a0657e17bdba"
+  },
+  "StrokeTop": {
+    "with": "9f9b718f20709cd0e142d34ba3225f9c3cc9b413bef0a269fea24ca5e7c70a65",
+    "without": "764d27382d0ec5f9afa914e471cc55ce69e45de637203a74942ffb444d2cbb8a"
+  },
+  "StrokeBottom": {
+    "with": "520f7c5b63d7d0730d1a775d87541882a70908e89c97072461efcdf751e9760b",
+    "without": "cdc4a51801ab23691531b45d3ff063e300c3726fc3e739ee0eab95f03aed7228"
+  },
+  "StrokeColor": {
+    "with": "3cc9287a5e21709b5637ed7effd0d99f0320f13677d6d50c054c4ef2a26cafa9",
+    "without": "b647dbb0e8556d38689cd83798c037d83bb96a2e2cf86ca2772e700d142a4351"
+  },
+  "Effect": {
+    "with": "dc8305281e1c492924c0a8601b5cdd1b94582213c27294bc7b78835a994517c9",
+    "without": "77e4526a0380eff92e46c4607b54c220fa647dc10273c22addc64c6fbf50559b"
+  },
+  "StrokeAlignCenter": {
+    "without": "171ecb07eb7a2c3c6214d1d7ff78d7fe987ef4a0a527e747862db0d35dee49f0"
+  },
+  "StrokeAlignInside": {
+    "without": "c74bf024a22cba9690a8314b079565a4aab0763f08806ef470cbe3e30db64b7d"
+  },
+  "StrokeAlignOutside": {
+    "without": "712ffb3616dc958d6bca051f2083fa0a70380e09c2f7ce8cdd4dc985fd206d40"
+  },
+  "SelectionColorsSwapping": {
+    "with": "1b4cc16c274f7cec75347652cf4b4a20d467183e975058de224413d44d027ad3",
+    "without": "566c6c442a4ebe7feae66cac11d90ad05b75f5e2b6cdb5a35cba2310a394aaf7"
+  },
+  "ToggleTheme": {
+    "without": "bd334925fbbb7fa474a59e858258fd1ccb34bca6df9cc626299c1e08c14b5466"
+  },
+  "TextTruncation": {
+    "with": "d42e0c1877c7aa2d55746b58c64d871ed3e070331f75d1c16bc7839a76c15e53",
+    "without": "a3ca99c2f21b3531524e887f33611ac01b6833cd42981c2e46e5d8ca4b7480db"
+  },
+  "VerticalTrim": {
+    "without": "b5b3d5ec734e03f8f445621d82130ae628f2feb19c77840c6359310ff474a058"
+  },
+  "TextAutoWidth": {
+    "without": "7082a9b63e2f6204ab26a8cab4b766a20fa6d32c8f4d4279900f3e9e3cc419b1"
+  },
+  "TextAutoHeight": {
+    "without": "47e8457767458d45f6e7a1b99171d505a3578d0abc42880d7bd571d5c42de6ea"
+  },
+  "TextFixedSize": {
+    "without": "b976894ba427a8919f7a167d889e9fa3809fa999deaa5b5cef680533d977d337"
+  },
+  "TextAlignLeft": {
+    "without": "f29062a63dbddc8b523b6d7b36a985efa87bd3a8df3761e18962ad98ff14c32c"
+  },
+  "TextAlignCenter": {
+    "without": "c17838804ed6a7b4c8f765cc45bab957eb0247b9c8d83e15b5e4b73f26c85fcf"
+  },
+  "TextAlignRight": {
+    "without": "b74444a484c62c93a9187815a0f21778aacb201ca031565bd763e0d4faaeeac4"
+  },
+  "JustifyText": {
+    "without": "2c73fa7820ed3192b56aba1c13b56d1ec9f84cd9f18f6a6ef8bad6ee5bca9896"
+  },
+  "TextAlignTop": {
+    "without": "1980d00f7b74928db6f5be4579e1cc3b92c48a060b19af86d4372375a679851d"
+  },
+  "TextAlignMiddle": {
+    "without": "1563ed3d999d5a0f13d5c723203206f2b2d7ee4012ee8df9529b88bb95d08357"
+  },
+  "TextAlignBottom": {
+    "without": "cce83a0ebd77061f8467f5fbb2ab6602ae1103d909a0854ffe5a9856b55a70e1"
+  },
+  "Font": {
+    "with": "0867e74ba4acd740c2e90a9c233c1196d6f56fde0d557aebfbae9b54d3250d35",
+    "without": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  "FontSize": {
+    "with": "42ba880b0534871fbc15c962ff86a6e8d954d0592a5830542bc6433e0e737f5e"
+  },
+  "RemoveTextStyle": {
+    "without": "c71f07b93ca07596322da757b263effe727bc9fed77e97ef139e4932010e4199"
+  },
+  "FontWeight": {
+    "with": "3321e46d86a102c4eb7411e3f315aba45a924107a669fd642c38f439a07ff59f"
+  },
+  "LetterSpacing": {
+    "with": "a6550b7d35197a3001ac38e3a4a5492ff49e7a3a9497133d8b197887e3da0f1d",
+    "without": "22b5fc8cc959a6dfc0eb9773e14c8df2caa86419f03e0560cbf2de5118e9ac7e"
+  },
+  "LineHeight": {
+    "with": "bcb79b0cb92439dc40b73076fce1106e571b5ed399064dc0a48964e053f32699",
+    "without": "e438fd5b393dccaea3edb2325abc198a8a0deba003d895569834a2d37da74891"
+  },
+  "ParagraphSpacing": {
+    "with": "0f1901dd403dee043de9b2db2902e3927a293e84ce8a9d191741b0599bd577b5"
+  },
+  "ParagraphIndent": {
+    "with": "f3048c6a55a9a80377b44c9a08280c4f00f19c31aee0d372c98ec16b098c03a9"
+  },
+  "TextCaseOriginal": {
+    "without": "e52d6149e528d57334a73c873869726272b6eb510c2d7e442a142b0665c0201d"
+  },
+  "TextCaseUppercase": {
+    "without": "76f91c0e191d604d97d7de32eaf827a2aac6ba3f62525b489243b43f458a9bbd"
+  },
+  "TextCaseLowercase": {
+    "without": "12699f6519e49eae270e3432349527bff505b83078c6eb1271af2fda0810a1e0"
+  },
+  "TextCaseTitle": {
+    "without": "d4343703a9158fc8fb41582655a2fa50799bc430e85e8cdbb72471ab38733756"
+  },
+  "TextCaseSmallCaps": {
+    "without": "02190aaa6b4566118bd30dde2998e9a1a1d2d3b285d4f7cafa9f799b6f7f8104"
+  },
+  "TextCaseSmallCapsForced": {
+    "without": "d45e0cff147313328185dab5db242475d4f4b91e5832ae751ff8440a4ad8ffd7"
+  },
+  "RemoveTextDecoration": {
+    "without": "49c089c9b4d284950192e80e1be72d1d071b3f074147b393f38feb48e20e6e58"
+  },
+  "TextUnderline": {
+    "without": "9fc2ecdc7a42362f11881a5184267313282293988fadb604b58922a06172220e"
+  },
+  "TextStrikethrough": {
+    "without": "42b797a2082094e12b146682502a348cb1c4334cc9bea5551e34f6fb01497646"
+  },
+  "TextOrderedList": {
+    "without": "33b00e3d3dc9eab651d5ef5d7ecc12b379261ab071a15202651bdb6a96eb95a6"
+  },
+  "TextUnorderedList": {
+    "without": "bea4d7c613763a14fce07da3e5fb31b85968d9c60abb5a135c16326b1a3782fa"
+  },
+  "TextRemoveList": {
+    "without": "3759fa59f1d7f381ce6dfeaf315e68af83a3baafd980bf68be5128dd63d34838"
+  },
+  "AlignTopLeft": {
+    "with": "754edb1a4796561964f4ebc7e2f3edb1db50ca2c4a7e537ac45d1e7b8b7d7bb7",
+    "without": "c86339e7b41291fc3d161b5c1af72809a7ee05eb7158135552cd5fc72baf4812"
+  },
+  "AlignTopCenter": {
+    "with": "4c28d87c43d026ca7062e48994656526fefa051d6f88e5d8bead95582020bdc4",
+    "without": "64896ff523d63b91843b0afe315f741c87a58955c785cc744f62f601f9404fad"
+  },
+  "AlignTopRight": {
+    "with": "0154bf7651f8c285e7759ded6ad46c6d1dea26cdc62c44e5255905a433001c6f",
+    "without": "0352b0ccb25c872397db0730533339fdab54d433e4c90a975815e9da8ef58d57"
+  },
+  "AlignCenterLeft": {
+    "with": "1e627d08e4fbe463dfe234b8323c6ba85cfba40499ee06c519053327c4a008e3",
+    "without": "bfe478ba114c713c37af0abd6fd4a8d4788218266f8c6894e994c0700d1d62c3"
+  },
+  "AlignCenterCenter": {
+    "with": "a402561ce7dbbf3e25ce6ae8ce252e49fb3486d642973e2c38c980cd12657ef1",
+    "without": "eb86986ac4af715d13ef1afbd2624f1f971f507daf2f1e30972c7b0fb0f82598"
+  },
+  "AlignCenterRight": {
+    "with": "9546c205c713afb66623b8cf6c891967df0058e26c39bb7dec4df6b94c91159c",
+    "without": "0cb1d89aa0c27a8b0d8e69455838166b8cd63ef0ebb22cd721171eca649142ef"
+  },
+  "AlignBottomLeft": {
+    "with": "c9ecbcca829d008d804e607be911f4e6ba6f3e118d8f892d62b34af8493cd0cf",
+    "without": "4d5b5236263baeacb63182738260eb8c8d16e0d39b130fac488c076fa28f289f"
+  },
+  "AlignBottomRight": {
+    "with": "e0df0da1a2c90ff228624492471f0ebe41ba12ce48f1c4bf1d4ec48ebb18ab99",
+    "without": "5120773a539dc48fdabfe955d92ff5aec4a893ff22b7d945c16939cce24f5bc6"
+  },
+  "AlignBottomCenter": {
+    "with": "c72536bc3c570ff307ebd8d0a83c42b5eff5c25163b8b33cd49813cf31f17240",
+    "without": "c992861dfb4433791c5341b08493c7cd24bbc67fe12011bffaf0efb790da75ee"
+  },
+  "MaxHeight": {
+    "with": "2eca44059d9cc28084ea4ed0e46a4061026a1fdc78f6c8aaaa713ca0ee77ceaa",
+    "without": "bb4087e8498c19eeacd8e16aad79cc85cc576bdb53a772f3494a70ed1dee5a7e"
+  },
+  "MaxWidth": {
+    "with": "7add9cdfc6933331eb4a05ff61b694e4d4ee096ae7997d79bd0e892759d1c00f",
+    "without": "d1a8a83fdd5b01934033a9c65d28fe4952ebdb773421e3924eeb5b79b0479412"
+  },
+  "MinHeight": {
+    "with": "574588203f424a2e2dc2dbe70fe45f6a2449651a40d1db2e0778524a1c341257",
+    "without": "4763a3a017325a85b6926e35525983c763c9fecc896ed600682022fffea0d5f8"
+  },
+  "MinWidth": {
+    "with": "69c0137ffab8a97b568801bdc7327d5fb27c0a836daf4e568de66e7583dac15b",
+    "without": "bd4a834e14ab9acf33b0f11bfcb4c545a00adf31934d3597a7c8fae0b7f9a61b"
+  },
+  "RemoveEffect": {
+    "without": "77e4526a0380eff92e46c4607b54c220fa647dc10273c22addc64c6fbf50559b"
+  },
+  "ExportSVG": {
+    "without": "b7309a1a30526a7d81d20ede6512253f50c109f5fd2a6cbc0b5908313d63ec83"
+  },
+  "ExportPDF": {
+    "without": "a651c5092b34e3ecbcb678c62cbebc5b920e5147faafe41625aa1a0392999372"
+  },
+  "ExportPNG": {
+    "with": "513a08d39ea6fd38e26d19a265d582454ae1e9673d1ab47e895857f9a2b39018",
+    "without": "ac1eb5ae6dc947b7b4a10486a9552cb77d7eb311e4bb7ad835e6805f8cff45a3"
+  },
+  "ExportJPG": {
+    "with": "f2da44613722110d4c74eaf4b2cbc2ed558471a8852894b31cad0cc6c80712be",
+    "without": "702e77c59ac585be6ae8f93d68693f3e4ee9d8d7bcfb4faa775f974a31f0bc10"
+  },
+  "ExportPNGWidth": {
+    "with": "1debd17433058f17f3c71974a36718183be09bd3212fd394eac8caa44e884b3c"
+  },
+  "ExportJPGWidth": {
+    "with": "9943183c316874c6ca9cffc95b0923421c2d0c0beec5f921581d99dd16427568"
+  },
+  "ExportPNGHeight": {
+    "with": "d416dcc1ada6e6bbc9215e931998dd7e8ffc8d4b1a01acd00506fd88177ba8bb"
+  },
+  "ExportJPGHeight": {
+    "with": "6639c71901fe96e20693fe9afd072ae4e4f269ba769b67a074de4d6053bec3a7"
+  },
+  "ConstraintLeft": {
+    "without": "d2c5724fd4547c96b62878dbe597c484952b507364f3639892d60016411e161b"
+  },
+  "ConstraintCenterHorizontal": {
+    "without": "ab95713ba113af51f73ef86ed38de54dbb0733755e56c207f19718dad80c1af9"
+  },
+  "ConstraintRight": {
+    "without": "fd02e607e60a07e0d9d9fe1838a9b36e6df683c8cefe1abf8b838d913bcd8a22"
+  },
+  "ConstraintLeftAndRight": {
+    "without": "df15bd182c03b532a440b64afc1979d5952a543edb6ba6547629b4f0a6b2c44a"
+  },
+  "ConstraintScaleHorizontal": {
+    "without": "644e3985b5dabdfd082172b7a41c8a17276ae35a12326527b173c6f9e28c6e93"
+  },
+  "ConstraintTop": {
+    "without": "d6318207e9d416d2579743d3576173a78a0b5b9a8c93005a91ecca28808c5c84"
+  },
+  "ConstraintCenterVertical": {
+    "without": "c3944cfc0284067c3324b130037b678c6569d45801a485fb375d9171fb9d7a74"
+  },
+  "ConstraintBottom": {
+    "without": "7186c8deea40fa0e3d0b7b6c3a4f293e0882780b9b5d2f433669eff5e3bf97dc"
+  },
+  "ConstraintTopAndBottom": {
+    "without": "bec05444f7cceecd74a879f5026f91121785c90d5fa048ddec12b58123b64113"
+  },
+  "ConstraintScaleVertical": {
+    "without": "199c5680fe6010b81e30853b6fa7964d282f573eabc4f28e3ea5665e7f82ef41"
+  },
+  "CornerSmoothing": {
+    "with": "b89355be4824d3c23f42659be4ef367033a41abdd637b123880c03d35959cdfd"
+  },
+  "CornerSmoothingIOS": {
+    "without": "ace5d2ad3127fadcbc77e9e655ece7be6279735bee8a8472b5ec7c8a9c076c08"
+  },
+  "AlignTop": {
+    "without": "d8ee5d38fa24c01b6749792a217f21cbb4bab020593f6d1a429a965f5bf71ad3"
+  },
+  "AlignBottom": {
+    "without": "8ddeb4b75a08e45ed793bc7d13c2a039025c78f1d48c93e304be23e60cd0a6ef"
+  },
+  "AlignLeft": {
+    "without": "e418dbbae3cf9e125557ec7aafad78bae8a0d112a1cd77fcc134122633259698"
+  },
+  "AlignRight": {
+    "without": "92f679696ab13f0b01de23baf2febe6ee345d54994ca13f57f7a6dfeb614a4a4"
+  },
+  "AlignVerticalCenter": {
+    "without": "6ffb9c3bb8576ada44de82ca156a64c1477003c6b16f1632ef0e947f22fad4f8"
+  },
+  "AlignHorizontalCenter": {
+    "without": "95ef8ac321dde28513ecaf088b13c9ac2998b92f28a8d3a01e3f0db7be6fd317"
+  },
+  "AlignTopLeftToParent": {
+    "without": "a7a12800f36e81cf1137a8df68ce46c37a4730480b85d135daa589cbc4dbba7d"
+  },
+  "AlignTopCenterToParent": {
+    "without": "814b9850e1534ed3d23eb4b3676df07664dbd95c19e5d32892d7f27c7900d3db"
+  },
+  "AlignTopRightToParent": {
+    "without": "cb1e06192cebeaf24b7766d138f177dadd3e399f913596d7c86cffd40af57737"
+  },
+  "AlignCenterLeftToParent": {
+    "without": "cf3fc964266c9887cf4e816aca79fa45315b04290c75d74a6bf2185493633a35"
+  },
+  "AlignCenterCenterToParent": {
+    "without": "bf0cb36997a762fb09b9b9ebad33a5e5635c15fefe738eb06689245221b22ada"
+  },
+  "AlignCenterRightToParent": {
+    "without": "c482e067604bad7267e01c8dd1db3e02c41d6ea3676cd3d86802ee3a1c7ed372"
+  },
+  "AlignBottomLeftToParent": {
+    "without": "a12b7d738f7f227f4d0cb11b6cb26d298955c83e8a215a5b53f8b80ba4917896"
+  },
+  "AlignBottomCenterToParent": {
+    "without": "d3d719ede124871c9b6f6e532a4f51cc74866f8195456740993eda0a8eb37c98"
+  },
+  "AlignBottomRightToParent": {
+    "without": "7027729f0f4a93e4ff8fef263cc60527e30d3a72ee0f74b84b381aeb3bf0393e"
+  },
+  "BringToFront": {
+    "without": "bb723d01d75877cc99e7627197c3ac5bc148f293dba62e14129aa7f4cf850c05"
+  },
+  "BringForward": {
+    "without": "e7ee258271a229b62b6554b44b15ef0ef70b42104c7f5a1715aee29a8c19759c"
+  },
+  "SendBackward": {
+    "without": "10cf7550ccbcb331afdd5703ee7d05f2eaba5990d7ac033b0ad2f954f76c792d"
+  },
+  "SendToBack": {
+    "without": "d9a508a5460193443db36082406f56f8dba74909d9aa8ae3a4485fac1b117976"
+  },
+  "SwapFillStroke": {
+    "without": "caddbde5e3fc7f24bbcb70f97324f6e6c0eacdf09c162d7087b4113d3f80f0ca"
+  },
+  "PublishLibrary": {
+    "without": "6954525618b9ee47a7ac79fd0a3aba27cc99e60e991fa2ee5c9a779fa878c211"
+  },
+  "ToggleLibrary": {
+    "with": "cc07463693ce935c107a06e3eca91dcea08db35fb2190149526f9a0bfad088cc",
+    "without": "4f30f84759bf178b22d0ad76540859416ae5b9b732319b1bd13eadb9785db2aa"
+  },
+  "RemoveLibrary": {
+    "with": "3cebb36eff38947b4b7d6a6c9d0005ca6e87ae0a76e01f15443db046b32bdd33",
+    "without": "c8d37ff49d597fa53fdffb67ee0dff188988e1be247a8e347a996ce539f9107d"
+  },
+  "MonitorStorage": {
+    "without": "31e5af936b37899d24d594b6f2b8d55e32bd82f3622194646c085f9dd318595a"
+  },
+  "History": {
+    "without": "9d251ff9c4387ebba494c0dbe607661408c25d18783f1fe1a3d4e6b244eaa93f"
+  }
+}

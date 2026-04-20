@@ -2,7 +2,7 @@
   "name": "Keyboard Commands",
   "id": "1449452113684309699",
   "api": "1.0.0",
-  "main": "dist/code.js",
+  "main": "dist/index.js",
   "enableProposedApi": false,
   "documentAccess": "dynamic-page",
   "permissions": ["teamlibrary"],
@@ -12,7 +12,7 @@
   ],
   "networkAccess": {
     "allowedDomains": [
-      "none"
+      "https://cdnjs.cloudflare.com"
     ]
   },
   "parameters": [

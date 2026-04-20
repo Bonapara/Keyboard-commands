@@ -1,10 +1,26 @@
 {
-  "name": "Keyboard-Commands",
+  "name": "keyboard-commands",
   "version": "1.0.0",
-  "description": "Your Figma Plugin",
+  "description": "Design 2x faster with keyboard shortcuts. Manage properties, bind variables and styles, set values, all with keyboard commands",
   "main": "code.js",
   "scripts": {
-    "build": "tsc -p tsconfig.json && tsc -p ui-tsconfig.json",
+    "prebuild": "npm test",
+    "build": "esbuild src/index.ts --bundle --outfile=dist/index.js --target=es6 --minify",
+    "test": "npm run test:input && npm run test:commands && npm run test:command-behavior && npm run test:utils && npm run test:persistence && npm run test:persistence-edge && npm run test:index-runtime && npm run test:borders-implementation && npm run test:layout-implementation && npm run test:selection-implementation && npm run test:transforms-implementation && npm run test:variable-bindings-implementation && npm run test:colors-implementation && npm run test:text-implementation",
+    "test:input": "esbuild tests/command-input.test.js --bundle --platform=node --format=cjs --outfile=dist-tests/command-input.test.cjs && node dist-tests/command-input.test.cjs",
+    "test:commands": "esbuild tests/command-registry.test.js --bundle --platform=node --format=cjs --outfile=dist-tests/command-registry.test.cjs && node dist-tests/command-registry.test.cjs",
+    "test:command-behavior": "esbuild tests/command-behavior.test.js --bundle --platform=node --format=cjs --external:esbuild --outfile=dist-tests/command-behavior.test.cjs && node dist-tests/command-behavior.test.cjs",
+    "test:utils": "esbuild tests/utils.test.js --bundle --platform=node --format=cjs --outfile=dist-tests/utils.test.cjs && node dist-tests/utils.test.cjs",
+    "test:persistence": "esbuild tests/persistence.test.js --bundle --platform=node --format=cjs --outfile=dist-tests/persistence.test.cjs && node dist-tests/persistence.test.cjs",
+    "test:persistence-edge": "esbuild tests/persistence-edge.test.js --bundle --platform=node --format=cjs --outfile=dist-tests/persistence-edge.test.cjs && node dist-tests/persistence-edge.test.cjs",
+    "test:index-runtime": "esbuild tests/index-runtime.test.js --bundle --platform=node --format=cjs --external:esbuild --outfile=dist-tests/index-runtime.test.cjs && node dist-tests/index-runtime.test.cjs",
+    "test:borders-implementation": "esbuild tests/borders-implementation.test.js --bundle --platform=node --format=cjs --outfile=dist-tests/borders-implementation.test.cjs && node dist-tests/borders-implementation.test.cjs",
+    "test:layout-implementation": "esbuild tests/layout-implementation.test.js --bundle --platform=node --format=cjs --outfile=dist-tests/layout-implementation.test.cjs && node dist-tests/layout-implementation.test.cjs",
+    "test:selection-implementation": "esbuild tests/selection-implementation.test.js --bundle --platform=node --format=cjs --outfile=dist-tests/selection-implementation.test.cjs && node dist-tests/selection-implementation.test.cjs",
+    "test:transforms-implementation": "esbuild tests/transforms-implementation.test.js --bundle --platform=node --format=cjs --outfile=dist-tests/transforms-implementation.test.cjs && node dist-tests/transforms-implementation.test.cjs",
+    "test:variable-bindings-implementation": "esbuild tests/variable-bindings-implementation.test.js --bundle --platform=node --format=cjs --outfile=dist-tests/variable-bindings-implementation.test.cjs && node dist-tests/variable-bindings-implementation.test.cjs",
+    "test:colors-implementation": "esbuild tests/colors-implementation.test.js --bundle --platform=node --format=cjs --outfile=dist-tests/colors-implementation.test.cjs && node dist-tests/colors-implementation.test.cjs",
+    "test:text-implementation": "esbuild tests/text-implementation.test.js --bundle --platform=node --format=cjs --outfile=dist-tests/text-implementation.test.cjs && node dist-tests/text-implementation.test.cjs",
     "lint": "eslint --ext .ts,.tsx --ignore-pattern node_modules .",
     "lint:fix": "eslint --ext .ts,.tsx --ignore-pattern node_modules --fix .",
     "watch": "npm run build -- --watch"
@@ -13,9 +29,10 @@
   "license": "bonapara",
   "devDependencies": {
     "@figma/eslint-plugin-figma-plugins": "*",
-    "@figma/plugin-typings": "*",
+    "@figma/plugin-typings": "^1.124.0",
     "@typescript-eslint/eslint-plugin": "^6.12.0",
     "@typescript-eslint/parser": "^6.12.0",
+    "esbuild": "^0.19.0",
     "eslint": "^8.54.0",
     "typescript": "^5.3.2"
   },
@@ -27,10 +44,12 @@
     ],
     "parser": "@typescript-eslint/parser",
     "parserOptions": {
-      "project": ["./tsconfig.json", "./ui-tsconfig.json"]
+      "project": "./tsconfig.json"
     },
     "root": true,
-    "ignorePatterns": ["dist/*"],
+    "ignorePatterns": [
+      "dist/*"
+    ],
     "rules": {
       "@typescript-eslint/no-unused-vars": [
         "error",
@@ -41,5 +60,8 @@
         }
       ]
     }
+  },
+  "dependencies": {
+    "lz-string": "^1.5.0"
   }
 }
