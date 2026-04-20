@@ -1,5 +1,18 @@
 export type SupportedNodeType = SceneNode['type'];
-export type SpecialCondition = 'IsAutoLayout' | 'IsInAutoLayout' | 'IsAbsoluteInAutoLayout' | 'IsAutoLayoutWrap' | 'TextStyleApplied' | 'NoTextStyleApplied' | 'IsNotInAutoLayout';
+export type SpecialCondition =
+  | 'IsAutoLayout'
+  | 'IsInAutoLayout'
+  | 'IsAbsoluteInAutoLayout'
+  | 'IsAutoLayoutWrap'
+  | 'IsGridLayout'
+  | 'HasInferredAutoLayout'
+  | 'HasInferredAutoLayoutWrap'
+  | 'TextStyleApplied'
+  | 'NoTextStyleApplied'
+  | 'IsNotInAutoLayout'
+  | 'HasParent'
+  | 'HasLayoutGrid'
+  | 'HasRowsOrColumnsLayoutGrid';
 
 export type ValueFormat = 'number' | 'hex' | 'string';
 
@@ -26,6 +39,8 @@ export type CommandWithValue = {
   suggestion: string;
   supportedNodes?: SupportedNodeType[];
   specialConditions?: SpecialCondition[];
+  selectionCount?: number;
+  selectionPredicate?: (selection: readonly SceneNode[]) => boolean;
   bindingSupport?: BindingSupport;
 };
 
@@ -36,6 +51,8 @@ export type CommandWithoutValue = {
   suggestion: string;
   supportedNodes?: SupportedNodeType[];
   specialConditions?: SpecialCondition[];
+  selectionCount?: number;
+  selectionPredicate?: (selection: readonly SceneNode[]) => boolean;
   bindingSupport?: BindingSupport;
 };
 
@@ -48,6 +65,8 @@ export type OptionalValueCommand = {
   functionWithParam: (value: string) => void;
   supportedNodes?: SupportedNodeType[];
   specialConditions?: SpecialCondition[];
+  selectionCount?: number;
+  selectionPredicate?: (selection: readonly SceneNode[]) => boolean;
   bindingSupport?: BindingSupport;
 };
 

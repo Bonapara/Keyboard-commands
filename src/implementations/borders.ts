@@ -2,90 +2,170 @@
 // Border Functions
 // ================================
 
-import { resolvePaintValue, resolveNumberValue } from '../utils';
+import { clearNodeBoundVariables, resolveNumberValue, resolveNumberVariable, resolvePaintValue, setNodeBoundVariable } from '../utils';
 import { DEFAULT_BORDER_WIDTH } from '../constants';
 
-// Helper function to get existing border style or create new one
-function getOrCreateBorder(node: SceneNode): Paint[] {
-  if ('strokes' in node && node.strokes.length > 0) {
-    // Create a new array from the readonly borders
-    return [...node.strokes];
-  }
-  return [{
-    type: 'SOLID' as const,
-    color: { r: 0, g: 0, b: 0 },
-    opacity: 1
-  }];
+type IndividualSide = 'left' | 'right' | 'top' | 'bottom';
+type Side = 'all' | IndividualSide;
+
+type StrokeNode = SceneNode & {
+  strokes: ReadonlyArray<Paint>;
+  strokeWeight: number | PluginAPI['mixed'];
+  strokeTopWeight: number;
+  strokeBottomWeight: number;
+  strokeLeftWeight: number;
+  strokeRightWeight: number;
+  strokeAlign: 'CENTER' | 'INSIDE' | 'OUTSIDE';
+};
+
+function isStrokeNode(node: SceneNode): node is StrokeNode {
+  return (
+    'strokes' in node &&
+    'strokeWeight' in node &&
+    'strokeLeftWeight' in node &&
+    'strokeRightWeight' in node &&
+    'strokeTopWeight' in node &&
+    'strokeBottomWeight' in node
+  );
 }
 
-export async function setBorder(side: 'all' | 'left' | 'right' | 'top' | 'bottom', width: string) {
+function getSideWeight(node: StrokeNode, side: IndividualSide): number {
+  switch (side) {
+    case 'left': return node.strokeLeftWeight;
+    case 'right': return node.strokeRightWeight;
+    case 'top': return node.strokeTopWeight;
+    case 'bottom': return node.strokeBottomWeight;
+  }
+}
+
+function setSideWeight(node: StrokeNode, side: IndividualSide, value: number): void {
+  switch (side) {
+    case 'left': node.strokeLeftWeight = value; break;
+    case 'right': node.strokeRightWeight = value; break;
+    case 'top': node.strokeTopWeight = value; break;
+    case 'bottom': node.strokeBottomWeight = value; break;
+  }
+}
+
+function sideBoundField(side: IndividualSide): 'strokeLeftWeight' | 'strokeRightWeight' | 'strokeTopWeight' | 'strokeBottomWeight' {
+  return `stroke${side.charAt(0).toUpperCase() + side.slice(1)}Weight` as
+    'strokeLeftWeight' | 'strokeRightWeight' | 'strokeTopWeight' | 'strokeBottomWeight';
+}
+
+function ensureStrokePaint(node: StrokeNode): void {
+  if (node.strokes.length === 0) {
+    node.strokes = [{
+      type: 'SOLID',
+      color: { r: 0, g: 0, b: 0 },
+      opacity: 1,
+    }];
+  }
+}
+
+// Figma exposes per-side weights only under INSIDE alignment. When flipping
+// from CENTER/OUTSIDE, seed each side with the previous uniform weight so the
+// visible border doesn't get wiped the first time we touch one side.
+function prepareIndividualSides(node: StrokeNode): void {
+  ensureStrokePaint(node);
+  if (node.strokeAlign !== 'INSIDE') {
+    const uniform = typeof node.strokeWeight === 'number' ? node.strokeWeight : 0;
+    node.strokeAlign = 'INSIDE';
+    if (uniform > 0) {
+      node.strokeTopWeight = uniform;
+      node.strokeBottomWeight = uniform;
+      node.strokeLeftWeight = uniform;
+      node.strokeRightWeight = uniform;
+    }
+  }
+}
+
+function anySideHasBorder(node: StrokeNode): boolean {
+  return (
+    node.strokeTopWeight > 0 ||
+    node.strokeBottomWeight > 0 ||
+    node.strokeLeftWeight > 0 ||
+    node.strokeRightWeight > 0
+  );
+}
+
+function firstNonZeroSideWeight(node: StrokeNode): number {
+  return (
+    node.strokeTopWeight ||
+    node.strokeBottomWeight ||
+    node.strokeLeftWeight ||
+    node.strokeRightWeight
+  );
+}
+
+// True when the node renders any visible border right now. Checks both uniform
+// (strokeAlign !== 'INSIDE') and per-side state — a uniform stroke can still be
+// visible even when all `strokeSideWeight` properties read as 0.
+function hasVisibleBorder(node: StrokeNode): boolean {
+  if (node.strokes.length === 0) return false;
+  if (node.strokeAlign === 'INSIDE') {
+    return anySideHasBorder(node);
+  }
+  return typeof node.strokeWeight === 'number' && node.strokeWeight > 0;
+}
+
+function sideHasBorder(node: StrokeNode, side: IndividualSide): boolean {
+  if (node.strokes.length === 0) return false;
+  if (node.strokeAlign === 'INSIDE') {
+    return getSideWeight(node, side) > 0;
+  }
+  return typeof node.strokeWeight === 'number' && node.strokeWeight > 0;
+}
+
+function zeroAllSides(node: StrokeNode): void {
+  node.strokeTopWeight = 0;
+  node.strokeBottomWeight = 0;
+  node.strokeLeftWeight = 0;
+  node.strokeRightWeight = 0;
+}
+
+export async function setBorder(side: Side, width: string) {
   const selection = figma.currentPage.selection;
   if (selection.length === 0) {
     throw new Error('No items selected');
   }
-  
+
   const resolution = await resolveNumberValue(width);
-  
+
   for (const node of selection) {
-    if (!('strokes' in node) || !('strokeWeight' in node) || 
-    !('strokeLeftWeight' in node) || !('strokeRightWeight' in node) || 
-    !('strokeTopWeight' in node) || !('strokeBottomWeight' in node)) {
+    if (!isStrokeNode(node)) continue;
+
+    if (side === 'all') {
+      ensureStrokePaint(node);
+      if (resolution.type === 'variable') {
+        const variable = await resolveNumberVariable(resolution);
+        clearNodeBoundVariables(node, 'strokeTopWeight', 'strokeRightWeight', 'strokeBottomWeight', 'strokeLeftWeight');
+        setNodeBoundVariable(node, 'strokeWeight', variable);
+      } else {
+        clearNodeBoundVariables(node, 'strokeWeight', 'strokeTopWeight', 'strokeRightWeight', 'strokeBottomWeight', 'strokeLeftWeight');
+        node.strokeWeight = resolution.value!;
+      }
       continue;
     }
-    
-    // If no strokes are set, initialize with all sides at 0
-    if (node.strokes.length === 0) {
-      node.strokes = getOrCreateBorder(node);
-      node.strokeAlign = 'INSIDE';
-      
-      // Reset all sides to 0
-      node.strokeLeftWeight = 0;
-      node.strokeRightWeight = 0;
-      node.strokeTopWeight = 0;
-      node.strokeBottomWeight = 0;
+
+    // Seed per-side state before first write, otherwise a fresh node with no
+    // strokes would either read default non-zero weights (bleeding into other
+    // sides) or need a separate "first time" branch.
+    const wasInvisible = !hasVisibleBorder(node);
+    prepareIndividualSides(node);
+    if (wasInvisible) {
+      zeroAllSides(node);
     }
-    
-    if (side !== 'all') {
-      node.strokeAlign = 'INSIDE';
-    }
-    
+
     if (resolution.type === 'variable') {
-      // Handle variable binding
-      let variableId = resolution.variableId!;
-      if (resolution.isLibraryVariable) {
-        const importedVar = await figma.variables.importVariableByKeyAsync(variableId);
-        variableId = importedVar.id;
-      }
-      const variable = await figma.variables.getVariableByIdAsync(variableId);
-      if (!variable) throw new Error('Variable not found');
-      
-      const boundField = side === 'all' ? 'strokeWeight' : `stroke${side.charAt(0).toUpperCase() + side.slice(1)}Weight` as
-        'strokeLeftWeight' | 'strokeRightWeight' | 'strokeTopWeight' | 'strokeBottomWeight';
-      
-      node.setBoundVariable(boundField, variable);
+      const variable = await resolveNumberVariable(resolution);
+      clearNodeBoundVariables(node, 'strokeWeight');
+      setNodeBoundVariable(node, sideBoundField(side), variable);
     } else {
-      // Handle literal value
-      const value = resolution.value!;
-      switch (side) {
-        case 'all':
-        node.strokeWeight = value;
-        break;
-        case 'left':
-        node.strokeLeftWeight = value;
-        break;
-        case 'right':
-        node.strokeRightWeight = value;
-        break;
-        case 'top':
-        node.strokeTopWeight = value;
-        break;
-        case 'bottom':
-        node.strokeBottomWeight = value;
-        break;
-      }
+      clearNodeBoundVariables(node, 'strokeWeight', sideBoundField(side));
+      setSideWeight(node, side, resolution.value!);
     }
   }
-  
+
   if (resolution.type === 'variable') {
     figma.notify(`${side.charAt(0).toUpperCase() + side.slice(1)} stroke bound to ${resolution.variableName}`);
   } else {
@@ -93,123 +173,46 @@ export async function setBorder(side: 'all' | 'left' | 'right' | 'top' | 'bottom
   }
 }
 
-export function toggleBorder(side: 'all' | 'left' | 'right' | 'top' | 'bottom') {
+export function toggleBorder(side: Side) {
   const selection = figma.currentPage.selection;
   if (selection.length === 0) {
     throw new Error('No items selected');
   }
-  
+
   for (const node of selection) {
-    if (!('strokes' in node) || !('strokeWeight' in node) ||
-    !('strokeLeftWeight' in node) || !('strokeRightWeight' in node) ||
-    !('strokeTopWeight' in node) || !('strokeBottomWeight' in node)) {
-      continue;
-    }
-    
-    // Handle 'all' separately
+    if (!isStrokeNode(node)) continue;
+
     if (side === 'all') {
-      if (node.strokes.length === 0 || node.strokeWeight === 0)
-        {
-        node.strokes = getOrCreateBorder(node);
-        node.strokeWeight = DEFAULT_BORDER_WIDTH;
-      } else {
+      clearNodeBoundVariables(node, 'strokeWeight', 'strokeTopWeight', 'strokeRightWeight', 'strokeBottomWeight', 'strokeLeftWeight');
+      if (hasVisibleBorder(node)) {
         node.strokes = [];
-      }
-      continue;
-    }
-    
-    // If no strokes are set, this means no visible stroke. 
-    // Set all sides to 0, then apply stroke to the toggled side.
-    const noVisibleBorder = (node.strokes.length === 0 || node.strokeWeight === 0);
-    
-    if (noVisibleBorder) {
-      node.strokes = getOrCreateBorder(node);
-      node.strokeAlign = 'INSIDE';
-      
-      node.strokeLeftWeight = 0;
-      node.strokeRightWeight = 0;
-      node.strokeTopWeight = 0;
-      node.strokeBottomWeight = 0;
-      
-      // Since we know there's no visible stroke, just set this side to 1
-      switch (side) {
-        case 'left':
-        node.strokeLeftWeight = DEFAULT_BORDER_WIDTH;
-        break;
-        case 'right':
-        node.strokeRightWeight = DEFAULT_BORDER_WIDTH;
-        break;
-        case 'top':
-        node.strokeTopWeight = DEFAULT_BORDER_WIDTH;
-        break;
-        case 'bottom':
-        node.strokeBottomWeight = DEFAULT_BORDER_WIDTH;
-        break;
-      }
-      
-      figma.notify(`${side.charAt(0).toUpperCase() + side.slice(1)} stroke toggled`);
-      continue;
-    }
-    
-    // If we reach here, some stroke exists. Toggle on/off this side without affecting others.
-    node.strokeAlign = 'INSIDE';
-    
-    const currentWeight = (() => {
-      switch (side) {
-        case 'left': return node.strokeLeftWeight;
-        case 'right': return node.strokeRightWeight;
-        case 'top': return node.strokeTopWeight;
-        case 'bottom': return node.strokeBottomWeight;
-      }
-    })();
-    
-    const hasAnyBorder =
-    node.strokeLeftWeight > 0 ||
-    node.strokeRightWeight > 0 ||
-    node.strokeTopWeight > 0 ||
-    node.strokeBottomWeight > 0;
-    
-    let newWidth: number;
-    if (currentWeight > 0) {
-      // This side currently has a border, remove it
-      newWidth = 0;
-    } else {
-      // This side has no border currently
-      if (!hasAnyBorder) {
-        // If somehow no border is set (shouldn't happen here because we handled noVisibleBorder above),
-        // just set this side to 1.
-        newWidth = DEFAULT_BORDER_WIDTH;
       } else {
-        // Some other side has a border, match its thickness
-        const widths = [
-          node.strokeLeftWeight,
-          node.strokeRightWeight,
-          node.strokeTopWeight,
-          node.strokeBottomWeight
-        ].filter(w => w > 0);
-        const existingWidth = widths[0] || DEFAULT_BORDER_WIDTH;
-        newWidth = existingWidth;
+        ensureStrokePaint(node);
+        node.strokeWeight = DEFAULT_BORDER_WIDTH;
       }
+      continue;
     }
-    
-    // Apply the new width
-    switch (side) {
-      case 'left':
-      node.strokeLeftWeight = newWidth;
-      break;
-      case 'right':
-      node.strokeRightWeight = newWidth;
-      break;
-      case 'top':
-      node.strokeTopWeight = newWidth;
-      break;
-      case 'bottom':
-      node.strokeBottomWeight = newWidth;
-      break;
+
+    // Capture visibility BEFORE mutating strokeAlign — flipping to INSIDE can
+    // reseed per-side weights, making the pre-change intent unreadable.
+    const hadBorderAnywhere = hasVisibleBorder(node);
+    const hadBorderOnSide = sideHasBorder(node, side);
+
+    prepareIndividualSides(node);
+    clearNodeBoundVariables(node, 'strokeWeight', sideBoundField(side));
+
+    if (!hadBorderAnywhere) {
+      zeroAllSides(node);
+      setSideWeight(node, side, DEFAULT_BORDER_WIDTH);
+    } else if (hadBorderOnSide) {
+      setSideWeight(node, side, 0);
+    } else {
+      const width = firstNonZeroSideWeight(node) || DEFAULT_BORDER_WIDTH;
+      setSideWeight(node, side, width);
     }
-    
-    figma.notify(`${side.charAt(0).toUpperCase() + side.slice(1)} border toggled`);
   }
+
+  figma.notify(`${side.charAt(0).toUpperCase() + side.slice(1)} border toggled`);
 }
 
 export function setBorderAlign(alignment: 'CENTER' | 'INSIDE' | 'OUTSIDE') {
@@ -217,17 +220,14 @@ export function setBorderAlign(alignment: 'CENTER' | 'INSIDE' | 'OUTSIDE') {
   if (selection.length === 0) {
     throw new Error('No items selected');
   }
-  
+
   for (const node of selection) {
-    // Check if the node supports border alignment
     if (!('strokeAlign' in node)) {
       continue;
     }
-    
-    // Set the border alignment
     node.strokeAlign = alignment;
   }
-  
+
   figma.notify(`Border alignment set to ${alignment.toLowerCase()}`);
 }
 
@@ -244,17 +244,17 @@ export async function setBorderColor(value: string) {
       switch (resolution.type) {
         case 'style': {
           if (!resolution.styleKey) break;
-          
+
           const localStyles = await figma.getLocalPaintStylesAsync();
           let style: PaintStyle | undefined = localStyles.find(s => s.key === resolution.styleKey);
-          
+
           if (!style) {
             const importedStyle = await figma.importStyleByKeyAsync(resolution.styleKey);
             if (importedStyle.type === 'PAINT') {
               style = importedStyle as PaintStyle;
             }
           }
-          
+
           if (style) {
             await node.setStrokeStyleIdAsync(style.id);
           }
@@ -262,14 +262,13 @@ export async function setBorderColor(value: string) {
         }
 
         case 'variable': {
-          // Import library variable if needed
           let variableId = resolution.variableId!;
-          
+
           if (resolution.isLibraryVariable) {
             const importedVar = await figma.variables.importVariableByKeyAsync(variableId);
             variableId = importedVar.id;
           }
-          
+
           const variable = await figma.variables.getVariableByIdAsync(variableId);
           if (!variable) throw new Error('Variable not found');
 
@@ -302,4 +301,3 @@ export async function setBorderColor(value: string) {
 
   figma.notify('Stroke color applied successfully');
 }
-

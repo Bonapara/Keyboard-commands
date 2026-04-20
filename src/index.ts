@@ -5,9 +5,10 @@ import {
   getCommandSuggestions,
   extractValue,
   calculateExpression,
-  checkSpecialConditions,
+  isCommandAvailableForSelection,
   VALUE_FORMAT_REGEX,
   COMMAND_SPLITTER_REGEX,
+  COMMAND_PART_REGEX,
   COMMAND_BREAK_PATTERN,
   searchStylesAndVariables
 } from './utils';
@@ -20,9 +21,45 @@ import {
 } from './command-execution-plan';
 import { searchLibraries } from './implementations/library';
 import { recordRecentValue, getRecentValues } from './recent-values';
+import { getHistory, recordHistory } from './history';
 import * as impl from './implementations';
 
+const HISTORY_COMMAND_NAME = 'History';
+const PRISTINE_HISTORY_COUNT = 3;
+
+// True when the input is a single token that resolves to the History command
+// (e.g. "hi", "history", or partial typings like "hist" — anything findCommand
+// would map to History on its own).
+function isHistoryInvocation(input: string): boolean {
+  const trimmed = input.trim();
+  if (!trimmed || trimmed.includes(' ')) return false;
+  return findCommand(trimmed)[0]?.name === HISTORY_COMMAND_NAME;
+}
+
 let originalInput = '';
+
+function findCommandIgnoringSelection(part: string): (typeof COMMANDS)[0] | undefined {
+  const commandPart = part.match(COMMAND_PART_REGEX)?.[0];
+  if (!commandPart) return undefined;
+
+  const cmdLower = commandPart.toLowerCase();
+
+  const exactAlias = COMMANDS.find(cmd =>
+    cmd.alias.some(alias => alias.toLowerCase() === cmdLower)
+  );
+  if (exactAlias) return exactAlias;
+
+  const exactName = COMMANDS.find(cmd => cmd.name.toLowerCase() === cmdLower);
+  if (exactName) return exactName;
+
+  return COMMANDS.find(cmd =>
+    cmd.name.toLowerCase().startsWith(cmdLower) ||
+    cmd.alias.some(alias => alias.toLowerCase().startsWith(cmdLower))
+  ) || COMMANDS.find(cmd =>
+    cmd.name.toLowerCase().includes(cmdLower) ||
+    cmd.alias.some(alias => alias.toLowerCase().includes(cmdLower))
+  );
+}
 
 function getSuggestionDataKey(item: string | { data: unknown }): string | null {
   if (typeof item === 'string') return item;
@@ -117,12 +154,15 @@ function trackCommandsFromSegment(
   segment: string,
   isBindingSegment: boolean,
   bindingAlias?: string,
-  bindingValue?: string
+  bindingValue?: string,
+  ignoreSelection: boolean = false
 ): Record<string, string> {
   const commands: Record<string, string> = {};
 
   if (isBindingSegment && bindingAlias && bindingValue !== undefined) {
-    const matchedBindingCmd = findCommand(bindingAlias)[0];
+    const matchedBindingCmd = ignoreSelection
+      ? findCommandIgnoringSelection(bindingAlias)
+      : findCommand(bindingAlias)[0];
     if (matchedBindingCmd) {
       let formattedValue = bindingValue.trim();
 
@@ -146,7 +186,9 @@ function trackCommandsFromSegment(
   // Process simple commands from the segment
   const parts = segment.split(COMMAND_SPLITTER_REGEX).filter(Boolean);
   parts.forEach(part => {
-    const matchedCommand = findCommand(part)[0];
+    const matchedCommand = ignoreSelection
+      ? findCommandIgnoringSelection(part)
+      : findCommand(part)[0];
     if (matchedCommand) {
       if (matchedCommand.type === 'commandWithoutValue') {
         commands[matchedCommand.name] = '';
@@ -369,16 +411,67 @@ function buildSuggestionSummary(previousCommands: Record<string, string>): strin
   );
 }
 
+function summarizeHistoryPiece(piece: string): string {
+  const tracked = trackCommandsFromSegment(piece, false, undefined, undefined, true);
+  const parts = buildSuggestionSummary(tracked);
+  return parts.length > 0 ? parts.join(' | ') : piece.trim();
+}
+
+function normalizeHistorySequenceForReplay(commandString: string): string {
+  if (!commandString.includes('|')) {
+    return commandString;
+  }
+
+  const normalizedParts = commandString
+    .split('|')
+    .map(piece => summarizeHistoryPiece(piece))
+    .filter(Boolean);
+
+  return normalizedParts.length > 0 ? normalizedParts.join(' ') : commandString;
+}
+
+function summarizeExecutionStep(step: ReturnType<typeof buildExecutionPlan>[number]): string {
+  const tracked = step.kind === 'binding'
+    ? trackCommandsFromSegment('', true, step.parsed.alias, step.parsed.value, true)
+    : trackCommandsFromSegment(step.command, false, undefined, undefined, true);
+  const parts = buildSuggestionSummary(tracked);
+
+  if (parts.length > 0) {
+    return parts.join(' | ');
+  }
+
+  return step.kind === 'binding'
+    ? `${step.parsed.alias}:${step.parsed.value.trim()}`
+    : step.command;
+}
+
 // Handle normal mode suggestions (space-separated commands)
-function handleNormalMode(
+async function handleNormalMode(
   query: string,
   currentPart: string,
   previousCommands: Record<string, string>,
   result: ParameterInputEvent['result']
-): void {
+): Promise<void> {
   // If query is empty or ends with space, show all commands
   if (!query || query.endsWith(' ')) {
-    result.setSuggestions(getCommandSuggestions(COMMANDS, '', undefined, true, previousCommands));
+    const baseSuggestions = getCommandSuggestions(COMMANDS, '', undefined, true, previousCommands);
+
+    // Pristine input — prepend the top N recent sequences so users can re-run
+    // any of them with one click. Skip mid-chain so suggestions stay focused
+    // on what's next.
+    if (!query.trim()) {
+      const history = await getHistory();
+      const recentItems = history.slice(0, PRISTINE_HISTORY_COUNT).map(entry => ({
+        name: `↻ ${summarizeHistorySequence(entry)}`,
+        data: normalizeHistorySequenceForReplay(entry),
+      }));
+      if (recentItems.length > 0) {
+        result.setSuggestions([...recentItems, ...baseSuggestions]);
+        return;
+      }
+    }
+
+    result.setSuggestions(baseSuggestions);
     return;
   }
 
@@ -392,6 +485,41 @@ function handleNormalMode(
   } else {
     handleUnmatchedCommand(currentPart, result);
   }
+}
+
+// Render a saved sequence ("hf vf", "f?blue", "w100  h200") as a human-readable
+// recap ("HorizontalFill | VerticalFill", "Fill:blue", "Width:100 | Height:200")
+// while preserving the original execution order of the chain.
+function summarizeHistorySequence(commandString: string): string {
+  if (commandString.includes('|')) {
+    const legacyParts = commandString
+      .split('|')
+      .map(piece => summarizeHistoryPiece(piece))
+      .filter(Boolean);
+    return legacyParts.length > 0 ? legacyParts.join(' | ') : commandString;
+  }
+
+  const segments = commandString.split(COMMAND_BREAK_PATTERN);
+  const steps = buildExecutionPlan(segments);
+  const parts = steps.map(summarizeExecutionStep).filter(Boolean);
+  return parts.length > 0 ? parts.join(' | ') : commandString;
+}
+
+// Show recent command sequences as suggestions for the History command.
+async function handleHistoryCommand(
+  result: ParameterInputEvent['result']
+): Promise<void> {
+  const history = await getHistory();
+  if (history.length === 0) {
+    result.setSuggestions(['No history yet — run any command first']);
+    return;
+  }
+  result.setSuggestions(
+    history.map(entry => ({
+      name: summarizeHistorySequence(entry),
+      data: normalizeHistorySequenceForReplay(entry),
+    }))
+  );
 }
 
 // Handle suggestions when a command is matched
@@ -478,13 +606,7 @@ function handleUnmatchedCommand(currentPart: string, result: ParameterInputEvent
 
   // Check if matching commands are valid for current selection
   const selection = figma.currentPage.selection;
-  const available = allMatching.filter(cmd => {
-    const supportsNodes = !cmd.supportedNodes || selection.length === 0 ||
-      selection.every(node => cmd.supportedNodes!.includes(node.type));
-    const meetsConditions = !cmd.specialConditions || selection.length === 0 ||
-      selection.every(node => checkSpecialConditions(node, cmd.specialConditions!));
-    return supportsNodes && meetsConditions;
-  });
+  const available = allMatching.filter(cmd => isCommandAvailableForSelection(cmd, selection));
 
   if (available.length === 0) {
     result.setSuggestions(allMatching.map(cmd => `'${cmd.name}' not available on selection`));
@@ -515,12 +637,20 @@ function setupInputHandler() {
     // Try binding mode first
     if (await handleBindingMode(currentSegment, result)) return;
 
+    // History command shows recent sequences instead of related commands.
+    // Only trigger when the History command is the entire input — chains like
+    // "w100  hi" should not hijack suggestions.
+    if (previousSegments.length === 0 && isHistoryInvocation(currentSegment)) {
+      await handleHistoryCommand(result);
+      return;
+    }
+
     // Normal mode
     const parts = currentSegment.split(' ');
     const currentPart = parts[parts.length - 1];
     const previousCommands = trackPreviousCommands(previousSegments, parts.slice(0, -1));
 
-    handleNormalMode(query, currentPart, previousCommands, result);
+    await handleNormalMode(query, currentPart, previousCommands, result);
   };
 
   figma.parameters.on('input', currentInputHandler);
@@ -540,6 +670,29 @@ figma.on('run', async (parameters) => {
   // This handles cases where suggestion data includes " -- description" format
   commandString = commandString.split(' -- ')[0];
 
+  // History replay: the user picked a saved sequence (either from the `hi`
+  // dropdown or from the "↻ recap" entry in the empty-input list). In both
+  // cases the dropdown value IS the entire commandString — we must NOT pass it
+  // down to executeBindingCommand (for "f?blue" it would be mistaken for a
+  // resolved style name). Empty params force auto-resolution.
+  const selectedValue = parameters.parameters?.command;
+  const isHistoryReplay =
+    (isHistoryInvocation(originalInput) && !isHistoryInvocation(commandString)) ||
+    (!!selectedValue && selectedValue === commandString && commandString !== originalInput.trim());
+  const runParameters = isHistoryReplay ? {} : parameters.parameters || {};
+
+  // If user invoked "hi" without picking anything, surface why nothing happens.
+  if (isHistoryInvocation(commandString)) {
+    const history = await getHistory();
+    figma.notify(
+      history.length === 0
+        ? 'No history yet — run any command first'
+        : 'Pick a recent sequence from the suggestions'
+    );
+    figma.closePlugin();
+    return;
+  }
+
   // Parse command chain (e.g., "w100  h200  f?blue" → 3 segments)
   const segments = commandString.split(COMMAND_BREAK_PATTERN);
 
@@ -556,12 +709,19 @@ figma.on('run', async (parameters) => {
       } else {
         await executeBindingCommand(
           step.parsed,
-          parameters.parameters || {},
+          runParameters,
           totalBindings === 1,
           bindingIndex === totalBindings - 1
         );
         bindingIndex += 1;
       }
+    }
+
+    // Record the sequence so it appears in `hi`. Skip if the chain leads with
+    // History so the no-op invocation doesn't pollute its own list.
+    const leadCommand = findCommand(commandString)[0];
+    if (commandString && leadCommand?.name !== HISTORY_COMMAND_NAME) {
+      await recordHistory(commandString, summarizeHistorySequence);
     }
 
     figma.closePlugin();

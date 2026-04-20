@@ -13,6 +13,44 @@ import { searchSelectionColors } from './implementations/colors';
 
 export { COMMAND_SPLITTER_REGEX, COMMAND_BREAK_PATTERN, COMMAND_PART_REGEX, VALUE_FORMAT_REGEX };
 
+export type BindableField =
+  | 'itemSpacing'
+  | 'counterAxisSpacing'
+  | 'paddingLeft'
+  | 'paddingRight'
+  | 'paddingTop'
+  | 'paddingBottom'
+  | 'strokeWeight'
+  | 'strokeTopWeight'
+  | 'strokeRightWeight'
+  | 'strokeBottomWeight'
+  | 'strokeLeftWeight'
+  | 'opacity'
+  | 'minWidth'
+  | 'maxWidth'
+  | 'minHeight'
+  | 'maxHeight'
+  | 'gridRowGap'
+  | 'gridColumnGap'
+  | 'letterSpacing'
+  | 'lineHeight'
+  | 'paragraphSpacing'
+  | 'paragraphIndent';
+
+type VariableBindableNodeLike = SceneNode & {
+  setBoundVariable?: (field: BindableField, variable: Variable | null) => void;
+};
+
+export function setNodeBoundVariable(node: SceneNode, field: BindableField, variable: Variable | null): void {
+  (node as VariableBindableNodeLike).setBoundVariable?.(field, variable);
+}
+
+export function clearNodeBoundVariables(node: SceneNode, ...fields: BindableField[]): void {
+  for (const field of fields) {
+    setNodeBoundVariable(node, field, null);
+  }
+}
+
 // ================================
 // Command Index for O(1) Lookups
 // ================================
@@ -58,7 +96,8 @@ export function checkSpecialConditions(node: SceneNode, conditions: SpecialCondi
   return conditions.some(condition => {
     switch (condition) {
       case 'IsAutoLayout':
-        return 'layoutMode' in node && node.layoutMode !== 'NONE';
+        return 'layoutMode' in node &&
+          (node.layoutMode === 'HORIZONTAL' || node.layoutMode === 'VERTICAL');
       case 'IsInAutoLayout':
         return node.parent && 'layoutMode' in node.parent && node.parent.layoutMode !== 'NONE';
       case 'IsAbsoluteInAutoLayout':
@@ -78,8 +117,24 @@ export function checkSpecialConditions(node: SceneNode, conditions: SpecialCondi
 
       case 'IsNotInAutoLayout':
         return node.parent && 'layoutMode' in node.parent && node.parent.layoutMode === 'NONE';
+      case 'HasParent':
+        return !!node.parent;
+      case 'HasLayoutGrid':
+        return 'layoutGrids' in node && node.layoutGrids.length > 0;
+      case 'HasRowsOrColumnsLayoutGrid':
+        return 'layoutGrids' in node && node.layoutGrids.some(grid =>
+          grid.pattern === 'COLUMNS' || grid.pattern === 'ROWS'
+        );
       case 'IsAutoLayoutWrap':
         return 'layoutMode' in node && node.layoutMode !== 'NONE' && 'layoutWrap' in node && node.layoutWrap === 'WRAP';
+      case 'IsGridLayout':
+        return 'layoutMode' in node && node.layoutMode === 'GRID';
+      case 'HasInferredAutoLayout':
+        return node.type === 'FRAME' && node.inferredAutoLayout != null;
+      case 'HasInferredAutoLayoutWrap':
+        return node.type === 'FRAME' &&
+          node.inferredAutoLayout != null &&
+          node.inferredAutoLayout.layoutWrap === 'WRAP';
       default:
         return false;
     }
@@ -87,11 +142,14 @@ export function checkSpecialConditions(node: SceneNode, conditions: SpecialCondi
 }
 
 // Helper function to check if command supports current selection
-function supportsCurrentSelection(cmd: Command, selection: readonly SceneNode[]): boolean {
-  if (!cmd.supportedNodes && !cmd.specialConditions) return true;
+export function isCommandAvailableForSelection(cmd: Command, selection: readonly SceneNode[]): boolean {
+  if (!cmd.supportedNodes && !cmd.specialConditions && cmd.selectionCount === undefined && !cmd.selectionPredicate) {
+    return true;
+  }
   if (selection.length === 0) return true;
 
   // Check both supportedNodes and specialConditions
+  const matchesSelectionCount = cmd.selectionCount === undefined || selection.length === cmd.selectionCount;
   const supportsNodeTypes = !cmd.supportedNodes || selection.every(node =>
     cmd.supportedNodes!.indexOf(node.type) !== -1
   );
@@ -99,8 +157,9 @@ function supportsCurrentSelection(cmd: Command, selection: readonly SceneNode[])
   const meetsSpecialConditions = !cmd.specialConditions || selection.every(node =>
     checkSpecialConditions(node, cmd.specialConditions!)
   );
+  const matchesSelectionPredicate = !cmd.selectionPredicate || cmd.selectionPredicate(selection);
 
-  return supportsNodeTypes && meetsSpecialConditions;
+  return matchesSelectionCount && supportsNodeTypes && meetsSpecialConditions && matchesSelectionPredicate;
 }
 
 export function findCommand(part: string): Array<Command & { name: CommandName }> {
@@ -118,14 +177,14 @@ export function findCommand(part: string): Array<Command & { name: CommandName }
 
   // O(1) lookup: Check for exact alias match first
   const exactMatch = aliasToCommand!.get(cmdLower);
-  if (exactMatch && supportsCurrentSelection(exactMatch, selection)) {
-    return [exactMatch];
+  if (exactMatch) {
+    return isCommandAvailableForSelection(exactMatch, selection) ? [exactMatch] : [];
   }
 
   // O(1) lookup: Check for exact name match
   const nameMatch = nameToCommand!.get(cmdLower);
-  if (nameMatch && supportsCurrentSelection(nameMatch, selection)) {
-    return [nameMatch];
+  if (nameMatch) {
+    return isCommandAvailableForSelection(nameMatch, selection) ? [nameMatch] : [];
   }
 
   // Fallback to prefix/contains search only when no exact match
@@ -134,7 +193,7 @@ export function findCommand(part: string): Array<Command & { name: CommandName }
   const containsMatches: CommandWithName[] = [];
 
   for (const cmd of COMMANDS) {
-    if (!supportsCurrentSelection(cmd, selection)) continue;
+    if (!isCommandAvailableForSelection(cmd, selection)) continue;
 
     const nameLower = cmd.name.toLowerCase();
     const aliases = allAliasesByCommand!.get(cmd.name) || [];
@@ -193,20 +252,7 @@ export function getCommandSuggestions(
   const filteredCommands = commands.filter(cmd => {
     // Exclude the specific command (so it doesn't show up as a "related" suggestion to itself)
     if (excludeCommand && cmd.name === excludeCommand.name) return false;
-
-    // Check specialConditions (e.g. IsAutoLayout, etc.)
-    if (cmd.specialConditions && selection.length > 0) {
-      if (!selection.every(node => checkSpecialConditions(node, cmd.specialConditions!))) {
-        return false;
-      }
-    }
-
-    // Check supportedNodes if selection exists
-    if (cmd.supportedNodes && selection.length > 0) {
-      if (!selection.every(node => cmd.supportedNodes!.indexOf(node.type) !== -1)) {
-        return false;
-      }
-    }
+    if (!isCommandAvailableForSelection(cmd, selection)) return false;
 
     // If the user typed nothing (searchTerm is empty):
     // - For the initial top-level suggestions, we return all commands.
@@ -1263,4 +1309,21 @@ export async function resolveNumberValue(rawValue: string): Promise<NumberResolu
   }
 
   return { type: 'literal', value, unit: isPercentage ? 'PERCENT' : 'PIXELS' };
+}
+
+export async function resolveNumberVariable(resolution: NumberResolution): Promise<Variable> {
+  if (resolution.type !== 'variable' || !resolution.variableId) {
+    throw new Error('Expected a variable-backed number resolution');
+  }
+
+  let variableId = resolution.variableId;
+  if (resolution.isLibraryVariable) {
+    const importedVar = await figma.variables.importVariableByKeyAsync(variableId);
+    if (!importedVar) throw new Error('Variable not found');
+    variableId = importedVar.id;
+  }
+
+  const variable = await figma.variables.getVariableByIdAsync(variableId);
+  if (!variable) throw new Error('Variable not found');
+  return variable;
 }

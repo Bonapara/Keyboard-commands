@@ -54,6 +54,220 @@ function createDualColorSwatchSVG(rgbA: RGB, rgbB: RGB): string {
 </svg>`;
 }
 
+function cleanColorReferenceName(value: string): string {
+    return value.split(' (')[0].trim();
+}
+
+function createColorInfoKey(color: { rgb: RGB; bindingType: ColorInfo['bindingType']; key?: string; name?: string }): string {
+    return `${color.rgb.r},${color.rgb.g},${color.rgb.b},${color.bindingType},${color.key || color.name || 'literal'}`;
+}
+
+function findMatchingSelectionColor(colors: ColorInfo[], value: string): ColorInfo | undefined {
+    const cleanedValue = cleanColorReferenceName(value);
+    const lowerValue = cleanedValue.toLowerCase();
+
+    let match = colors.find(c => {
+        const cleanedName = c.name ? cleanColorReferenceName(c.name) : '';
+        const hex = rgbToHex(c.rgb).toLowerCase();
+
+        if (c.name && cleanedName === cleanedValue) return true;
+        if (c.bindingType === 'literal' && hex === lowerValue) return true;
+        return false;
+    });
+
+    if (!match) {
+        match = colors.find(c => c.name && cleanColorReferenceName(c.name).toLowerCase().includes(lowerValue));
+    }
+
+    return match;
+}
+
+function resolutionFromSelectionColor(color: ColorInfo): PaintResolution {
+    if (color.bindingType === 'style' && color.key) {
+        return {
+            type: 'style',
+            styleKey: color.key,
+            styleName: color.name,
+            styleType: 'PAINT'
+        };
+    }
+
+    if (color.bindingType === 'variable' && color.key) {
+        return {
+            type: 'variable',
+            variableId: color.key,
+            variableName: color.name,
+            isLibraryVariable: false
+        };
+    }
+
+    return {
+        type: 'literal',
+        color: color.rgb
+    };
+}
+
+async function normalizePaintResolution(resolution: PaintResolution): Promise<PaintResolution> {
+    if (resolution.type !== 'variable' || !resolution.isLibraryVariable) {
+        return resolution;
+    }
+
+    const importedVar = await figma.variables.importVariableByKeyAsync(resolution.variableId!);
+    if (!importedVar) {
+        throw new Error(`Variable not found: ${resolution.variableName || resolution.variableId}`);
+    }
+
+    return {
+        ...resolution,
+        variableId: importedVar.id,
+        isLibraryVariable: false
+    };
+}
+
+async function resolvePaintResolutionColor(resolution: PaintResolution): Promise<{ rgb: RGB | null; resolution: PaintResolution }> {
+    const normalizedResolution = await normalizePaintResolution(resolution);
+
+    if (normalizedResolution.type === 'literal') {
+        return {
+            rgb: normalizedResolution.color!,
+            resolution: normalizedResolution
+        };
+    }
+
+    if (normalizedResolution.type === 'variable') {
+        const variable = await figma.variables.getVariableByIdAsync(normalizedResolution.variableId!);
+        if (variable && variable.resolvedType === 'COLOR') {
+            const modeId = Object.keys(variable.valuesByMode)[0];
+            if (modeId) {
+                const value = variable.valuesByMode[modeId];
+                if (value && typeof value === 'object' && 'r' in value) {
+                    return {
+                        rgb: value as RGB,
+                        resolution: normalizedResolution
+                    };
+                }
+            }
+        }
+
+        return {
+            rgb: null,
+            resolution: normalizedResolution
+        };
+    }
+
+    const localStyles = await figma.getLocalPaintStylesAsync();
+    let style = localStyles.find(s => s.key === normalizedResolution.styleKey);
+
+    if (!style) {
+        const importedStyle = await figma.importStyleByKeyAsync(normalizedResolution.styleKey!);
+        if (importedStyle.type === 'PAINT') {
+            style = importedStyle as PaintStyle;
+        }
+    }
+
+    if (!style) {
+        return {
+            rgb: null,
+            resolution: normalizedResolution
+        };
+    }
+
+    for (const paint of style.paints) {
+        if (paint.type === 'SOLID') {
+            return {
+                rgb: paint.color,
+                resolution: normalizedResolution
+            };
+        }
+    }
+
+    return {
+        rgb: null,
+        resolution: normalizedResolution
+    };
+}
+
+function paintMatchesSource(
+    paint: Paint,
+    sourceRGB: RGB,
+    sourceResolution: PaintResolution,
+    nodeStyleKey: string | null
+): boolean {
+    if (paint.type !== 'SOLID' || !colorsMatch(paint.color, sourceRGB)) {
+        return false;
+    }
+
+    const solidPaint = paint as SolidPaint;
+
+    if (sourceResolution.type === 'literal') {
+        return !nodeStyleKey && !solidPaint.boundVariables?.color;
+    }
+
+    if (sourceResolution.type === 'variable') {
+        return solidPaint.boundVariables?.color?.id === sourceResolution.variableId;
+    }
+
+    return nodeStyleKey === sourceResolution.styleKey;
+}
+
+function createNodeStyleKeyResolver() {
+    const styleKeyCache = new Map<string, string | null>();
+
+    return async (node: SceneNode, property: 'fill' | 'stroke'): Promise<string | null> => {
+        const styleId = property === 'fill'
+            ? ('fillStyleId' in node && typeof node.fillStyleId === 'string' ? node.fillStyleId : '')
+            : ('strokeStyleId' in node && typeof node.strokeStyleId === 'string' ? node.strokeStyleId : '');
+
+        if (!styleId) {
+            return null;
+        }
+
+        if (styleKeyCache.has(styleId)) {
+            return styleKeyCache.get(styleId) ?? null;
+        }
+
+        const style = await figma.getStyleByIdAsync(styleId).catch(() => null);
+        const styleKey = style && style.type === 'PAINT' ? style.key : null;
+        styleKeyCache.set(styleId, styleKey);
+        return styleKey;
+    };
+}
+
+async function buildReplacementPaint(paint: Paint, resolution: PaintResolution): Promise<Paint> {
+    const normalizedResolution = await normalizePaintResolution(resolution);
+
+    switch (normalizedResolution.type) {
+        case 'style':
+            return paint;
+        case 'variable': {
+            const variable = await figma.variables.getVariableByIdAsync(normalizedResolution.variableId!);
+            if (variable && paint.type === 'SOLID') {
+                return figma.variables.setBoundVariableForPaint(paint as SolidPaint, 'color', variable);
+            }
+            return paint;
+        }
+        case 'literal':
+            return { type: 'SOLID', color: normalizedResolution.color! };
+    }
+}
+
+async function applyStyleToNode(node: SceneNode, styleKey: string, property: 'fill' | 'stroke') {
+    const localStyles = await figma.getLocalPaintStylesAsync();
+    let style = localStyles.find(s => s.key === styleKey);
+
+    if (!style) {
+        const importedStyle = await figma.importStyleByKeyAsync(styleKey);
+        if (importedStyle.type === 'PAINT') {
+            style = importedStyle as PaintStyle;
+        }
+    }
+
+    if (style) {
+        if (property === 'fill' && 'fillStyleId' in node) await node.setFillStyleIdAsync(style.id);
+        if (property === 'stroke' && 'strokeStyleId' in node) await node.setStrokeStyleIdAsync(style.id);
+    }
+}
+
 async function extractColorFromPaint(paint: Paint): Promise<{ rgb: RGB; bindingType: 'style' | 'variable' | 'literal'; name?: string; key?: string } | null> {
     if (paint.type !== 'SOLID' || paint.visible === false) {
         return null;
@@ -147,7 +361,7 @@ async function extractColorsFromNode(node: SceneNode, colorMap: Map<string, Colo
                     colorInfo.key = fillStyleKey;
                 }
 
-                const key = `${colorInfo.rgb.r},${colorInfo.rgb.g},${colorInfo.rgb.b},${colorInfo.bindingType},${colorInfo.key || colorInfo.name || 'literal'}`;
+                const key = createColorInfoKey(colorInfo);
 
                 if (colorMap.has(key)) {
                     const existing = colorMap.get(key)!;
@@ -197,7 +411,7 @@ async function extractColorsFromNode(node: SceneNode, colorMap: Map<string, Colo
                     colorInfo.key = strokeStyleKey;
                 }
 
-                const key = `${colorInfo.rgb.r},${colorInfo.rgb.g},${colorInfo.rgb.b},${colorInfo.bindingType},${colorInfo.key || colorInfo.name || 'literal'}`;
+                const key = createColorInfoKey(colorInfo);
 
                 if (colorMap.has(key)) {
                     const existing = colorMap.get(key)!;
@@ -377,109 +591,19 @@ export async function swapSelectionColors(value: string) {
     let sourceRGB: RGB | null = null;
     let sourceResolution: PaintResolution;
 
-    // Helper to strip metadata from name for comparison
-    const cleanName = (name: string) => name.split(' (')[0].trim();
-
-    // Clean the source value as well, as it might come with metadata (e.g. "Name (Variable)")
-    const cleanedSourceValue = cleanName(sourceValue);
-
-    let matchingColor = uniqueColors.find(c => {
-        const cleaned = c.name ? cleanName(c.name) : '';
-        const hex = rgbToHex(c.rgb).toLowerCase();
-
-        if (c.name && cleaned === cleanedSourceValue) return true;
-        if (c.bindingType === 'literal' && hex === cleanedSourceValue.toLowerCase()) return true;
-        return false;
-    });
-
-    // If no exact match, try fuzzy match (case-insensitive substring)
-    if (!matchingColor) {
-        const lowerSource = cleanedSourceValue.toLowerCase();
-        matchingColor = uniqueColors.find(c => {
-            if (c.name) {
-                const cleaned = cleanName(c.name).toLowerCase();
-                return cleaned.includes(lowerSource);
-            }
-            return false;
-        });
-    }
+    const matchingColor = findMatchingSelectionColor(uniqueColors, sourceValue);
 
     if (matchingColor) {
         sourceRGB = matchingColor.rgb;
-
-        if (matchingColor.bindingType === 'style' && matchingColor.key) {
-            sourceResolution = {
-                type: 'style',
-                styleKey: matchingColor.key,
-                styleName: matchingColor.name,
-                styleType: 'PAINT'
-            };
-        } else if (matchingColor.bindingType === 'variable' && matchingColor.key) {
-            sourceResolution = {
-                type: 'variable',
-                variableId: matchingColor.key,
-                variableName: matchingColor.name,
-                isLibraryVariable: true // Assume library to force import if needed
-            };
-        } else {
-            sourceResolution = {
-                type: 'literal',
-                color: matchingColor.rgb
-            };
-        }
+        sourceResolution = resolutionFromSelectionColor(matchingColor);
     } else {
-        // Fallback to standard resolution if not found in selection (e.g. user typed a hex not in selection?)
-        // This shouldn't happen for source color if user picked from suggestions, but possible if typed manually
-        sourceResolution = await resolvePaintValue(sourceValue);
-
-        if (sourceResolution.type === 'literal') {
-            sourceRGB = sourceResolution.color!;
-        } else if (sourceResolution.type === 'variable') {
-            // Get the variable's color value
-            let variableId = sourceResolution.variableId!;
-
-            if (sourceResolution.isLibraryVariable) {
-                const importedVar = await figma.variables.importVariableByKeyAsync(variableId);
-                variableId = importedVar.id;
-            }
-
-            const variable = await figma.variables.getVariableByIdAsync(variableId);
-            if (variable && variable.resolvedType === 'COLOR') {
-                const modeId = Object.keys(variable.valuesByMode)[0];
-                if (modeId) {
-                    const value = variable.valuesByMode[modeId];
-                    if (value && typeof value === 'object' && 'r' in value) {
-                        sourceRGB = value as RGB;
-                    }
-                }
-            }
-        } else if (sourceResolution.type === 'style') {
-            // Get the style's color value
-            if (sourceResolution.styleKey) {
-                const localStyles = await figma.getLocalPaintStylesAsync();
-                let style = localStyles.find(s => s.key === sourceResolution.styleKey);
-
-                if (!style) {
-                    const importedStyle = await figma.importStyleByKeyAsync(sourceResolution.styleKey);
-                    if (importedStyle.type === 'PAINT') {
-                        style = importedStyle as PaintStyle;
-                    }
-                }
-
-                if (style) {
-                    for (const paint of style.paints) {
-                        if (paint.type === 'SOLID') {
-                            sourceRGB = paint.color;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
+        const resolvedSource = await resolvePaintResolutionColor(await resolvePaintValue(sourceValue));
+        sourceResolution = resolvedSource.resolution;
+        sourceRGB = resolvedSource.rgb;
     }
 
     // Resolve target color (standard resolution)
-    const targetResolution = await resolvePaintValue(targetValue);
+    const targetResolution = await normalizePaintResolution(await resolvePaintValue(targetValue));
 
     if (!sourceResolution) {
         throw new Error('Could not resolve source color');
@@ -492,13 +616,23 @@ export async function swapSelectionColors(value: string) {
     // Now swap colors in the selection
     let swapCount = 0;
 
+    const resolveNodeStyleKey = createNodeStyleKeyResolver();
+
     // Helper to process paints (fills/strokes)
-    const processPaints = async (paints: readonly Paint[], sourceRGB: RGB, targetResolution: PaintResolution): Promise<{ modified: boolean, newPaints: Paint[] }> => {
+    const processPaints = async (
+        node: SceneNode,
+        property: 'fill' | 'stroke',
+        paints: readonly Paint[],
+        sourceRGB: RGB,
+        sourceResolution: PaintResolution,
+        targetResolution: PaintResolution
+    ): Promise<{ modified: boolean, newPaints: Paint[] }> => {
         let modified = false;
         const newPaints: Paint[] = [];
+        const nodeStyleKey = await resolveNodeStyleKey(node, property);
 
         for (const paint of paints) {
-            if (paint.type === 'SOLID' && colorsMatch(paint.color, sourceRGB)) {
+            if (paintMatchesSource(paint, sourceRGB, sourceResolution, nodeStyleKey)) {
                 modified = true;
                 swapCount++;
 
@@ -506,20 +640,9 @@ export async function swapSelectionColors(value: string) {
                     case 'style':
                         newPaints.push(paint);
                         break;
-                    case 'variable': {
-                        let variableId = targetResolution.variableId!;
-                        if (targetResolution.isLibraryVariable) {
-                            const importedVar = await figma.variables.importVariableByKeyAsync(variableId);
-                            variableId = importedVar.id;
-                        }
-                        const variable = await figma.variables.getVariableByIdAsync(variableId);
-                        if (variable) {
-                            newPaints.push(figma.variables.setBoundVariableForPaint(paint, 'color', variable));
-                        } else {
-                            newPaints.push(paint);
-                        }
+                    case 'variable':
+                        newPaints.push(await buildReplacementPaint(paint, targetResolution));
                         break;
-                    }
                     case 'literal':
                         newPaints.push({ type: 'SOLID', color: targetResolution.color! });
                         break;
@@ -531,29 +654,11 @@ export async function swapSelectionColors(value: string) {
         return { modified, newPaints };
     };
 
-    // Helper to apply style to node
-    const applyStyleToNode = async (node: SceneNode, styleKey: string, property: 'fill' | 'stroke') => {
-        const localStyles = await figma.getLocalPaintStylesAsync();
-        let style = localStyles.find(s => s.key === styleKey);
-
-        if (!style) {
-            const importedStyle = await figma.importStyleByKeyAsync(styleKey);
-            if (importedStyle.type === 'PAINT') {
-                style = importedStyle as PaintStyle;
-            }
-        }
-
-        if (style) {
-            if (property === 'fill' && 'fillStyleId' in node) await node.setFillStyleIdAsync(style.id);
-            if (property === 'stroke' && 'strokeStyleId' in node) await node.setStrokeStyleIdAsync(style.id);
-        }
-    };
-
     // Recursive function to swap colors in a node and its children
     const swapColorsInNode = async (node: SceneNode) => {
         // Swap fills
         if ('fills' in node && node.fills !== figma.mixed && Array.isArray(node.fills)) {
-            const { modified, newPaints } = await processPaints(node.fills, sourceRGB!, targetResolution);
+            const { modified, newPaints } = await processPaints(node, 'fill', node.fills, sourceRGB!, sourceResolution, targetResolution);
             if (modified) {
                 node.fills = newPaints;
                 if (targetResolution.type === 'style' && targetResolution.styleKey) {
@@ -564,7 +669,7 @@ export async function swapSelectionColors(value: string) {
 
         // Swap strokes
         if ('strokes' in node && Array.isArray(node.strokes)) {
-            const { modified, newPaints } = await processPaints(node.strokes, sourceRGB!, targetResolution);
+            const { modified, newPaints } = await processPaints(node, 'stroke', node.strokes, sourceRGB!, sourceResolution, targetResolution);
             if (modified) {
                 node.strokes = newPaints;
                 if (targetResolution.type === 'style' && targetResolution.styleKey) {
@@ -579,7 +684,8 @@ export async function swapSelectionColors(value: string) {
             const newEffects: Effect[] = [];
 
             for (const effect of node.effects) {
-                if ((effect.type === 'DROP_SHADOW' || effect.type === 'INNER_SHADOW') &&
+                if (sourceResolution.type === 'literal' &&
+                    (effect.type === 'DROP_SHADOW' || effect.type === 'INNER_SHADOW') &&
                     colorsMatch({ r: effect.color.r, g: effect.color.g, b: effect.color.b }, sourceRGB!)) {
                     modified = true;
                     swapCount++;
@@ -625,90 +731,34 @@ async function swapSelectionColorsBidirectional(aValue: string, bValue: string) 
     const selection = figma.currentPage.selection;
     const uniqueColors = await extractUniqueColors(selection);
 
-    const cleanName = (name: string) => name.split(' (')[0].trim();
-
-    const resolveEndpoint = (val: string): { rgb: RGB; resolution: PaintResolution } | null => {
-        const cleaned = cleanName(val);
-        const lower = cleaned.toLowerCase();
-
-        let match = uniqueColors.find(c => {
-            if (c.name && cleanName(c.name) === cleaned) return true;
-            if (c.bindingType === 'literal' && rgbToHex(c.rgb).toLowerCase() === lower) return true;
-            return false;
-        });
-        if (!match) {
-            match = uniqueColors.find(c => c.name && cleanName(c.name).toLowerCase().includes(lower));
-        }
-        if (!match) return null;
-
-        let resolution: PaintResolution;
-        if (match.bindingType === 'style' && match.key) {
-            resolution = { type: 'style', styleKey: match.key, styleName: match.name, styleType: 'PAINT' };
-        } else if (match.bindingType === 'variable' && match.key) {
-            resolution = { type: 'variable', variableId: match.key, variableName: match.name, isLibraryVariable: true };
-        } else {
-            resolution = { type: 'literal', color: match.rgb };
-        }
-        return { rgb: match.rgb, resolution };
-    };
-
-    const a = resolveEndpoint(aValue);
-    const b = resolveEndpoint(bValue);
+    const aMatch = findMatchingSelectionColor(uniqueColors, aValue);
+    const bMatch = findMatchingSelectionColor(uniqueColors, bValue);
+    const a = aMatch ? { rgb: aMatch.rgb, resolution: resolutionFromSelectionColor(aMatch) } : null;
+    const b = bMatch ? { rgb: bMatch.rgb, resolution: resolutionFromSelectionColor(bMatch) } : null;
     if (!a || !b) {
         throw new Error('Could not resolve both colors in selection');
     }
 
     let swapCount = 0;
-
-    const buildReplacementPaint = async (paint: Paint, resolution: PaintResolution): Promise<Paint> => {
-        switch (resolution.type) {
-            case 'style':
-                // Style is applied at node level; keep paint as-is
-                return paint;
-            case 'variable': {
-                let variableId = resolution.variableId!;
-                if (resolution.isLibraryVariable) {
-                    const importedVar = await figma.variables.importVariableByKeyAsync(variableId);
-                    variableId = importedVar.id;
-                }
-                const variable = await figma.variables.getVariableByIdAsync(variableId);
-                if (variable && paint.type === 'SOLID') {
-                    return figma.variables.setBoundVariableForPaint(paint as SolidPaint, 'color', variable);
-                }
-                return paint;
-            }
-            case 'literal':
-                return { type: 'SOLID', color: resolution.color! };
-        }
-    };
-
-    const applyStyleToNode = async (node: SceneNode, styleKey: string, property: 'fill' | 'stroke') => {
-        const localStyles = await figma.getLocalPaintStylesAsync();
-        let style = localStyles.find(s => s.key === styleKey);
-        if (!style) {
-            const importedStyle = await figma.importStyleByKeyAsync(styleKey);
-            if (importedStyle.type === 'PAINT') style = importedStyle as PaintStyle;
-        }
-        if (style) {
-            if (property === 'fill' && 'fillStyleId' in node) await node.setFillStyleIdAsync(style.id);
-            if (property === 'stroke' && 'strokeStyleId' in node) await node.setStrokeStyleIdAsync(style.id);
-        }
-    };
+    const resolveNodeStyleKey = createNodeStyleKeyResolver();
 
     const processPaints = async (
+        node: SceneNode,
+        property: 'fill' | 'stroke',
         paints: readonly Paint[]
     ): Promise<{ modified: boolean; newPaints: Paint[]; styleKeyToApply?: string }> => {
         let modified = false;
         let styleKeyToApply: string | undefined;
         const newPaints: Paint[] = [];
+        const nodeStyleKey = await resolveNodeStyleKey(node, property);
 
         for (const paint of paints) {
-            if (paint.type === 'SOLID' && colorsMatch(paint.color, a.rgb)) {
+            if (paintMatchesSource(paint, a.rgb, a.resolution, nodeStyleKey)) {
                 modified = true;
                 swapCount++;
                 newPaints.push(await buildReplacementPaint(paint, b.resolution));
                 if (b.resolution.type === 'style') styleKeyToApply = b.resolution.styleKey;
-            } else if (paint.type === 'SOLID' && colorsMatch(paint.color, b.rgb)) {
+            } else if (paintMatchesSource(paint, b.rgb, b.resolution, nodeStyleKey)) {
                 modified = true;
                 swapCount++;
                 newPaints.push(await buildReplacementPaint(paint, a.resolution));
@@ -723,7 +773,7 @@ async function swapSelectionColorsBidirectional(aValue: string, bValue: string) 
 
     const swapInNode = async (node: SceneNode) => {
         if ('fills' in node && node.fills !== figma.mixed && Array.isArray(node.fills)) {
-            const { modified, newPaints, styleKeyToApply } = await processPaints(node.fills);
+            const { modified, newPaints, styleKeyToApply } = await processPaints(node, 'fill', node.fills);
             if (modified) {
                 node.fills = newPaints;
                 if (styleKeyToApply) await applyStyleToNode(node, styleKeyToApply, 'fill');
@@ -731,7 +781,7 @@ async function swapSelectionColorsBidirectional(aValue: string, bValue: string) 
         }
 
         if ('strokes' in node && Array.isArray(node.strokes)) {
-            const { modified, newPaints, styleKeyToApply } = await processPaints(node.strokes);
+            const { modified, newPaints, styleKeyToApply } = await processPaints(node, 'stroke', node.strokes);
             if (modified) {
                 node.strokes = newPaints;
                 if (styleKeyToApply) await applyStyleToNode(node, styleKeyToApply, 'stroke');
@@ -744,13 +794,13 @@ async function swapSelectionColorsBidirectional(aValue: string, bValue: string) 
             for (const effect of node.effects) {
                 if (effect.type === 'DROP_SHADOW' || effect.type === 'INNER_SHADOW') {
                     const ec: RGB = { r: effect.color.r, g: effect.color.g, b: effect.color.b };
-                    if (colorsMatch(ec, a.rgb) && b.resolution.type === 'literal') {
+                    if (a.resolution.type === 'literal' && colorsMatch(ec, a.rgb) && b.resolution.type === 'literal') {
                         modified = true;
                         swapCount++;
                         newEffects.push({ ...effect, color: { ...effect.color, ...b.resolution.color! } });
                         continue;
                     }
-                    if (colorsMatch(ec, b.rgb) && a.resolution.type === 'literal') {
+                    if (b.resolution.type === 'literal' && colorsMatch(ec, b.rgb) && a.resolution.type === 'literal') {
                         modified = true;
                         swapCount++;
                         newEffects.push({ ...effect, color: { ...effect.color, ...a.resolution.color! } });

@@ -69,24 +69,50 @@ function appendSimpleCommands(steps: ExecutionStep[], value: string): void {
   );
 }
 
+// A segment separator is normally 2+ spaces, but users often string bindings
+// with a single space ("f?white bc;red"). Without splitting, parseBindingSegment
+// matches only the first trigger and the rest gets swallowed into the value —
+// so "bc;red" became part of the Fill search and fuzzy-matched the wrong style.
+// Split at each inner "alias[?;]" so every binding becomes its own sub-segment.
+function splitAtInnerBindings(segment: string): string[] {
+  const triggerRegex = /[a-z]+[?;]/gi;
+  const positions: number[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = triggerRegex.exec(segment)) !== null) {
+    positions.push(match.index);
+  }
+  if (positions.length <= 1) return [segment];
+
+  const pieces: string[] = [];
+  pieces.push(segment.slice(0, positions[1]).trim());
+  for (let i = 1; i < positions.length; i++) {
+    const start = positions[i];
+    const end = i + 1 < positions.length ? positions[i + 1] : segment.length;
+    pieces.push(segment.slice(start, end).trim());
+  }
+  return pieces.filter(Boolean);
+}
+
 export function buildExecutionPlan(segments: string[]): ExecutionStep[] {
   const steps: ExecutionStep[] = [];
 
-  for (const segment of segments) {
-    const trimmed = segment.trim();
+  for (const rawSegment of segments) {
+    const trimmed = rawSegment.trim();
     if (!trimmed) continue;
 
-    const parsed = parseBindingSegment(trimmed);
-    if (parsed) {
-      if (parsed.prefix) {
-        appendSimpleCommands(steps, parsed.prefix);
+    for (const segment of splitAtInnerBindings(trimmed)) {
+      const parsed = parseBindingSegment(segment);
+      if (parsed) {
+        if (parsed.prefix) {
+          appendSimpleCommands(steps, parsed.prefix);
+        }
+
+        steps.push({ kind: 'binding', parsed });
+        continue;
       }
 
-      steps.push({ kind: 'binding', parsed });
-      continue;
+      appendSimpleCommands(steps, segment);
     }
-
-    appendSimpleCommands(steps, trimmed);
   }
 
   return steps;

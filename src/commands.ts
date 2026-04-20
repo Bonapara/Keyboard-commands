@@ -30,6 +30,62 @@ function expandRadiusShorthand(value: string): { tl: string; tr: string; br: str
   }
 }
 
+function hasSelectableParent(node: SceneNode): boolean {
+  const parent = node.parent;
+  return !!parent && parent.type !== 'PAGE' && parent.type !== 'DOCUMENT';
+}
+
+function hasChildren(node: SceneNode): boolean {
+  return 'children' in node && node.children.length > 0;
+}
+
+function sharesParent(selection: readonly SceneNode[]): boolean {
+  if (selection.length < 2) return false;
+  const parent = selection[0].parent;
+  return !!parent && selection.every(node => node.parent === parent);
+}
+
+function supportsOutlineStroke(node: SceneNode): boolean {
+  return 'outlineStroke' in node && typeof node.outlineStroke === 'function';
+}
+
+function supportsConstraints(node: SceneNode): boolean {
+  return 'constraints' in node;
+}
+
+function canAlignToParent(node: SceneNode): boolean {
+  const parent = node.parent;
+  return 'x' in node && 'y' in node && !!parent && 'width' in parent && 'height' in parent;
+}
+
+function isPositionedNode(node: SceneNode): boolean {
+  return 'x' in node && 'y' in node && 'width' in node && 'height' in node;
+}
+
+function isInAutoLayoutParent(node: SceneNode): boolean {
+  const parent = node.parent;
+  return !!parent && 'layoutMode' in parent && parent.layoutMode !== 'NONE';
+}
+
+function supportsFreeLayoutAlignment(selection: readonly SceneNode[]): boolean {
+  if (selection.length === 0) return true;
+
+  if (!selection.every(node => isPositionedNode(node) && !isInAutoLayoutParent(node))) {
+    return false;
+  }
+
+  return selection.length > 1 || selection.every(canAlignToParent);
+}
+
+function supportsTidySelection(selection: readonly SceneNode[]): boolean {
+  if (selection.length === 1) {
+    const [node] = selection;
+    return node.type === 'FRAME' && node.inferredAutoLayout !== null;
+  }
+
+  return selection.length >= 2 && sharesParent(selection) && selection.every(isPositionedNode);
+}
+
 // ==================================
 // Node Type Groups (Figma API v1)
 // ==================================
@@ -224,6 +280,20 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'Select all similar instances',
     functionWithoutParam: () => impl.selectSimilar(),
   },
+  SelectParent: {
+    type: "commandWithoutValue",
+    alias: ['selp', 'sp'],
+    suggestion: 'Select parent layer',
+    functionWithoutParam: () => impl.selectParent(),
+    selectionPredicate: selection => selection.every(hasSelectableParent),
+  },
+  SelectChildren: {
+    type: "commandWithoutValue",
+    alias: ['selc', 'sc'],
+    suggestion: 'Select direct children',
+    functionWithoutParam: () => impl.selectChildren(),
+    selectionPredicate: selection => selection.every(hasChildren),
+  },
   PushOverrides: {
     type: "commandWithoutValue",
     alias: ['po'],
@@ -330,6 +400,15 @@ export const COMMAND_DEFINITIONS = {
     supportedNodes: [...NODE_GROUPS.POSITIONABLE],
     specialConditions: ['IsNotInAutoLayout', 'IsAbsoluteInAutoLayout'],
   },
+  SwapPosition: {
+    type: "commandWithoutValue",
+    alias: ['swp'],
+    suggestion: 'Swap the position/order of 2 selected items',
+    functionWithoutParam: () => impl.swapPosition(),
+    supportedNodes: [...NODE_GROUPS.POSITIONABLE],
+    specialConditions: ['HasParent'],
+    selectionCount: 2,
+  },
   Delete: {
     type: "commandWithoutValue",
     alias: ['de'],
@@ -372,13 +451,17 @@ export const COMMAND_DEFINITIONS = {
     type: "commandWithoutValue",
     alias: ['gr'],
     suggestion: 'Group',
-    functionWithoutParam: () => impl.grouping('group')
+    functionWithoutParam: () => impl.grouping('group'),
+    selectionPredicate: sharesParent,
   },
   Ungroup: {
     type: "commandWithoutValue",
     alias: ['ugr'],
     suggestion: 'Ungroup',
-    functionWithoutParam: () => impl.grouping('ungroup')
+    functionWithoutParam: () => impl.grouping('ungroup'),
+    selectionPredicate: selection => selection.every(node =>
+      (node.type === 'GROUP' || node.type === 'FRAME') && hasChildren(node)
+    ),
   },
   Union: {
     type: "commandWithoutValue",
@@ -386,6 +469,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'Union Selection',
     functionWithoutParam: () => impl.performBooleanOperation('UNION'),
     supportedNodes: [...NODE_GROUPS.FILLS_AND_STROKES],
+    selectionPredicate: selection => selection.length >= 2,
   },
   Subtract: {
     type: "commandWithoutValue",
@@ -393,6 +477,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'Subtract Selection',
     functionWithoutParam: () => impl.performBooleanOperation('SUBTRACT'),
     supportedNodes: [...NODE_GROUPS.FILLS_AND_STROKES],
+    selectionPredicate: selection => selection.length >= 2,
   },
   Intersect: {
     type: "commandWithoutValue",
@@ -400,6 +485,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'Intersect Selection',
     functionWithoutParam: () => impl.performBooleanOperation('INTERSECT'),
     supportedNodes: [...NODE_GROUPS.FILLS_AND_STROKES],
+    selectionPredicate: selection => selection.length >= 2,
   },
   Exclude: {
     type: "commandWithoutValue",
@@ -407,6 +493,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'Exclude Selection',
     functionWithoutParam: () => impl.performBooleanOperation('EXCLUDE'),
     supportedNodes: [...NODE_GROUPS.FILLS_AND_STROKES],
+    selectionPredicate: selection => selection.length >= 2,
   },
   Lock: {
     type: "commandWithoutValue",
@@ -419,7 +506,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['m', 'mask'],
     suggestion: 'Toggle Mask',
     functionWithoutParam: () => impl.toggleMask(),
-    supportedNodes: [...NODE_GROUPS.FILLS_AND_STROKES, 'GROUP', 'FRAME', 'COMPONENT', 'INSTANCE'],
+    supportedNodes: [...NODE_GROUPS.FILLS_AND_STROKES, 'GROUP'],
   },
   Flatten: {
     type: "commandWithoutValue",
@@ -433,13 +520,14 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'Outline Stroke',
     functionWithoutParam: () => impl.outlineStroke(),
     supportedNodes: [...NODE_GROUPS.FILLS_AND_STROKES],
+    selectionPredicate: selection => selection.every(supportsOutlineStroke),
   },
   VerticalFill: {
     type: "commandWithoutValue",
     alias: ['vf'],
     suggestion: "Vertical Fill",
     functionWithoutParam: () => impl.layoutSizing('VERTICAL', 'FILL'),
-    specialConditions: ['IsInAutoLayout', 'IsAutoLayout'],
+    specialConditions: ['IsInAutoLayout', 'IsAutoLayout', 'IsNotInAutoLayout'],
   },
   VerticalHug: {
     type: "commandWithoutValue",
@@ -453,7 +541,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['hf'],
     suggestion: "Horizontal Fill",
     functionWithoutParam: () => impl.layoutSizing('HORIZONTAL', 'FILL'),
-    specialConditions: ['IsInAutoLayout', 'IsAutoLayout'],
+    specialConditions: ['IsInAutoLayout', 'IsAutoLayout', 'IsNotInAutoLayout'],
   },
   HorizontalHug: {
     type: "commandWithoutValue",
@@ -466,10 +554,14 @@ export const COMMAND_DEFINITIONS = {
     type: "optionalValueCommand",
     alias: ['g'],
     valueFormat: "number",
-    suggestion: "Gap in px (No value = Auto)",
+    suggestion: "Gap in px (No value = Auto on row/column layout)",
     functionWithParam: (value: string) => impl.setPrimaryGap(value),
     functionWithoutParam: () => impl.setPrimaryGap('AUTO'),
     specialConditions: ['IsAutoLayout'],
+    bindingSupport: {
+      variables: ['FLOAT'],
+      libraryStyles: true
+    }
   },
   SpaceBetween: {
     type: "commandWithoutValue",
@@ -482,10 +574,57 @@ export const COMMAND_DEFINITIONS = {
     type: "optionalValueCommand",
     alias: ['vg'],
     valueFormat: "number",
-    suggestion: "Vertical Gap in px (No value = Auto)",
+    suggestion: "Vertical gap in px (No value = Auto on wrap layout)",
     functionWithParam: (value: string) => impl.setCounterGap(value),
     functionWithoutParam: () => impl.setCounterGap('AUTO'),
     specialConditions: ['IsAutoLayoutWrap'],
+    bindingSupport: {
+      variables: ['FLOAT'],
+      libraryStyles: true
+    }
+  },
+  GridColumnGap: {
+    type: "commandWithValue",
+    alias: ['cg'],
+    valueFormat: "number",
+    suggestion: "Grid column gap in px",
+    functionWithParam: (value: string) => impl.setPrimaryGap(value),
+    specialConditions: ['IsGridLayout'],
+    bindingSupport: {
+      variables: ['FLOAT'],
+      libraryStyles: true
+    }
+  },
+  GridRowGap: {
+    type: "commandWithValue",
+    alias: ['rg'],
+    valueFormat: "number",
+    suggestion: "Grid row gap in px",
+    functionWithParam: (value: string) => impl.setCounterGap(value),
+    specialConditions: ['IsGridLayout'],
+    bindingSupport: {
+      variables: ['FLOAT'],
+      libraryStyles: true
+    }
+  },
+  TidyGap: {
+    type: "optionalValueCommand",
+    alias: ['tg'],
+    valueFormat: "number",
+    suggestion: "Tidy / smart selection gap in px (No value = dominant existing gap)",
+    functionWithParam: (value: string) => impl.setTidyGap(value),
+    functionWithoutParam: () => impl.setTidyGap(),
+    supportedNodes: [...NODE_GROUPS.POSITIONABLE],
+    selectionPredicate: supportsTidySelection,
+  },
+  TidyRowGap: {
+    type: "commandWithValue",
+    alias: ['trg'],
+    valueFormat: "number",
+    suggestion: "Tidy / smart selection row gap in px",
+    functionWithParam: (value: string) => impl.setTidyRowGap(value),
+    supportedNodes: [...NODE_GROUPS.POSITIONABLE],
+    selectionPredicate: supportsTidySelection,
   },
   VerticalSpaceBetween: {
     type: "commandWithoutValue",
@@ -549,6 +688,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'Gutter size in px (rows/columns)',
     functionWithParam: (value: string) => impl.setGridGutter(value),
     supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
+    specialConditions: ['HasRowsOrColumnsLayoutGrid'],
   },
   LayoutGridMargin: {
     type: "commandWithValue",
@@ -557,6 +697,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'Margin in px (rows/columns)',
     functionWithParam: (value: string) => impl.setGridMargin(value),
     supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
+    specialConditions: ['HasRowsOrColumnsLayoutGrid'],
   },
   LayoutGridRemove: {
     type: "commandWithoutValue",
@@ -564,6 +705,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'Remove all layout grids',
     functionWithoutParam: () => impl.removeGrids(),
     supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
+    specialConditions: ['HasLayoutGrid'],
   },
   AbsolutePosition: {
     type: "commandWithoutValue",
@@ -584,6 +726,10 @@ export const COMMAND_DEFINITIONS = {
     },
     functionWithoutParam: () => impl.setPadding({ paddingLeft: '0', paddingRight: '0', paddingTop: '0', paddingBottom: '0' }),
     supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
+    bindingSupport: {
+      variables: ['FLOAT'],
+      libraryStyles: true
+    }
   },
   PaddingHorizontal: {
     type: "optionalValueCommand",
@@ -593,6 +739,10 @@ export const COMMAND_DEFINITIONS = {
     functionWithParam: (value: string) => impl.setPadding({ paddingLeft: value, paddingRight: value }),
     functionWithoutParam: () => impl.setPadding({ paddingLeft: '0', paddingRight: '0' }),
     supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
+    bindingSupport: {
+      variables: ['FLOAT'],
+      libraryStyles: true
+    }
   },
   PaddingVertical: {
     type: "optionalValueCommand",
@@ -602,6 +752,10 @@ export const COMMAND_DEFINITIONS = {
     functionWithParam: (value: string) => impl.setPadding({ paddingTop: value, paddingBottom: value }),
     functionWithoutParam: () => impl.setPadding({ paddingTop: '0', paddingBottom: '0' }),
     supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
+    bindingSupport: {
+      variables: ['FLOAT'],
+      libraryStyles: true
+    }
   },
   PaddingLeft: {
     type: "optionalValueCommand",
@@ -611,6 +765,10 @@ export const COMMAND_DEFINITIONS = {
     functionWithParam: (value: string) => impl.setPadding({ paddingLeft: value }),
     functionWithoutParam: () => impl.setPadding({ paddingLeft: '0' }),
     supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
+    bindingSupport: {
+      variables: ['FLOAT'],
+      libraryStyles: true
+    }
   },
   PaddingTop: {
     type: "optionalValueCommand",
@@ -620,6 +778,10 @@ export const COMMAND_DEFINITIONS = {
     functionWithParam: (value: string) => impl.setPadding({ paddingTop: value }),
     functionWithoutParam: () => impl.setPadding({ paddingTop: '0' }),
     supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
+    bindingSupport: {
+      variables: ['FLOAT'],
+      libraryStyles: true
+    }
   },
   PaddingRight: {
     type: "optionalValueCommand",
@@ -629,6 +791,10 @@ export const COMMAND_DEFINITIONS = {
     functionWithParam: (value: string) => impl.setPadding({ paddingRight: value }),
     functionWithoutParam: () => impl.setPadding({ paddingRight: '0' }),
     supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
+    bindingSupport: {
+      variables: ['FLOAT'],
+      libraryStyles: true
+    }
   },
   PaddingBottom: {
     type: "optionalValueCommand",
@@ -638,6 +804,10 @@ export const COMMAND_DEFINITIONS = {
     functionWithParam: (value: string) => impl.setPadding({ paddingBottom: value }),
     functionWithoutParam: () => impl.setPadding({ paddingBottom: '0' }),
     supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
+    bindingSupport: {
+      variables: ['FLOAT'],
+      libraryStyles: true
+    }
   },
   Fill: {
     type: "optionalValueCommand",
@@ -821,6 +991,10 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'In % (No value = toggle)',
     functionWithParam: (value: string) => impl.setOpacity(value),
     functionWithoutParam: () => impl.toggleOpacity(),
+    bindingSupport: {
+      variables: ['FLOAT'],
+      libraryStyles: true
+    }
   },
   Duplicate: {
     type: "commandWithoutValue",
@@ -1337,6 +1511,10 @@ export const COMMAND_DEFINITIONS = {
     functionWithParam: (value: string) => impl.maxDimension({ value: value, type: 'max', direction: 'height', null: false }),
     functionWithoutParam: () => impl.maxDimension({ type: 'max', direction: 'height', null: true }),
     specialConditions: ['IsInAutoLayout', 'IsAutoLayout'],
+    bindingSupport: {
+      variables: ['FLOAT'],
+      libraryStyles: true
+    }
   },
   MaxWidth: {
     type: "optionalValueCommand",
@@ -1346,6 +1524,10 @@ export const COMMAND_DEFINITIONS = {
     functionWithParam: (value: string) => impl.maxDimension({ value: value, type: 'max', direction: 'width', null: false }),
     functionWithoutParam: () => impl.maxDimension({ type: 'max', direction: 'width', null: true }),
     specialConditions: ['IsInAutoLayout', 'IsAutoLayout'],
+    bindingSupport: {
+      variables: ['FLOAT'],
+      libraryStyles: true
+    }
   },
   MinHeight: {
     type: "optionalValueCommand",
@@ -1355,6 +1537,10 @@ export const COMMAND_DEFINITIONS = {
     functionWithParam: (value: string) => impl.maxDimension({ value: value, type: 'min', direction: 'height', null: false }),
     functionWithoutParam: () => impl.maxDimension({ type: 'min', direction: 'height', null: true }),
     specialConditions: ['IsInAutoLayout', 'IsAutoLayout'],
+    bindingSupport: {
+      variables: ['FLOAT'],
+      libraryStyles: true
+    }
   },
   MinWidth: {
     type: "optionalValueCommand",
@@ -1364,6 +1550,10 @@ export const COMMAND_DEFINITIONS = {
     functionWithParam: (value: string) => impl.maxDimension({ value: value, type: 'min', direction: 'width', null: false }),
     functionWithoutParam: () => impl.maxDimension({ type: 'min', direction: 'width', null: true }),
     specialConditions: ['IsInAutoLayout', 'IsAutoLayout'],
+    bindingSupport: {
+      variables: ['FLOAT'],
+      libraryStyles: true
+    }
   },
   RemoveEffect: {
     type: "commandWithoutValue",
@@ -1434,6 +1624,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'Set horizontal constraint to left',
     functionWithoutParam: () => impl.setConstraints('HORIZONTAL', 'MIN'),
     specialConditions: ['IsNotInAutoLayout'],
+    selectionPredicate: selection => selection.every(supportsConstraints),
   },
   ConstraintCenterHorizontal: {
     type: "commandWithoutValue",
@@ -1441,6 +1632,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'Set horizontal constraint to center',
     functionWithoutParam: () => impl.setConstraints('HORIZONTAL', 'CENTER'),
     specialConditions: ['IsNotInAutoLayout'],
+    selectionPredicate: selection => selection.every(supportsConstraints),
   },
   ConstraintRight: {
     type: "commandWithoutValue",
@@ -1448,6 +1640,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'Set horizontal constraint to right',
     functionWithoutParam: () => impl.setConstraints('HORIZONTAL', 'MAX'),
     specialConditions: ['IsNotInAutoLayout'],
+    selectionPredicate: selection => selection.every(supportsConstraints),
   },
   ConstraintLeftAndRight: {
     type: "commandWithoutValue",
@@ -1455,6 +1648,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'Set horizontal constraint to left + right',
     functionWithoutParam: () => impl.setConstraints('HORIZONTAL', 'STRETCH'),
     specialConditions: ['IsNotInAutoLayout'],
+    selectionPredicate: selection => selection.every(supportsConstraints),
   },
   ConstraintScaleHorizontal: {
     type: "commandWithoutValue",
@@ -1462,6 +1656,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'Set horizontal constraint to scale',
     functionWithoutParam: () => impl.setConstraints('HORIZONTAL', 'SCALE'),
     specialConditions: ['IsNotInAutoLayout'],
+    selectionPredicate: selection => selection.every(supportsConstraints),
   },
   // Vertical Constraints
   ConstraintTop: {
@@ -1470,6 +1665,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'Set vertical constraint to top',
     functionWithoutParam: () => impl.setConstraints('VERTICAL', 'MIN'),
     specialConditions: ['IsNotInAutoLayout'],
+    selectionPredicate: selection => selection.every(supportsConstraints),
   },
   ConstraintCenterVertical: {
     type: "commandWithoutValue",
@@ -1477,6 +1673,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'Set vertical constraint to center',
     functionWithoutParam: () => impl.setConstraints('VERTICAL', 'CENTER'),
     specialConditions: ['IsNotInAutoLayout'],
+    selectionPredicate: selection => selection.every(supportsConstraints),
   },
   ConstraintBottom: {
     type: "commandWithoutValue",
@@ -1484,6 +1681,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'Set vertical constraint to bottom',
     functionWithoutParam: () => impl.setConstraints('VERTICAL', 'MAX'),
     specialConditions: ['IsNotInAutoLayout'],
+    selectionPredicate: selection => selection.every(supportsConstraints),
   },
   ConstraintTopAndBottom: {
     type: "commandWithoutValue",
@@ -1491,6 +1689,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'Set vertical constraint to top + bottom',
     functionWithoutParam: () => impl.setConstraints('VERTICAL', 'STRETCH'),
     specialConditions: ['IsNotInAutoLayout'],
+    selectionPredicate: selection => selection.every(supportsConstraints),
   },
   ConstraintScaleVertical: {
     type: "commandWithoutValue",
@@ -1498,6 +1697,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'Set vertical constraint to scale',
     functionWithoutParam: () => impl.setConstraints('VERTICAL', 'SCALE'),
     specialConditions: ['IsNotInAutoLayout'],
+    selectionPredicate: selection => selection.every(supportsConstraints),
   },
   CornerSmoothing: {
     type: "commandWithValue",
@@ -1517,28 +1717,28 @@ export const COMMAND_DEFINITIONS = {
     alias: ['at'],
     suggestion: "Align item(s) to top",
     functionWithoutParam: () => impl.alignNodes('TOP'),
-    specialConditions: ['IsNotInAutoLayout'],
+    selectionPredicate: supportsFreeLayoutAlignment,
   },
   AlignBottom: {
     type: "commandWithoutValue",
     alias: ['ab'],
     suggestion: "Align item(s) to bottom",
     functionWithoutParam: () => impl.alignNodes('BOTTOM'),
-    specialConditions: ['IsNotInAutoLayout'],
+    selectionPredicate: supportsFreeLayoutAlignment,
   },
   AlignLeft: {
     type: "commandWithoutValue",
     alias: ['al'],
     suggestion: "Align item(s) to left",
     functionWithoutParam: () => impl.alignNodes('LEFT'),
-    specialConditions: ['IsNotInAutoLayout'],
+    selectionPredicate: supportsFreeLayoutAlignment,
   },
   AlignRight: {
     type: "commandWithoutValue",
     alias: ['ar'],
     suggestion: "Align item(s) to right",
     functionWithoutParam: () => impl.alignNodes('RIGHT'),
-    specialConditions: ['IsNotInAutoLayout'],
+    selectionPredicate: supportsFreeLayoutAlignment,
   },
   AlignVerticalCenter: {
     type: "commandWithoutValue",
@@ -1557,54 +1757,63 @@ export const COMMAND_DEFINITIONS = {
     alias: ['atlp', 'altp'],
     suggestion: "Align to parent's top left",
     functionWithoutParam: () => impl.smartAlign('TOP_LEFT', 'PARENT'),
+    selectionPredicate: selection => selection.every(canAlignToParent),
   },
   AlignTopCenterToParent: {
     type: "commandWithoutValue",
     alias: ['atcp', 'actp'],
     suggestion: "Align to parent's top center",
     functionWithoutParam: () => impl.smartAlign('TOP_CENTER', 'PARENT'),
+    selectionPredicate: selection => selection.every(canAlignToParent),
   },
   AlignTopRightToParent: {
     type: "commandWithoutValue",
     alias: ['atrp', 'artp'],
     suggestion: "Align to parent's top right",
     functionWithoutParam: () => impl.smartAlign('TOP_RIGHT', 'PARENT'),
+    selectionPredicate: selection => selection.every(canAlignToParent),
   },
   AlignCenterLeftToParent: {
     type: "commandWithoutValue",
     alias: ['aclp', 'alcp'],
     suggestion: "Align to parent's center left",
     functionWithoutParam: () => impl.smartAlign('CENTER_LEFT', 'PARENT'),
+    selectionPredicate: selection => selection.every(canAlignToParent),
   },
   AlignCenterCenterToParent: {
     type: "commandWithoutValue",
     alias: ['accp'],
     suggestion: "Align to parent's center",
     functionWithoutParam: () => impl.smartAlign('CENTER', 'PARENT'),
+    selectionPredicate: selection => selection.every(canAlignToParent),
   },
   AlignCenterRightToParent: {
     type: "commandWithoutValue",
     alias: ['acrp', 'arcp'],
     suggestion: "Align to parent's center right",
     functionWithoutParam: () => impl.smartAlign('CENTER_RIGHT', 'PARENT'),
+    selectionPredicate: selection => selection.every(canAlignToParent),
   },
   AlignBottomLeftToParent: {
     type: "commandWithoutValue",
     alias: ['ablp', 'albp'],
     suggestion: "Align to parent's bottom left",
     functionWithoutParam: () => impl.smartAlign('BOTTOM_LEFT', 'PARENT'),
+    selectionPredicate: selection => selection.every(canAlignToParent),
   },
   AlignBottomCenterToParent: {
     type: "commandWithoutValue",
     alias: ['abcp', 'acbp'],
     suggestion: "Align to parent's bottom center",
     functionWithoutParam: () => impl.smartAlign('BOTTOM_CENTER', 'PARENT'),
+    selectionPredicate: selection => selection.every(canAlignToParent),
   },
   AlignBottomRightToParent: {
     type: "commandWithoutValue",
     alias: ['abrp', 'arbp'],
     suggestion: "Align to parent's bottom right",
     functionWithoutParam: () => impl.smartAlign('BOTTOM_RIGHT', 'PARENT'),
+    selectionPredicate: selection => selection.every(canAlignToParent),
   },
   BringToFront: {
     type: "commandWithoutValue",
@@ -1678,6 +1887,12 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'Monitor Plugin Storage',
     functionWithoutParam: () => impl.monitorStorage(),
   },
+  History: {
+    type: "commandWithoutValue",
+    alias: ['z', 'hi'],
+    suggestion: 'Replay a recent command sequence',
+    functionWithoutParam: () => notify('Pick a recent sequence from the suggestions'),
+  },
 } satisfies Record<string, CommandWithValue | CommandWithoutValue | OptionalValueCommand>;
 
 // Create CommandName type from COMMAND_DEFINITIONS keys
@@ -1689,4 +1904,3 @@ export const COMMANDS: Array<import('./types').Command & { name: CommandName }> 
     const def = COMMAND_DEFINITIONS[name];
     return { name, ...def };
   });
-

@@ -2,7 +2,25 @@
 // Text Functions
 // ================================
 
-import { resolveNumberValue, resolveDelta } from '../utils';
+import { clearNodeBoundVariables, resolveDelta, resolveNumberValue, resolveNumberVariable, setNodeBoundVariable } from '../utils';
+
+async function loadTextNodeFonts(node: TextNode): Promise<void> {
+  if (node.fontName !== figma.mixed) {
+    await figma.loadFontAsync(node.fontName);
+    return;
+  }
+
+  const fonts = node.getRangeAllFontNames(0, node.characters.length);
+  const seen = new Set<string>();
+  const uniqueFonts = fonts.filter((font) => {
+    const key = `${font.family}:${font.style}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  await Promise.all(uniqueFonts.map((font) => figma.loadFontAsync(font)));
+}
 
 export async function setTextAutoResize(resizeType: 'NONE' | 'WIDTH_AND_HEIGHT' | 'HEIGHT') {
   const selection = figma.currentPage.selection;
@@ -13,11 +31,8 @@ export async function setTextAutoResize(resizeType: 'NONE' | 'WIDTH_AND_HEIGHT' 
   for (const node of selection) {
     if (node.type === 'TEXT') {
       try {
-        // Ensure the font is loaded before setting textAutoResize
-        if (node.fontName !== figma.mixed) {
-          await figma.loadFontAsync(node.fontName);
-          node.textAutoResize = resizeType;
-        }
+        await loadTextNodeFonts(node);
+        node.textAutoResize = resizeType;
       } catch (error) {
         console.error('Error loading font:', error);
         figma.notify(`Failed to set text auto-resize for "${node.name}"`);
@@ -36,23 +51,24 @@ export async function textTruncation(maxLines?: string) {
   for (const node of selection) {
     if (node.type === 'TEXT') {
       try {
-        if (node.fontName !== figma.mixed) {
-          await figma.loadFontAsync(node.fontName);
-          if (maxLines === undefined) {
-            // Toggle mode
-            const newTruncation = node.textTruncation === 'DISABLED' ? 'ENDING' : 'DISABLED';
-            node.textTruncation = newTruncation;
-            figma.notify(`Text truncation ${newTruncation === 'ENDING' ? 'enabled' : 'disabled'}`);
-          } else {
-            // Set mode with max lines
-            const lines = parseInt(maxLines);
-            if (isNaN(lines) || lines < 1) {
-              throw new Error('Please provide a valid number greater than or equal to 1');
-            }
-            node.textTruncation = 'ENDING';
-            node.maxLines = lines;
-            figma.notify(`Text truncation set to ${lines} lines`);
+        await loadTextNodeFonts(node);
+        if (maxLines === undefined) {
+          // Toggle mode
+          const newTruncation = node.textTruncation === 'DISABLED' ? 'ENDING' : 'DISABLED';
+          node.textTruncation = newTruncation;
+          if (newTruncation === 'DISABLED') {
+            node.maxLines = null;
           }
+          figma.notify(`Text truncation ${newTruncation === 'ENDING' ? 'enabled' : 'disabled'}`);
+        } else {
+          // Set mode with max lines
+          const lines = parseInt(maxLines);
+          if (isNaN(lines) || lines < 1) {
+            throw new Error('Please provide a valid number greater than or equal to 1');
+          }
+          node.textTruncation = 'ENDING';
+          node.maxLines = lines;
+          figma.notify(`Text truncation set to ${lines} lines`);
         }
       } catch (error) {
         console.error('Error setting text truncation:', error);
@@ -135,17 +151,10 @@ export async function setLetterSpacing(value: string) {
           await figma.loadFontAsync(node.fontName);
 
           if (resolution.type === 'variable') {
-            let variableId = resolution.variableId!;
-            if (resolution.isLibraryVariable) {
-              const importedVar = await figma.variables.importVariableByKeyAsync(variableId);
-              variableId = importedVar.id;
-            }
-            const variable = await figma.variables.getVariableByIdAsync(variableId);
-            if (variable) {
-              node.setBoundVariable('letterSpacing', variable);
-            }
+            const variable = await resolveNumberVariable(resolution);
+            setNodeBoundVariable(node, 'letterSpacing', variable);
           } else {
-            // Literal value
+            clearNodeBoundVariables(node, 'letterSpacing');
             const unit = resolution.unit || 'PIXELS';
             node.letterSpacing = { value: resolution.value!, unit };
           }
@@ -184,19 +193,13 @@ export async function setLineHeight(value: string) {
           await figma.loadFontAsync(node.fontName);
 
           if (value === 'AUTO') {
+            clearNodeBoundVariables(node, 'lineHeight');
             node.lineHeight = { unit: 'AUTO' };
           } else if (resolution.type === 'variable') {
-            let variableId = resolution.variableId!;
-            if (resolution.isLibraryVariable) {
-              const importedVar = await figma.variables.importVariableByKeyAsync(variableId);
-              variableId = importedVar.id;
-            }
-            const variable = await figma.variables.getVariableByIdAsync(variableId);
-            if (variable) {
-              node.setBoundVariable('lineHeight', variable);
-            }
+            const variable = await resolveNumberVariable(resolution);
+            setNodeBoundVariable(node, 'lineHeight', variable);
           } else {
-            // Literal value
+            clearNodeBoundVariables(node, 'lineHeight');
             const unit = resolution.unit || 'PIXELS';
             node.lineHeight = { value: resolution.value!, unit: unit as 'PIXELS' | 'PERCENT' };
           }
@@ -232,17 +235,10 @@ export async function setParagraphSpacing(value: string) {
           await figma.loadFontAsync(node.fontName);
 
           if (resolution.type === 'variable') {
-            let variableId = resolution.variableId!;
-            if (resolution.isLibraryVariable) {
-              const importedVar = await figma.variables.importVariableByKeyAsync(variableId);
-              variableId = importedVar.id;
-            }
-            const variable = await figma.variables.getVariableByIdAsync(variableId);
-            if (variable) {
-              node.setBoundVariable('paragraphSpacing', variable);
-            }
+            const variable = await resolveNumberVariable(resolution);
+            setNodeBoundVariable(node, 'paragraphSpacing', variable);
           } else {
-            // Literal value
+            clearNodeBoundVariables(node, 'paragraphSpacing');
             node.paragraphSpacing = resolution.value!;
           }
         }
@@ -275,17 +271,10 @@ export async function setParagraphIndent(value: string) {
           await figma.loadFontAsync(node.fontName);
 
           if (resolution.type === 'variable') {
-            let variableId = resolution.variableId!;
-            if (resolution.isLibraryVariable) {
-              const importedVar = await figma.variables.importVariableByKeyAsync(variableId);
-              variableId = importedVar.id;
-            }
-            const variable = await figma.variables.getVariableByIdAsync(variableId);
-            if (variable) {
-              node.setBoundVariable('paragraphIndent', variable);
-            }
+            const variable = await resolveNumberVariable(resolution);
+            setNodeBoundVariable(node, 'paragraphIndent', variable);
           } else {
-            // Literal value
+            clearNodeBoundVariables(node, 'paragraphIndent');
             node.paragraphIndent = resolution.value!;
           }
         }
@@ -419,4 +408,3 @@ export async function removeTextStyle() {
     figma.notify(`Detached text style from ${removed} layer${removed === 1 ? '' : 's'}`);
   }
 }
-

@@ -95,6 +95,37 @@ assert.deepEqual(
   ]
 );
 
+// Two bindings in the same segment (single-space separated) must split into
+// two steps. Without the split, "bc;red" was swallowed into Fill's value and
+// fuzzy-matched the wrong style.
+assert.deepEqual(
+  buildExecutionPlan(['f?white bc;red']),
+  [
+    {
+      kind: 'binding',
+      parsed: { prefix: '', alias: 'f', value: 'white' },
+    },
+    {
+      kind: 'binding',
+      parsed: { prefix: '', alias: 'bc', value: 'red' },
+    },
+  ]
+);
+
+assert.deepEqual(
+  buildExecutionPlan(['f?white and bc;border medium']),
+  [
+    {
+      kind: 'binding',
+      parsed: { prefix: '', alias: 'f', value: 'white and' },
+    },
+    {
+      kind: 'binding',
+      parsed: { prefix: '', alias: 'bc', value: 'border medium' },
+    },
+  ]
+);
+
 assert.deepEqual(
   buildExecutionPlan(['hf', 'f?blue', 'w100', 's?primary']),
   [

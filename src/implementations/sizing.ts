@@ -3,7 +3,7 @@
 // ================================
 
 import { MIN_SCALE_FACTOR } from '../constants';
-import { resolveDelta } from '../utils';
+import { clearNodeBoundVariables, resolveDelta, resolveNumberValue, resolveNumberVariable, setNodeBoundVariable } from '../utils';
 
 export function resize(value: string, resizeType?: 'width' | 'height') {
   const selection = figma.currentPage.selection;
@@ -68,16 +68,27 @@ interface DimensionOptions {
   value?: string;
 }
 
-export function maxDimension({ type, direction, null: isNull, value }: DimensionOptions): void {
+function getDimensionBoundField(type: 'max' | 'min', direction: 'width' | 'height'): 'maxWidth' | 'maxHeight' | 'minWidth' | 'minHeight' {
+  if (type === 'max' && direction === 'width') return 'maxWidth';
+  if (type === 'max' && direction === 'height') return 'maxHeight';
+  if (type === 'min' && direction === 'width') return 'minWidth';
+  return 'minHeight';
+}
+
+export async function maxDimension({ type, direction, null: isNull, value }: DimensionOptions): Promise<void> {
   const selection = figma.currentPage.selection;
   if (selection.length === 0) {
     throw new Error('No items selected');
   }
+
+  const resolution = !isNull && value !== undefined ? await resolveNumberValue(value) : null;
   
   for (const node of selection) {
     // Check if node supports max/min width/height properties
     if ('maxWidth' in node && 'maxHeight' in node) {
+      const boundField = getDimensionBoundField(type, direction);
       if (isNull) {
+        clearNodeBoundVariables(node, boundField);
         // Set the property to null to remove constraint
         if (type === 'max' && direction === 'width') {
           node.maxWidth = null;
@@ -88,19 +99,24 @@ export function maxDimension({ type, direction, null: isNull, value }: Dimension
         } else if (type === 'min' && direction === 'height') {
           node.minHeight = null;
         }
-      } else if (value !== undefined) {
+      } else if (value !== undefined && resolution) {
         const currentMap = {
           'max:width': node.maxWidth ?? node.width,
           'max:height': node.maxHeight ?? node.height,
           'min:width': node.minWidth ?? node.width,
           'min:height': node.minHeight ?? node.height,
         };
-        const next = resolveDelta(value, currentMap[`${type}:${direction}`] as number);
-        if (next > 0) {
-          if (type === 'max' && direction === 'width') node.maxWidth = next;
-          else if (type === 'max' && direction === 'height') node.maxHeight = next;
-          else if (type === 'min' && direction === 'width') node.minWidth = next;
-          else if (type === 'min' && direction === 'height') node.minHeight = next;
+        if (resolution.type === 'variable') {
+          setNodeBoundVariable(node, boundField, await resolveNumberVariable(resolution));
+        } else {
+          clearNodeBoundVariables(node, boundField);
+          const next = resolveDelta(value, currentMap[`${type}:${direction}`] as number);
+          if (next > 0) {
+            if (type === 'max' && direction === 'width') node.maxWidth = next;
+            else if (type === 'max' && direction === 'height') node.maxHeight = next;
+            else if (type === 'min' && direction === 'width') node.minWidth = next;
+            else if (type === 'min' && direction === 'height') node.minHeight = next;
+          }
         }
       }
     }
@@ -126,4 +142,3 @@ export function absolutePosition() {
     }
   }
 }
-
