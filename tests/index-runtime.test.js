@@ -190,9 +190,11 @@ function buildUtilsStubSource() {
 import { COMMANDS } from 'virtual:commands-stub';
 
 export const bindingSearches = [];
+export const availabilitySelections = [];
 
 export function __reset() {
   bindingSearches.length = 0;
+  availabilitySelections.length = 0;
 }
 
 export const COMMAND_SPLITTER_REGEX = /\\s+|,\\s*(?=[a-zA-Z])/;
@@ -302,6 +304,7 @@ export function isCommandAvailableForSelection(command, selection) {
 }
 
 export function createSelectionAvailabilityContext(selection) {
+  availabilitySelections.push(selection);
   return { selection };
 }
 
@@ -596,8 +599,14 @@ async function main() {
 
   resetHarness(runtime, harness);
   harness.historyStub.__setHistory(['w100', 'cs;old : targ']);
+  runtime.figma.currentPage.selection = [{ id: 'selected-instance', type: 'INSTANCE' }];
 
   const pristineSuggestions = await runtime.input('');
+  assert.deepEqual(
+    harness.utilsStub.availabilitySelections.map((selection) => selection.length),
+    [0],
+    'empty input startup should not build command availability from the active selection'
+  );
   assert.deepEqual(
     pristineSuggestions.slice(0, 2).map((item) => item.data),
     ['w100', 'cs;old : targ'],

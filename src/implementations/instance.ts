@@ -8,16 +8,23 @@ const VARIANT_SPACING = 20;
 const COMPONENT_SET_PADDING = 20;
 const COMPONENT_SET_STROKE_COLOR = { r: 0x97 / 255, g: 0x47 / 255, b: 0xFF / 255 };
 
-// Cache for main component lookups to avoid repeated async calls
-const mainComponentCache = new WeakMap<InstanceNode, ComponentNode | null>();
+// Cache for main component lookups to avoid repeated async calls. Store the
+// in-flight promise too, so parallel inventory collection does not issue the
+// same lookup twice for a shared nested instance.
+const mainComponentCache = new WeakMap<InstanceNode, Promise<ComponentNode | null>>();
 
 async function getCachedMainComponent(instance: InstanceNode): Promise<ComponentNode | null> {
-  if (mainComponentCache.has(instance)) {
-    return mainComponentCache.get(instance)!;
+  const cached = mainComponentCache.get(instance);
+  if (cached) {
+    return await cached;
   }
-  const mainComponent = await instance.getMainComponentAsync();
-  mainComponentCache.set(instance, mainComponent);
-  return mainComponent;
+
+  const mainComponentPromise = instance.getMainComponentAsync().catch(error => {
+    mainComponentCache.delete(instance);
+    throw error;
+  });
+  mainComponentCache.set(instance, mainComponentPromise);
+  return await mainComponentPromise;
 }
 
 export function pluralize(count: number, singular: string, plural?: string): string {
@@ -130,6 +137,23 @@ interface VariantOptionCandidate {
   group: VariantPropertyGroup;
 }
 
+interface InstancePropertySource {
+  rootInstance: InstanceNode;
+  instance: InstanceNode;
+  mainComponent: ComponentNode;
+}
+
+interface InstancePropertyInventory {
+  nonVariantProperties: Map<string, PropertyAccumulator>;
+  variantGroups: VariantPropertyGroup[];
+}
+
+let instancePropertyInventoryCache: {
+  key: string;
+  sources: InstanceNode[];
+  promise: Promise<InstancePropertyInventory>;
+} | null = null;
+
 function getComponentPropertyDefinitions(mainComponent: ComponentNode): ComponentPropertyDefinitions {
   const componentParent = mainComponent.parent;
   if (componentParent && componentParent.type === 'COMPONENT_SET') {
@@ -209,6 +233,25 @@ function extractPropertyValue(property: string | boolean | { value: string | boo
     return property.value;
   }
   return property;
+}
+
+function getInstancePropertySourceCacheSignature(instance: InstanceNode): string {
+  return instance.id;
+}
+
+function getInstancePropertyInventoryCacheIdentity(instances: InstanceNode[]): { key: string; sources: InstanceNode[] } {
+  const sources = instances;
+  const key = instances.map(getInstancePropertySourceCacheSignature).join('\x1e');
+
+  return { key, sources };
+}
+
+function hasSameInstancePropertyCacheSources(a: InstanceNode[], b: InstanceNode[]): boolean {
+  return a.length === b.length && a.every((source, index) => source === b[index]);
+}
+
+function invalidateInstancePropertyInventoryCache(): void {
+  instancePropertyInventoryCache = null;
 }
 
 type SuggestionItem = string | { name: string; data: unknown };
@@ -346,71 +389,26 @@ function addVariantPropertyGroupTarget(
   }
 }
 
-function collectVariantPropertiesFromDefinitions(
-  groups: Map<string, VariantPropertyGroup>,
-  rootInstance: InstanceNode,
-  instance: InstanceNode,
-  allProperties: ComponentPropertyDefinitions,
-  propertyName: string | undefined,
-  nextOrder: () => number
-): void {
-  if (propertyName) {
-    const { key: realPropertyKey, definition: propertyDef } = findPropertyKey(propertyName, allProperties);
-    if (realPropertyKey && propertyDef && propertyDef.type === 'VARIANT') {
-      addVariantPropertyGroupTarget(groups, rootInstance, instance, allProperties, realPropertyKey, nextOrder());
-    }
-    return;
-  }
-
-  for (const propertyKey of getPropertyKeysInFigmaPanelOrder(allProperties)) {
-    const order = nextOrder();
-    addVariantPropertyGroupTarget(groups, rootInstance, instance, allProperties, propertyKey, order);
-  }
-}
-
 async function collectVariantPropertyGroups(
   instances: InstanceNode[],
   propertyName?: string
 ): Promise<VariantPropertyGroup[]> {
+  return filterVariantPropertyGroupsByReference(
+    (await collectInstancePropertyInventory(instances)).variantGroups,
+    propertyName
+  );
+}
+
+function filterVariantPropertyGroupsByReference(
+  groups: VariantPropertyGroup[],
+  propertyName?: string
+): VariantPropertyGroup[] {
   const parsed = propertyName
     ? parseVariantGroupPropertyName(propertyName)
     : { propertyName: '', optionSignature: null };
-  const groups = new Map<string, VariantPropertyGroup>();
-  let order = 0;
-  const nextOrder = () => order++;
   const propertyFilter = parsed.propertyName || undefined;
+  let collectedGroups = groups;
 
-  for (const instance of instances) {
-    const mainComponent = await getCachedMainComponent(instance);
-    if (mainComponent) {
-      collectVariantPropertiesFromDefinitions(
-        groups,
-        instance,
-        instance,
-        getComponentPropertyDefinitions(mainComponent),
-        undefined,
-        nextOrder
-      );
-    }
-
-    if (instance.exposedInstances) {
-      for (const exposedInstance of instance.exposedInstances) {
-        const exposedMainComponent = await getCachedMainComponent(exposedInstance);
-        if (!exposedMainComponent) continue;
-
-        collectVariantPropertiesFromDefinitions(
-          groups,
-          instance,
-          exposedInstance,
-          getComponentPropertyDefinitions(exposedMainComponent),
-          undefined,
-          nextOrder
-        );
-      }
-    }
-  }
-
-  let collectedGroups = Array.from(groups.values());
   if (propertyFilter) {
     collectedGroups = collectedGroups.filter(group =>
       matchesPropertySearch(propertyFilter, group.cleanedName, group.displayName)
@@ -484,15 +482,39 @@ function filterSharedPropertyAccumulators(
   return accumulators.filter(accumulator => accumulator.rootIds.size === instances.length);
 }
 
-async function collectNonVariantPropertyAccumulators(instances: InstanceNode[]): Promise<Map<string, PropertyAccumulator>> {
-  const propertiesMap = new Map<string, PropertyAccumulator>();
-  let propertyOrder = 0;
+async function collectInstancePropertySources(instances: InstanceNode[]): Promise<InstancePropertySource[]> {
+  const sourcePromises: Array<Promise<InstancePropertySource | null>> = [];
 
   for (const instance of instances) {
-    const mainComponent = await getCachedMainComponent(instance);
-    if (!mainComponent) continue;
+    sourcePromises.push(
+      getCachedMainComponent(instance).then(mainComponent =>
+        mainComponent ? { rootInstance: instance, instance, mainComponent } : null
+      )
+    );
 
-    const allProperties = getComponentPropertyDefinitions(mainComponent);
+    if (instance.exposedInstances && instance.exposedInstances.length > 0) {
+      for (const exposedInstance of instance.exposedInstances) {
+        sourcePromises.push(
+          getCachedMainComponent(exposedInstance).then(mainComponent =>
+            mainComponent ? { rootInstance: instance, instance: exposedInstance, mainComponent } : null
+          )
+        );
+      }
+    }
+  }
+
+  const sources = await Promise.all(sourcePromises);
+  return sources.filter((source): source is InstancePropertySource => source !== null);
+}
+
+async function buildInstancePropertyInventory(instances: InstanceNode[]): Promise<InstancePropertyInventory> {
+  const nonVariantProperties = new Map<string, PropertyAccumulator>();
+  const variantGroups = new Map<string, VariantPropertyGroup>();
+  let propertyOrder = 0;
+  const sources = await collectInstancePropertySources(instances);
+
+  for (const source of sources) {
+    const allProperties = getComponentPropertyDefinitions(source.mainComponent);
 
     const propKeys = getPropertyKeysInFigmaPanelOrder(allProperties);
     for (const propName of propKeys) {
@@ -500,36 +522,62 @@ async function collectNonVariantPropertyAccumulators(instances: InstanceNode[]):
       const propDef = allProperties[propName];
       if (!propDef) continue;
 
-      addNonVariantPropertyAccumulator(propertiesMap, instance, instance, propName, propDef, order);
-    }
-
-    if (instance.exposedInstances && instance.exposedInstances.length > 0) {
-      for (const exposedInstance of instance.exposedInstances) {
-        const exposedMainComponent = await getCachedMainComponent(exposedInstance);
-        if (!exposedMainComponent) continue;
-
-        const exposedProperties = getComponentPropertyDefinitions(exposedMainComponent);
-        const exposedPropKeys = getPropertyKeysInFigmaPanelOrder(exposedProperties);
-
-        for (const exposedPropName of exposedPropKeys) {
-          const order = propertyOrder++;
-          const exposedPropDef = exposedProperties[exposedPropName];
-          if (!exposedPropDef) continue;
-
-          addNonVariantPropertyAccumulator(
-            propertiesMap,
-            instance,
-            exposedInstance,
-            exposedPropName,
-            exposedPropDef,
-            order
-          );
-        }
+      if (propDef.type === 'VARIANT') {
+        addVariantPropertyGroupTarget(
+          variantGroups,
+          source.rootInstance,
+          source.instance,
+          allProperties,
+          propName,
+          order
+        );
+      } else {
+        addNonVariantPropertyAccumulator(
+          nonVariantProperties,
+          source.rootInstance,
+          source.instance,
+          propName,
+          propDef,
+          order
+        );
       }
     }
   }
 
-  return propertiesMap;
+  return {
+    nonVariantProperties,
+    variantGroups: Array.from(variantGroups.values())
+  };
+}
+
+async function collectInstancePropertyInventory(instances: InstanceNode[]): Promise<InstancePropertyInventory> {
+  const cacheIdentity = getInstancePropertyInventoryCacheIdentity(instances);
+  if (
+    instancePropertyInventoryCache?.key === cacheIdentity.key &&
+    hasSameInstancePropertyCacheSources(instancePropertyInventoryCache.sources, cacheIdentity.sources)
+  ) {
+    return await instancePropertyInventoryCache.promise;
+  }
+
+  const promise = buildInstancePropertyInventory(instances).catch(error => {
+    if (
+      instancePropertyInventoryCache?.key === cacheIdentity.key &&
+      hasSameInstancePropertyCacheSources(instancePropertyInventoryCache.sources, cacheIdentity.sources)
+    ) {
+      instancePropertyInventoryCache = null;
+    }
+    throw error;
+  });
+  instancePropertyInventoryCache = {
+    key: cacheIdentity.key,
+    sources: cacheIdentity.sources,
+    promise
+  };
+  return await promise;
+}
+
+async function collectNonVariantPropertyAccumulators(instances: InstanceNode[]): Promise<Map<string, PropertyAccumulator>> {
+  return (await collectInstancePropertyInventory(instances)).nonVariantProperties;
 }
 
 async function collectSharedNonVariantPropertyAccumulators(instances: InstanceNode[]): Promise<PropertyAccumulator[]> {
@@ -556,13 +604,14 @@ function getPropertyReferenceMatchRank(propertyReference: string, data: Property
   return 6;
 }
 
-async function findSharedNonVariantPropertyAccumulator(
+function findSharedNonVariantPropertyAccumulatorFromMap(
   instances: InstanceNode[],
+  propertiesMap: Map<string, PropertyAccumulator>,
   propertyReference: string,
   allowedTypes?: string[]
-): Promise<PropertyAccumulator | null> {
+): PropertyAccumulator | null {
   const parsed = parsePropertyOriginPropertyName(propertyReference);
-  const accumulators = await collectSharedNonVariantPropertyAccumulators(instances);
+  const accumulators = filterSharedPropertyAccumulators(instances, propertiesMap);
 
   const matches = accumulators
     .filter(accumulator => !allowedTypes || allowedTypes.includes(accumulator.data.type))
@@ -581,6 +630,19 @@ async function findSharedNonVariantPropertyAccumulator(
     });
 
   return matches[0] || null;
+}
+
+async function findSharedNonVariantPropertyAccumulator(
+  instances: InstanceNode[],
+  propertyReference: string,
+  allowedTypes?: string[]
+): Promise<PropertyAccumulator | null> {
+  return findSharedNonVariantPropertyAccumulatorFromMap(
+    instances,
+    await collectNonVariantPropertyAccumulators(instances),
+    propertyReference,
+    allowedTypes
+  );
 }
 
 function getNonVariantExecutionPropertyName(data: PropertyData): string {
@@ -771,9 +833,23 @@ async function searchVariantOptions(
   propertyName: string,
   optionFilter: string = ''
 ): Promise<SuggestionItem[]> {
+  return searchVariantOptionsFromGroups(
+    instances,
+    (await collectInstancePropertyInventory(instances)).variantGroups,
+    propertyName,
+    optionFilter
+  );
+}
+
+function searchVariantOptionsFromGroups(
+  instances: InstanceNode[],
+  allGroups: VariantPropertyGroup[],
+  propertyName: string,
+  optionFilter: string = ''
+): SuggestionItem[] {
   const groups = filterSharedVariantPropertyGroups(
     instances,
-    await collectVariantPropertyGroups(instances, propertyName)
+    filterVariantPropertyGroupsByReference(allGroups, propertyName)
   );
 
   if (groups.length === 0) {
@@ -1556,9 +1632,10 @@ export async function searchInstanceProperties(searchTerm: string): Promise<Arra
   if (propertyWithValueMatch) {
     const propertyName = propertyWithValueMatch[1].trim();
     const value = propertyWithValueMatch[2].trim();
-    const lookupPropertyName = stripInstancePropertyVariantGroupToken(propertyName);
-    const nonVariantAccumulator = await findSharedNonVariantPropertyAccumulator(
+    const inventory = await collectInstancePropertyInventory(instances);
+    const nonVariantAccumulator = findSharedNonVariantPropertyAccumulatorFromMap(
       instances,
+      inventory.nonVariantProperties,
       propertyName,
       ['TEXT', 'INSTANCE_SWAP']
     );
@@ -1573,221 +1650,17 @@ export async function searchInstanceProperties(searchTerm: string): Promise<Arra
       }
     }
 
-    for (const instance of instances) {
-      const mainComponent = await getCachedMainComponent(instance);
-      if (!mainComponent) continue;
-
-      const allProperties = getComponentPropertyDefinitions(mainComponent);
-      const { key: realPropertyKey, definition: propertyDef } = findPropertyKey(lookupPropertyName, allProperties);
-
-      if (propertyDef) {
-        if (propertyDef.type === 'VARIANT') {
-          return await searchVariantOptions(instances, propertyName, value);
-        } else if (propertyDef.type === 'TEXT') {
-          const cleanName = realPropertyKey ? cleanPropertyName(realPropertyKey) : propertyName;
-          if (value) {
-            return [`${cleanName}: ${value}`];
-          } else {
-            // Get current value to show in suggestion
-            let currentValue = 'current value';
-            if (realPropertyKey && instance.componentProperties[realPropertyKey]) {
-              const currentProp = extractPropertyValue(instance.componentProperties[realPropertyKey]);
-              if (currentProp && typeof currentProp === 'string') {
-                currentValue = currentProp;
-              }
-            }
-            return [`${cleanName}: Type what you want to replace '${currentValue}' with`];
-          }
-        } else if (propertyDef.type === 'INSTANCE_SWAP') {
-          // For initial display (empty value), show preferred values and same-frame components first
-          if (value === '') {
-            // Get preferred values
-            const preferredComponents = await resolvePreferredValues(propertyDef.preferredValues);
-            const preferredResults = preferredComponents.map(c => ({
-              name: `${c.name} (${c.library})`,
-              data: `${propertyName}:${c.name} (${c.library})`
-            }));
-
-            // Get same-frame components
-            const sameFrameComponents = await getSameFrameComponents(instances);
-            const preferredNames = new Set(preferredComponents.map(p => p.name));
-            const sameFrameResults = sameFrameComponents
-              .filter(c => !preferredNames.has(c.name))
-              .map(c => ({
-                name: `${c.name} (${c.library})`,
-                data: `${propertyName}:${c.name} (${c.library})`
-              }));
-
-            // Then get library components
-            const usedNames = new Set([...preferredNames, ...sameFrameComponents.map(c => c.name)]);
-            const components = await searchLibraryComponents('', 100);
-            const otherComponents = components
-              .filter(c => !usedNames.has(c.name))
-              .map(c => ({
-                name: `${c.name} (${c.library})`,
-                data: `${propertyName}:${c.name} (${c.library})`
-              }));
-
-            const allResults = [...preferredResults, ...sameFrameResults, ...otherComponents];
-            if (allResults.length === 0) {
-              return ['No components found'];
-            }
-            return allResults;
-          }
-
-          // When searching, search all components
-          const components = await searchLibraryComponents(value, 100);
-
-          if (components.length === 0) {
-            return [`No components found matching "${value}"`];
-          }
-          return components.map(c => ({
-            name: `${c.name} (${c.library})`,
-            data: `${propertyName}:${c.name} (${c.library})`
-          }));
-        }
-      }
-
-      if (propertyDef) break;
-
-      // If not found in main component, check exposed instances
-      if (instance.exposedInstances && instance.exposedInstances.length > 0) {
-        for (const exposedInstance of instance.exposedInstances) {
-          const exposedMainComponent = await getCachedMainComponent(exposedInstance);
-          if (!exposedMainComponent) continue;
-
-          const exposedProperties = getComponentPropertyDefinitions(exposedMainComponent);
-          const { key: exposedRealKey, definition: exposedPropDef } = findPropertyKey(lookupPropertyName, exposedProperties);
-
-          if (exposedPropDef) {
-            if (exposedPropDef.type === 'VARIANT') {
-              return await searchVariantOptions(instances, propertyName, value);
-            } else if (exposedPropDef.type === 'TEXT') {
-              const cleanName = exposedRealKey ? cleanPropertyName(exposedRealKey) : propertyName;
-              if (value) {
-                return [`${cleanName}: ${value}`];
-              } else {
-                // Get current value to show in suggestion
-                let currentValue = 'current value';
-                if (exposedRealKey && exposedInstance.componentProperties[exposedRealKey]) {
-                  const currentProp = extractPropertyValue(exposedInstance.componentProperties[exposedRealKey]);
-                  if (currentProp && typeof currentProp === 'string') {
-                    currentValue = currentProp;
-                  }
-                }
-                return [`${cleanName}: Type what you want to replace '${currentValue}' with`];
-              }
-            } else if (exposedPropDef.type === 'INSTANCE_SWAP') {
-              // For initial display (empty value), show preferred values and same-frame components first
-              if (value === '') {
-                // Get preferred values
-                const preferredComponents = await resolvePreferredValues(exposedPropDef.preferredValues);
-                const preferredResults = preferredComponents.map(c => ({
-                  name: `${c.name} (${c.library})`,
-                  data: `${propertyName}:${c.name} (${c.library})`
-                }));
-
-                // Get same-frame components
-                const sameFrameComponents = await getSameFrameComponents(instances);
-                const preferredNames = new Set(preferredComponents.map(p => p.name));
-                const sameFrameResults = sameFrameComponents
-                  .filter(c => !preferredNames.has(c.name))
-                  .map(c => ({
-                    name: `${c.name} (${c.library})`,
-                    data: `${propertyName}:${c.name} (${c.library})`
-                  }));
-
-                // Then get library components
-                const usedNames = new Set([...preferredNames, ...sameFrameComponents.map(c => c.name)]);
-                const components = await searchLibraryComponents('', 100);
-                const otherComponents = components
-                  .filter(c => !usedNames.has(c.name))
-                  .map(c => ({
-                    name: `${c.name} (${c.library})`,
-                    data: `${propertyName}:${c.name} (${c.library})`
-                  }));
-
-                const allResults = [...preferredResults, ...sameFrameResults, ...otherComponents];
-                if (allResults.length === 0) {
-                  return ['No components found'];
-                }
-                return allResults;
-              }
-
-              const components = await searchLibraryComponents(value, 100);
-              if (components.length === 0) {
-                return [`No components found matching "${value}"`];
-              }
-              return components.map(c => ({
-                name: `${c.name} (${c.library})`,
-                data: `${propertyName}:${c.name} (${c.library})`
-              }));
-            }
-
-            // Found the property in exposed instance, stop searching
-            break;
-          }
-        }
-      }
-    }
-
-    return await searchVariantOptions(instances, propertyName, value);
+    return searchVariantOptionsFromGroups(instances, inventory.variantGroups, propertyName, value);
   }
 
-  const propertiesMap = new Map<string, PropertyAccumulator>();
-  let propertyOrder = 0;
-
-  for (const instance of instances) {
-    const mainComponent = await getCachedMainComponent(instance);
-    if (!mainComponent) continue;
-
-    const allProperties = getComponentPropertyDefinitions(mainComponent);
-
-    const propKeys = getPropertyKeysInFigmaPanelOrder(allProperties);
-    for (const propName of propKeys) {
-      const order = propertyOrder++;
-      const propDef = allProperties[propName];
-      if (!propDef) continue;
-
-      addNonVariantPropertyAccumulator(propertiesMap, instance, instance, propName, propDef, order);
-    }
-
-    // Add exposed properties from nested instances
-    if (instance.exposedInstances && instance.exposedInstances.length > 0) {
-      for (const exposedInstance of instance.exposedInstances) {
-        const exposedMainComponent = await getCachedMainComponent(exposedInstance);
-        if (!exposedMainComponent) continue;
-
-        const exposedProperties = getComponentPropertyDefinitions(exposedMainComponent);
-        const exposedPropKeys = getPropertyKeysInFigmaPanelOrder(exposedProperties);
-
-        for (const exposedPropName of exposedPropKeys) {
-          const order = propertyOrder++;
-          const exposedPropDef = exposedProperties[exposedPropName];
-          if (!exposedPropDef) continue;
-
-          addNonVariantPropertyAccumulator(
-            propertiesMap,
-            instance,
-            exposedInstance,
-            exposedPropName,
-            exposedPropDef,
-            order
-          );
-        }
-      }
-    }
-  }
+  const inventory = await collectInstancePropertyInventory(instances);
 
   const sharedPropertiesMap = new Map<string, PropertyData>();
-  for (const accumulator of filterSharedPropertyAccumulators(instances, propertiesMap)) {
+  for (const accumulator of filterSharedPropertyAccumulators(instances, inventory.nonVariantProperties)) {
     sharedPropertiesMap.set(accumulator.key, accumulator.data);
   }
 
-  const variantGroups = filterSharedVariantPropertyGroups(
-    instances,
-    await collectVariantPropertyGroups(instances)
-  );
+  const variantGroups = filterSharedVariantPropertyGroups(instances, inventory.variantGroups);
   const variantNameCounts = new Map<string, number>();
   for (const group of variantGroups) {
     variantNameCounts.set(group.displayName, (variantNameCounts.get(group.displayName) || 0) + 1);
@@ -1932,6 +1805,8 @@ async function formatPropertySuggestion(propertyName: string, data: PropertyData
 }
 
 export async function setInstanceProperty(propertyReference: string) {
+  invalidateInstancePropertyInventoryCache();
+
   // Chained pairs: "Type:Primary,Size:Large,Icon:Search" — apply each in order.
   if (propertyReference.includes(',')) {
     const pairs = propertyReference.split(',').map(p => p.trim()).filter(Boolean);

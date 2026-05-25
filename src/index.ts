@@ -416,12 +416,12 @@ async function executeBindingCommand(
 async function handleBindingMode(
   segment: string,
   result: ParameterInputEvent['result'],
-  availabilityContext: SelectionAvailabilityContext
+  getAvailabilityContext: () => SelectionAvailabilityContext
 ): Promise<boolean> {
   const typed = parseTypedBindingSegment(segment);
   if (!typed) return false;
 
-  const matchedCommand = findCommand(typed.alias, availabilityContext)[0];
+  const matchedCommand = findCommand(typed.alias, getAvailabilityContext())[0];
 
   if (!matchedCommand?.bindingSupport) return false;
 
@@ -516,10 +516,13 @@ async function handleNormalMode(
   currentPart: string,
   previousCommands: Record<string, string>,
   result: ParameterInputEvent['result'],
-  availabilityContext: SelectionAvailabilityContext
+  getAvailabilityContext: () => SelectionAvailabilityContext
 ): Promise<void> {
   // If query is empty or ends with space, show all commands
   if (!query || query.endsWith(' ')) {
+    const availabilityContext = query.trim()
+      ? getAvailabilityContext()
+      : createSelectionAvailabilityContext([]);
     const baseSuggestions = getCommandSuggestions(
       COMMANDS,
       '',
@@ -549,6 +552,7 @@ async function handleNormalMode(
   }
 
   const completeCommands = buildSuggestionSummary(previousCommands);
+  const availabilityContext = getAvailabilityContext();
   const matchedCommand = findCommand(currentPart, availabilityContext)[0];
   const hasNumber = VALUE_FORMAT_REGEX.number.exec(currentPart);
   const hasHex = VALUE_FORMAT_REGEX.hex.exec(currentPart);
@@ -724,18 +728,24 @@ function setupInputHandler() {
     if (key !== 'command') return;
     originalInput = query;
 
-    const availabilityContext = createSelectionAvailabilityContext(figma.currentPage.selection);
+    let availabilityContext: SelectionAvailabilityContext | null = null;
+    const getAvailabilityContext = () => {
+      if (!availabilityContext) {
+        availabilityContext = createSelectionAvailabilityContext(figma.currentPage.selection);
+      }
+      return availabilityContext;
+    };
     const segments = query.split(COMMAND_BREAK_PATTERN);
     const currentSegment = segments[segments.length - 1];
     const previousSegments = segments.slice(0, -1);
 
     // Try binding mode first
-    if (await handleBindingMode(currentSegment, result, availabilityContext)) return;
+    if (await handleBindingMode(currentSegment, result, getAvailabilityContext)) return;
 
     // History command shows recent sequences instead of related commands.
     // Only trigger when the History command is the entire input — chains like
     // "w100  hi" should not hijack suggestions.
-    if (previousSegments.length === 0 && isHistoryInvocation(currentSegment, availabilityContext)) {
+    if (previousSegments.length === 0 && isHistoryInvocation(currentSegment, currentSegment.trim() ? getAvailabilityContext() : undefined)) {
       await handleHistoryCommand(result);
       return;
     }
@@ -743,9 +753,11 @@ function setupInputHandler() {
     // Normal mode
     const parts = currentSegment.split(' ');
     const currentPart = parts[parts.length - 1];
-    const previousCommands = trackPreviousCommands(previousSegments, parts.slice(0, -1), availabilityContext);
+    const previousCommands = previousSegments.length > 0 || parts.length > 1
+      ? trackPreviousCommands(previousSegments, parts.slice(0, -1), getAvailabilityContext())
+      : {};
 
-    await handleNormalMode(query, currentPart, previousCommands, result, availabilityContext);
+    await handleNormalMode(query, currentPart, previousCommands, result, getAvailabilityContext);
   };
 
   figma.parameters.on('input', currentInputHandler);

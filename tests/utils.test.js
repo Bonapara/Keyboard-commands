@@ -375,6 +375,41 @@ async function main() {
     true
   );
 
+  let unrelatedPredicateCalls = 0;
+  const filteredSuggestionContext = createSelectionAvailabilityContext([{ type: 'RECTANGLE' }]);
+  const filteredSuggestions = getCommandSuggestions(
+    [
+      {
+        name: 'Width',
+        alias: ['w'],
+        type: 'commandWithValue',
+        valueFormat: 'number',
+        functionWithParam() {},
+      },
+      {
+        name: 'UnrelatedSlowCommand',
+        alias: ['zz'],
+        type: 'commandWithoutValue',
+        functionWithoutParam() {},
+        selectionPredicate() {
+          unrelatedPredicateCalls++;
+          return true;
+        },
+      },
+    ],
+    'wid',
+    undefined,
+    false,
+    {},
+    filteredSuggestionContext
+  );
+  assert.deepEqual(filteredSuggestions, ['w · Width']);
+  assert.equal(
+    unrelatedPredicateCalls,
+    0,
+    'command suggestions should filter by typed text before running selection predicates'
+  );
+
   console.log('utils tests passed');
 }
 

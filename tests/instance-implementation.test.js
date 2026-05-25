@@ -65,6 +65,18 @@ function createInstance(id, mainComponent, componentProperties, exposedInstances
   };
 }
 
+function createDelayedInstance(id, mainComponent, componentProperties, tracker) {
+  const instance = createInstance(id, mainComponent, componentProperties);
+  instance.getMainComponentAsync = async () => {
+    tracker.inFlight += 1;
+    tracker.maxInFlight = Math.max(tracker.maxInFlight, tracker.inFlight);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    tracker.inFlight -= 1;
+    return mainComponent;
+  };
+  return instance;
+}
+
 function createCompatibleStateSelection() {
   const headerMain = createMainComponent('header-main', {
     'State#1:1': variantProperty(['Default', 'Selected']),
@@ -436,6 +448,50 @@ async function main() {
   assert.equal(exposedCell.componentProperties['State#40:1'].value, 'Selected');
   assert.equal(wrapper.setPropertiesCalls.length, 0);
   assert.equal(secondWrapper.setPropertiesCalls.length, 0);
+
+  const delayedMain = createMainComponent('delayed-main', {
+    'Label#100:1': textProperty('Amount:'),
+  });
+  const delayedTracker = { inFlight: 0, maxInFlight: 0 };
+  figma.currentPage.selection = [
+    createDelayedInstance('delayed-a', delayedMain, { 'Label#100:1': propertyValue('A') }, delayedTracker),
+    createDelayedInstance('delayed-b', delayedMain, { 'Label#100:1': propertyValue('B') }, delayedTracker),
+    createDelayedInstance('delayed-c', delayedMain, { 'Label#100:1': propertyValue('C') }, delayedTracker),
+  ];
+
+  await searchInstanceProperties('');
+
+  assert.ok(
+    delayedTracker.maxInFlight > 1,
+    'instance property search should load selected instance main components in parallel'
+  );
+
+  const cachedMain = createMainComponent('cached-main', {
+    'Label#101:1': textProperty('Cached'),
+  });
+  let cachedPropertyReads = 0;
+  const cachedComponentProperties = {};
+  Object.defineProperty(cachedComponentProperties, 'Label#101:1', {
+    enumerable: true,
+    configurable: true,
+    get() {
+      cachedPropertyReads++;
+      return propertyValue('Cached');
+    },
+  });
+  const cachedInstance = createInstance('cached-instance', cachedMain, cachedComponentProperties);
+  figma.currentPage.selection = [cachedInstance];
+
+  await searchInstanceProperties('');
+  assert.ok(cachedPropertyReads > 0, 'initial instance inventory should read current property values');
+
+  cachedPropertyReads = 0;
+  await searchInstanceProperties('lab');
+  assert.equal(
+    cachedPropertyReads,
+    0,
+    'repeated instance-property typing should reuse inventory without rescanning component property values'
+  );
 
   console.log('instance implementation tests passed');
 }

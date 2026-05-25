@@ -265,19 +265,19 @@ export function findCommand(
   const containsMatches: CommandWithName[] = [];
 
   for (const cmd of COMMANDS) {
-    if (!isCommandAvailableForSelectionWithContext(cmd, availabilityContext)) continue;
-
     const nameLower = cmd.name.toLowerCase();
     const aliases = allAliasesByCommand!.get(cmd.name) || [];
 
     // Check if name or any alias starts with the search term
     if (nameLower.startsWith(cmdLower) ||
       aliases.some(alias => alias.toLowerCase().startsWith(cmdLower))) {
+      if (!isCommandAvailableForSelectionWithContext(cmd, availabilityContext)) continue;
       startsWithMatches.push(cmd);
     }
     // If not starting with, check if it contains the term
     else if (nameLower.includes(cmdLower) ||
       aliases.some(alias => alias.toLowerCase().includes(cmdLower))) {
+      if (!isCommandAvailableForSelectionWithContext(cmd, availabilityContext)) continue;
       containsMatches.push(cmd);
     }
   }
@@ -320,29 +320,29 @@ export function getCommandSuggestions(
   previousCommands: Record<string, string> = {},
   availabilityContext: SelectionAvailabilityContext = createSelectionAvailabilityContext(figma.currentPage.selection)
 ) {
+  const lowerSearch = searchTerm.toLowerCase();
   const filteredCommands = commands.filter(cmd => {
     // Exclude the specific command (so it doesn't show up as a "related" suggestion to itself)
     if (excludeCommand && cmd.name === excludeCommand.name) return false;
-    if (!isCommandAvailableForSelectionWithContext(cmd, availabilityContext)) return false;
 
     // If the user typed nothing (searchTerm is empty):
     // - For the initial top-level suggestions, we return all commands.
     // - For "related" suggestions (excludeCommand is set), we don't return everything
     //   (otherwise you'd see random commands that have nothing to do with the matched command).
     if (!searchTerm) {
-      return !excludeCommand; // Return true if no excludeCommand, false if we are in "related" mode
+      return !excludeCommand && isCommandAvailableForSelectionWithContext(cmd, availabilityContext);
     }
 
     // Otherwise, normal search filtering
-    const lowerSearch = searchTerm.toLowerCase();
-    return (
+    const matchesSearch =
       cmd.name.toLowerCase().startsWith(lowerSearch) ||
       cmd.name.toLowerCase().includes(lowerSearch) ||
       cmd.alias.some(alias =>
         alias.toLowerCase().startsWith(lowerSearch) ||
         alias.toLowerCase().includes(lowerSearch)
-      )
-    );
+      );
+
+    return matchesSearch && isCommandAvailableForSelectionWithContext(cmd, availabilityContext);
   });
 
   // Sort results
