@@ -301,6 +301,14 @@ export function isCommandAvailableForSelection(command, selection) {
   return matchesSelectionCount && matchesSelectionPredicate;
 }
 
+export function createSelectionAvailabilityContext(selection) {
+  return { selection };
+}
+
+export function isCommandAvailableForSelectionWithContext(command, context) {
+  return isCommandAvailableForSelection(command, context.selection);
+}
+
 export async function searchStylesAndVariables(searchTerm, bindingSupport) {
   bindingSearches.push(searchTerm);
 

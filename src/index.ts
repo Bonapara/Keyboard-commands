@@ -5,7 +5,9 @@ import {
   getCommandSuggestions,
   extractValue,
   calculateExpression,
-  isCommandAvailableForSelection,
+  createSelectionAvailabilityContext,
+  isCommandAvailableForSelectionWithContext,
+  type SelectionAvailabilityContext,
   VALUE_FORMAT_REGEX,
   COMMAND_SPLITTER_REGEX,
   COMMAND_PART_REGEX,
@@ -30,10 +32,10 @@ const PRISTINE_HISTORY_COUNT = 3;
 // True when the input is a single token that resolves to the History command
 // (e.g. "hi", "history", or partial typings like "hist" — anything findCommand
 // would map to History on its own).
-function isHistoryInvocation(input: string): boolean {
+function isHistoryInvocation(input: string, availabilityContext?: SelectionAvailabilityContext): boolean {
   const trimmed = input.trim();
   if (!trimmed || trimmed.includes(' ')) return false;
-  return findCommand(trimmed)[0]?.name === HISTORY_COMMAND_NAME;
+  return findCommand(trimmed, availabilityContext)[0]?.name === HISTORY_COMMAND_NAME;
 }
 
 let originalInput = '';
@@ -209,14 +211,15 @@ function trackCommandsFromSegment(
   isBindingSegment: boolean,
   bindingAlias?: string,
   bindingValue?: string,
-  ignoreSelection: boolean = false
+  ignoreSelection: boolean = false,
+  availabilityContext?: SelectionAvailabilityContext
 ): Record<string, string> {
   const commands: Record<string, string> = {};
 
   if (isBindingSegment && bindingAlias && bindingValue !== undefined) {
     const matchedBindingCmd = ignoreSelection
       ? findCommandIgnoringSelection(bindingAlias)
-      : findCommand(bindingAlias)[0];
+      : findCommand(bindingAlias, availabilityContext)[0];
     if (matchedBindingCmd) {
       let formattedValue = bindingValue.trim();
 
@@ -242,7 +245,7 @@ function trackCommandsFromSegment(
   parts.forEach(part => {
     const matchedCommand = ignoreSelection
       ? findCommandIgnoringSelection(part)
-      : findCommand(part)[0];
+      : findCommand(part, availabilityContext)[0];
     if (matchedCommand) {
       if (matchedCommand.type === 'commandWithoutValue') {
         commands[matchedCommand.name] = '';
@@ -412,12 +415,13 @@ async function executeBindingCommand(
 // Handle binding mode suggestions (cmd?searchTerm pattern)
 async function handleBindingMode(
   segment: string,
-  result: ParameterInputEvent['result']
+  result: ParameterInputEvent['result'],
+  availabilityContext: SelectionAvailabilityContext
 ): Promise<boolean> {
   const typed = parseTypedBindingSegment(segment);
   if (!typed) return false;
 
-  const matchedCommand = findCommand(typed.alias)[0];
+  const matchedCommand = findCommand(typed.alias, availabilityContext)[0];
 
   if (!matchedCommand?.bindingSupport) return false;
 
@@ -434,7 +438,11 @@ async function handleBindingMode(
 }
 
 // Track commands from previous segments to show "already set" indicators
-function trackPreviousCommands(previousSegments: string[], currentSegmentParts: string[]): Record<string, string> {
+function trackPreviousCommands(
+  previousSegments: string[],
+  currentSegmentParts: string[],
+  availabilityContext: SelectionAvailabilityContext
+): Record<string, string> {
   const commands: Record<string, string> = {};
 
   // Process previous segments
@@ -445,17 +453,17 @@ function trackPreviousCommands(previousSegments: string[], currentSegmentParts: 
     const parsed = parseBindingSegment(trimmed);
     if (parsed) {
       if (parsed.prefix) {
-        Object.assign(commands, trackCommandsFromSegment(parsed.prefix, false));
+        Object.assign(commands, trackCommandsFromSegment(parsed.prefix, false, undefined, undefined, false, availabilityContext));
       }
-      Object.assign(commands, trackCommandsFromSegment('', true, parsed.alias, parsed.value));
+      Object.assign(commands, trackCommandsFromSegment('', true, parsed.alias, parsed.value, false, availabilityContext));
     } else {
-      Object.assign(commands, trackCommandsFromSegment(trimmed, false));
+      Object.assign(commands, trackCommandsFromSegment(trimmed, false, undefined, undefined, false, availabilityContext));
     }
   }
 
   // Process previous parts in current segment
   for (const part of currentSegmentParts) {
-    Object.assign(commands, trackCommandsFromSegment(part, false));
+    Object.assign(commands, trackCommandsFromSegment(part, false, undefined, undefined, false, availabilityContext));
   }
 
   return commands;
@@ -507,11 +515,19 @@ async function handleNormalMode(
   query: string,
   currentPart: string,
   previousCommands: Record<string, string>,
-  result: ParameterInputEvent['result']
+  result: ParameterInputEvent['result'],
+  availabilityContext: SelectionAvailabilityContext
 ): Promise<void> {
   // If query is empty or ends with space, show all commands
   if (!query || query.endsWith(' ')) {
-    const baseSuggestions = getCommandSuggestions(COMMANDS, '', undefined, true, previousCommands);
+    const baseSuggestions = getCommandSuggestions(
+      COMMANDS,
+      '',
+      undefined,
+      true,
+      previousCommands,
+      availabilityContext
+    );
 
     // Pristine input — prepend the top N recent sequences so users can re-run
     // any of them with one click. Skip mid-chain so suggestions stay focused
@@ -533,14 +549,23 @@ async function handleNormalMode(
   }
 
   const completeCommands = buildSuggestionSummary(previousCommands);
-  const matchedCommand = findCommand(currentPart)[0];
+  const matchedCommand = findCommand(currentPart, availabilityContext)[0];
   const hasNumber = VALUE_FORMAT_REGEX.number.exec(currentPart);
   const hasHex = VALUE_FORMAT_REGEX.hex.exec(currentPart);
 
   if (matchedCommand) {
-    handleMatchedCommand(matchedCommand, currentPart, completeCommands, previousCommands, hasNumber, hasHex, result);
+    handleMatchedCommand(
+      matchedCommand,
+      currentPart,
+      completeCommands,
+      previousCommands,
+      hasNumber,
+      hasHex,
+      result,
+      availabilityContext
+    );
   } else {
-    handleUnmatchedCommand(currentPart, result);
+    handleUnmatchedCommand(currentPart, result, availabilityContext);
   }
 }
 
@@ -587,7 +612,8 @@ function handleMatchedCommand(
   previousCommands: Record<string, string>,
   hasNumber: RegExpExecArray | null,
   hasHex: RegExpExecArray | null,
-  result: ParameterInputEvent['result']
+  result: ParameterInputEvent['result'],
+  availabilityContext: SelectionAvailabilityContext
 ): void {
   const isValidValue =
     (matchedCommand.type === "commandWithValue" || matchedCommand.type === "optionalValueCommand") &&
@@ -644,12 +670,23 @@ function handleMatchedCommand(
   }
 
   // Add related commands
-  const relatedSuggestions = getCommandSuggestions(COMMANDS, currentPart, matchedCommand, false, previousCommands);
+  const relatedSuggestions = getCommandSuggestions(
+    COMMANDS,
+    currentPart,
+    matchedCommand,
+    false,
+    previousCommands,
+    availabilityContext
+  );
   result.setSuggestions([...suggestions, ...relatedSuggestions]);
 }
 
 // Handle suggestions when no command is matched
-function handleUnmatchedCommand(currentPart: string, result: ParameterInputEvent['result']): void {
+function handleUnmatchedCommand(
+  currentPart: string,
+  result: ParameterInputEvent['result'],
+  availabilityContext: SelectionAvailabilityContext
+): void {
   const cmdLower = currentPart.toLowerCase();
   const allMatching = COMMANDS.filter(cmd =>
     cmd.name.toLowerCase().includes(cmdLower) ||
@@ -661,9 +698,9 @@ function handleUnmatchedCommand(currentPart: string, result: ParameterInputEvent
     return;
   }
 
-  // Check if matching commands are valid for current selection
-  const selection = figma.currentPage.selection;
-  const available = allMatching.filter(cmd => isCommandAvailableForSelection(cmd, selection));
+  const available = allMatching.filter(cmd =>
+    isCommandAvailableForSelectionWithContext(cmd, availabilityContext)
+  );
 
   if (available.length === 0) {
     result.setSuggestions(allMatching.map(cmd => `'${cmd.name}' not available on selection`));
@@ -687,17 +724,18 @@ function setupInputHandler() {
     if (key !== 'command') return;
     originalInput = query;
 
+    const availabilityContext = createSelectionAvailabilityContext(figma.currentPage.selection);
     const segments = query.split(COMMAND_BREAK_PATTERN);
     const currentSegment = segments[segments.length - 1];
     const previousSegments = segments.slice(0, -1);
 
     // Try binding mode first
-    if (await handleBindingMode(currentSegment, result)) return;
+    if (await handleBindingMode(currentSegment, result, availabilityContext)) return;
 
     // History command shows recent sequences instead of related commands.
     // Only trigger when the History command is the entire input — chains like
     // "w100  hi" should not hijack suggestions.
-    if (previousSegments.length === 0 && isHistoryInvocation(currentSegment)) {
+    if (previousSegments.length === 0 && isHistoryInvocation(currentSegment, availabilityContext)) {
       await handleHistoryCommand(result);
       return;
     }
@@ -705,9 +743,9 @@ function setupInputHandler() {
     // Normal mode
     const parts = currentSegment.split(' ');
     const currentPart = parts[parts.length - 1];
-    const previousCommands = trackPreviousCommands(previousSegments, parts.slice(0, -1));
+    const previousCommands = trackPreviousCommands(previousSegments, parts.slice(0, -1), availabilityContext);
 
-    await handleNormalMode(query, currentPart, previousCommands, result);
+    await handleNormalMode(query, currentPart, previousCommands, result, availabilityContext);
   };
 
   figma.parameters.on('input', currentInputHandler);
