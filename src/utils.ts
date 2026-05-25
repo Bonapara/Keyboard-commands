@@ -141,28 +141,101 @@ export function checkSpecialConditions(node: SceneNode, conditions: SpecialCondi
   });
 }
 
-// Helper function to check if command supports current selection
-export function isCommandAvailableForSelection(cmd: Command, selection: readonly SceneNode[]): boolean {
+export interface SelectionAvailabilityContext {
+  selection: readonly SceneNode[];
+  selectedNodeTypes: Set<SceneNode['type']> | null;
+  specialConditionResults: Map<string, boolean>;
+  selectionPredicateResults: Map<NonNullable<Command['selectionPredicate']>, boolean>;
+}
+
+export function createSelectionAvailabilityContext(selection: readonly SceneNode[]): SelectionAvailabilityContext {
+  return {
+    selection,
+    selectedNodeTypes: null,
+    specialConditionResults: new Map(),
+    selectionPredicateResults: new Map()
+  };
+}
+
+function getSelectedNodeTypes(context: SelectionAvailabilityContext): Set<SceneNode['type']> {
+  if (!context.selectedNodeTypes) {
+    context.selectedNodeTypes = new Set(context.selection.map(node => node.type));
+  }
+
+  return context.selectedNodeTypes;
+}
+
+function matchesSupportedNodeTypes(cmd: Command, context: SelectionAvailabilityContext): boolean {
+  if (!cmd.supportedNodes) return true;
+
+  const selectedNodeTypes = getSelectedNodeTypes(context);
+  for (const nodeType of selectedNodeTypes) {
+    if (cmd.supportedNodes.indexOf(nodeType) === -1) return false;
+  }
+
+  return true;
+}
+
+function getSpecialConditionKey(conditions: SpecialCondition[]): string {
+  return conditions.join('\x1f');
+}
+
+function meetsSpecialConditions(cmd: Command, context: SelectionAvailabilityContext): boolean {
+  if (!cmd.specialConditions) return true;
+
+  const cacheKey = getSpecialConditionKey(cmd.specialConditions);
+  const cached = context.specialConditionResults.get(cacheKey);
+  if (cached !== undefined) return cached;
+
+  const result = context.selection.every(node =>
+    checkSpecialConditions(node, cmd.specialConditions!)
+  );
+  context.specialConditionResults.set(cacheKey, result);
+  return result;
+}
+
+function matchesSelectionPredicate(cmd: Command, context: SelectionAvailabilityContext): boolean {
+  if (!cmd.selectionPredicate) return true;
+
+  const cached = context.selectionPredicateResults.get(cmd.selectionPredicate);
+  if (cached !== undefined) return cached;
+
+  const result = cmd.selectionPredicate(context.selection);
+  context.selectionPredicateResults.set(cmd.selectionPredicate, result);
+  return result;
+}
+
+export function isCommandAvailableForSelectionWithContext(
+  cmd: Command,
+  context: SelectionAvailabilityContext
+): boolean {
   if (!cmd.supportedNodes && !cmd.specialConditions && cmd.selectionCount === undefined && !cmd.selectionPredicate) {
     return true;
   }
-  if (selection.length === 0) return true;
+  if (context.selection.length === 0) return true;
 
-  // Check both supportedNodes and specialConditions
-  const matchesSelectionCount = cmd.selectionCount === undefined || selection.length === cmd.selectionCount;
-  const supportsNodeTypes = !cmd.supportedNodes || selection.every(node =>
-    cmd.supportedNodes!.indexOf(node.type) !== -1
+  const matchesSelectionCount = cmd.selectionCount === undefined || context.selection.length === cmd.selectionCount;
+
+  return (
+    matchesSelectionCount &&
+    matchesSupportedNodeTypes(cmd, context) &&
+    meetsSpecialConditions(cmd, context) &&
+    matchesSelectionPredicate(cmd, context)
   );
-
-  const meetsSpecialConditions = !cmd.specialConditions || selection.every(node =>
-    checkSpecialConditions(node, cmd.specialConditions!)
-  );
-  const matchesSelectionPredicate = !cmd.selectionPredicate || cmd.selectionPredicate(selection);
-
-  return matchesSelectionCount && supportsNodeTypes && meetsSpecialConditions && matchesSelectionPredicate;
 }
 
-export function findCommand(part: string): Array<Command & { name: CommandName }> {
+// Helper function to check if command supports current selection
+export function isCommandAvailableForSelection(cmd: Command, selection: readonly SceneNode[]): boolean {
+  return isCommandAvailableForSelectionWithContext(
+    cmd,
+    createSelectionAvailabilityContext(selection)
+  );
+}
+
+export function findCommand(
+  part: string,
+  availabilityContext: SelectionAvailabilityContext = createSelectionAvailabilityContext(figma.currentPage.selection)
+): Array<Command & { name: CommandName }> {
   // Ensure command index is built (lazy initialization)
   ensureCommandIndex();
 
@@ -173,18 +246,17 @@ export function findCommand(part: string): Array<Command & { name: CommandName }
   }
 
   const cmdLower = commandPart.toLowerCase();
-  const selection = figma.currentPage.selection;
 
   // O(1) lookup: Check for exact alias match first
   const exactMatch = aliasToCommand!.get(cmdLower);
   if (exactMatch) {
-    return isCommandAvailableForSelection(exactMatch, selection) ? [exactMatch] : [];
+    return isCommandAvailableForSelectionWithContext(exactMatch, availabilityContext) ? [exactMatch] : [];
   }
 
   // O(1) lookup: Check for exact name match
   const nameMatch = nameToCommand!.get(cmdLower);
   if (nameMatch) {
-    return isCommandAvailableForSelection(nameMatch, selection) ? [nameMatch] : [];
+    return isCommandAvailableForSelectionWithContext(nameMatch, availabilityContext) ? [nameMatch] : [];
   }
 
   // Fallback to prefix/contains search only when no exact match
@@ -193,19 +265,19 @@ export function findCommand(part: string): Array<Command & { name: CommandName }
   const containsMatches: CommandWithName[] = [];
 
   for (const cmd of COMMANDS) {
-    if (!isCommandAvailableForSelection(cmd, selection)) continue;
-
     const nameLower = cmd.name.toLowerCase();
     const aliases = allAliasesByCommand!.get(cmd.name) || [];
 
     // Check if name or any alias starts with the search term
     if (nameLower.startsWith(cmdLower) ||
       aliases.some(alias => alias.toLowerCase().startsWith(cmdLower))) {
+      if (!isCommandAvailableForSelectionWithContext(cmd, availabilityContext)) continue;
       startsWithMatches.push(cmd);
     }
     // If not starting with, check if it contains the term
     else if (nameLower.includes(cmdLower) ||
       aliases.some(alias => alias.toLowerCase().includes(cmdLower))) {
+      if (!isCommandAvailableForSelectionWithContext(cmd, availabilityContext)) continue;
       containsMatches.push(cmd);
     }
   }
@@ -245,33 +317,32 @@ export function getCommandSuggestions(
   searchTerm: string = '',
   excludeCommand?: Command,
   includeSuggestion: boolean = false,
-  previousCommands: Record<string, string> = {}
+  previousCommands: Record<string, string> = {},
+  availabilityContext: SelectionAvailabilityContext = createSelectionAvailabilityContext(figma.currentPage.selection)
 ) {
-  const selection = figma.currentPage.selection;
-
+  const lowerSearch = searchTerm.toLowerCase();
   const filteredCommands = commands.filter(cmd => {
     // Exclude the specific command (so it doesn't show up as a "related" suggestion to itself)
     if (excludeCommand && cmd.name === excludeCommand.name) return false;
-    if (!isCommandAvailableForSelection(cmd, selection)) return false;
 
     // If the user typed nothing (searchTerm is empty):
     // - For the initial top-level suggestions, we return all commands.
     // - For "related" suggestions (excludeCommand is set), we don't return everything
     //   (otherwise you'd see random commands that have nothing to do with the matched command).
     if (!searchTerm) {
-      return !excludeCommand; // Return true if no excludeCommand, false if we are in "related" mode
+      return !excludeCommand && isCommandAvailableForSelectionWithContext(cmd, availabilityContext);
     }
 
     // Otherwise, normal search filtering
-    const lowerSearch = searchTerm.toLowerCase();
-    return (
+    const matchesSearch =
       cmd.name.toLowerCase().startsWith(lowerSearch) ||
       cmd.name.toLowerCase().includes(lowerSearch) ||
       cmd.alias.some(alias =>
         alias.toLowerCase().startsWith(lowerSearch) ||
         alias.toLowerCase().includes(lowerSearch)
-      )
-    );
+      );
+
+    return matchesSearch && isCommandAvailableForSelectionWithContext(cmd, availabilityContext);
   });
 
   // Sort results

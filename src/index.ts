@@ -5,7 +5,9 @@ import {
   getCommandSuggestions,
   extractValue,
   calculateExpression,
-  isCommandAvailableForSelection,
+  createSelectionAvailabilityContext,
+  isCommandAvailableForSelectionWithContext,
+  type SelectionAvailabilityContext,
   VALUE_FORMAT_REGEX,
   COMMAND_SPLITTER_REGEX,
   COMMAND_PART_REGEX,
@@ -30,10 +32,10 @@ const PRISTINE_HISTORY_COUNT = 3;
 // True when the input is a single token that resolves to the History command
 // (e.g. "hi", "history", or partial typings like "hist" — anything findCommand
 // would map to History on its own).
-function isHistoryInvocation(input: string): boolean {
+function isHistoryInvocation(input: string, availabilityContext?: SelectionAvailabilityContext): boolean {
   const trimmed = input.trim();
   if (!trimmed || trimmed.includes(' ')) return false;
-  return findCommand(trimmed)[0]?.name === HISTORY_COMMAND_NAME;
+  return findCommand(trimmed, availabilityContext)[0]?.name === HISTORY_COMMAND_NAME;
 }
 
 let originalInput = '';
@@ -62,9 +64,53 @@ function findCommandIgnoringSelection(part: string): (typeof COMMANDS)[0] | unde
 }
 
 function getSuggestionDataKey(item: string | { data: unknown }): string | null {
-  if (typeof item === 'string') return item;
-  if (item && typeof item.data === 'string') return item.data;
+  if (typeof item === 'string') return impl.stripInstancePropertyVariantGroupToken(item);
+  if (item && typeof item.data === 'string') return impl.stripInstancePropertyVariantGroupToken(item.data);
   return null;
+}
+
+function formatRecentFieldLabel(field: string): string {
+  if (field === 'cornerRadius') return 'Corner Radius';
+  if (field === 'stroke') return 'Stroke';
+
+  return field
+    .replace(/_/g, ' ')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+function formatInstanceOverrideRecentLabel(value: string): string | null {
+  try {
+    const data = JSON.parse(value) as Record<string, unknown>;
+    const field = typeof data.field === 'string' ? data.field : '';
+    const nodeName = typeof data.nodeName === 'string' ? data.nodeName : '';
+    const componentPropertyName = typeof data.componentPropertyName === 'string'
+      ? data.componentPropertyName
+      : '';
+
+    if (!field || !nodeName) return null;
+
+    const fieldLabel = field === 'componentProperties' && componentPropertyName
+      ? `Property: ${componentPropertyName}`
+      : formatRecentFieldLabel(field);
+
+    return `${nodeName} -> ${fieldLabel}`;
+  } catch {
+    return null;
+  }
+}
+
+function getRecentSuggestionName(
+  matchedCommand: (typeof COMMANDS)[0],
+  value: string
+): string {
+  const displayValue = matchedCommand.bindingSupport?.instanceOverrides
+    ? formatInstanceOverrideRecentLabel(value) || value
+    : value;
+
+  return `${displayValue} (recent)`;
 }
 
 // Extract the "active" portion of a chained search (what's after the last ",")
@@ -92,8 +138,9 @@ async function buildRecentSuggestions(
   searchTerm: string,
   existing: Array<string | { name: string; data: unknown }>
 ): Promise<Array<{ name: string; data: unknown }>> {
-  // Libraries don't benefit — they're a selection list, not an action.
-  if (matchedCommand.bindingSupport?.libraries) return [];
+  // Libraries are selection lists, and instance-property search should stay
+  // focused on the properties currently editable from the selected instances.
+  if (matchedCommand.bindingSupport?.libraries || matchedCommand.bindingSupport?.instanceProperties) return [];
 
   const recents = await getRecentValues(matchedCommand.name);
   if (recents.length === 0) return [];
@@ -105,11 +152,17 @@ async function buildRecentSuggestions(
     existing.map(getSuggestionDataKey).filter((k): k is string => k !== null)
   );
 
-  return recents
-    .filter(r => !committed.has(r))
-    .filter(r => !activeLower || r.toLowerCase().includes(activeLower))
-    .filter(r => !existingKeys.has(prefix + r))
-    .map(r => ({ name: `${r} (recent)`, data: prefix + r }));
+  const matchingRecents = recents
+    .map(r => ({ value: r, name: getRecentSuggestionName(matchedCommand, r) }))
+    .filter(r => !committed.has(r.value))
+    .filter(r => (
+      !activeLower ||
+      r.value.toLowerCase().includes(activeLower) ||
+      r.name.toLowerCase().includes(activeLower)
+    ))
+    .filter(r => !existingKeys.has(prefix + r.value));
+
+  return matchingRecents.map(r => ({ name: r.name, data: prefix + r.value }));
 }
 
 async function generateBindingSuggestions(
@@ -143,7 +196,10 @@ async function generateBindingSuggestions(
     }
 
     const recentItems = await buildRecentSuggestions(matchedCommand, searchTerm, suggestions);
-    return recentItems.length > 0 ? [...recentItems, ...suggestions] : suggestions;
+    if (recentItems.length === 0) return suggestions;
+    return matchedCommand.bindingSupport.instanceProperties
+      ? [...suggestions, ...recentItems]
+      : [...recentItems, ...suggestions];
   } catch (error) {
     console.error('Error searching:', error);
     return [];
@@ -155,14 +211,15 @@ function trackCommandsFromSegment(
   isBindingSegment: boolean,
   bindingAlias?: string,
   bindingValue?: string,
-  ignoreSelection: boolean = false
+  ignoreSelection: boolean = false,
+  availabilityContext?: SelectionAvailabilityContext
 ): Record<string, string> {
   const commands: Record<string, string> = {};
 
   if (isBindingSegment && bindingAlias && bindingValue !== undefined) {
     const matchedBindingCmd = ignoreSelection
       ? findCommandIgnoringSelection(bindingAlias)
-      : findCommand(bindingAlias)[0];
+      : findCommand(bindingAlias, availabilityContext)[0];
     if (matchedBindingCmd) {
       let formattedValue = bindingValue.trim();
 
@@ -188,7 +245,7 @@ function trackCommandsFromSegment(
   parts.forEach(part => {
     const matchedCommand = ignoreSelection
       ? findCommandIgnoringSelection(part)
-      : findCommand(part)[0];
+      : findCommand(part, availabilityContext)[0];
     if (matchedCommand) {
       if (matchedCommand.type === 'commandWithoutValue') {
         commands[matchedCommand.name] = '';
@@ -340,7 +397,10 @@ async function executeBindingCommand(
   // Record for recent-values. ip chains on ",", each pair is its own entry.
   if (matchedCommand) {
     const recordable = matchedCommand.bindingSupport?.instanceProperties
-      ? valueToUse.split(',').map(v => v.trim()).filter(Boolean)
+      ? valueToUse
+        .split(',')
+        .map(v => impl.stripInstancePropertyVariantGroupToken(v.trim()))
+        .filter(Boolean)
       : [valueToUse.trim()];
     for (const entry of recordable) {
       await recordRecentValue(matchedCommand.name, entry);
@@ -355,12 +415,13 @@ async function executeBindingCommand(
 // Handle binding mode suggestions (cmd?searchTerm pattern)
 async function handleBindingMode(
   segment: string,
-  result: ParameterInputEvent['result']
+  result: ParameterInputEvent['result'],
+  getAvailabilityContext: () => SelectionAvailabilityContext
 ): Promise<boolean> {
   const typed = parseTypedBindingSegment(segment);
   if (!typed) return false;
 
-  const matchedCommand = findCommand(typed.alias)[0];
+  const matchedCommand = findCommand(typed.alias, getAvailabilityContext())[0];
 
   if (!matchedCommand?.bindingSupport) return false;
 
@@ -377,7 +438,11 @@ async function handleBindingMode(
 }
 
 // Track commands from previous segments to show "already set" indicators
-function trackPreviousCommands(previousSegments: string[], currentSegmentParts: string[]): Record<string, string> {
+function trackPreviousCommands(
+  previousSegments: string[],
+  currentSegmentParts: string[],
+  availabilityContext: SelectionAvailabilityContext
+): Record<string, string> {
   const commands: Record<string, string> = {};
 
   // Process previous segments
@@ -388,17 +453,17 @@ function trackPreviousCommands(previousSegments: string[], currentSegmentParts: 
     const parsed = parseBindingSegment(trimmed);
     if (parsed) {
       if (parsed.prefix) {
-        Object.assign(commands, trackCommandsFromSegment(parsed.prefix, false));
+        Object.assign(commands, trackCommandsFromSegment(parsed.prefix, false, undefined, undefined, false, availabilityContext));
       }
-      Object.assign(commands, trackCommandsFromSegment('', true, parsed.alias, parsed.value));
+      Object.assign(commands, trackCommandsFromSegment('', true, parsed.alias, parsed.value, false, availabilityContext));
     } else {
-      Object.assign(commands, trackCommandsFromSegment(trimmed, false));
+      Object.assign(commands, trackCommandsFromSegment(trimmed, false, undefined, undefined, false, availabilityContext));
     }
   }
 
   // Process previous parts in current segment
   for (const part of currentSegmentParts) {
-    Object.assign(commands, trackCommandsFromSegment(part, false));
+    Object.assign(commands, trackCommandsFromSegment(part, false, undefined, undefined, false, availabilityContext));
   }
 
   return commands;
@@ -450,11 +515,22 @@ async function handleNormalMode(
   query: string,
   currentPart: string,
   previousCommands: Record<string, string>,
-  result: ParameterInputEvent['result']
+  result: ParameterInputEvent['result'],
+  getAvailabilityContext: () => SelectionAvailabilityContext
 ): Promise<void> {
   // If query is empty or ends with space, show all commands
   if (!query || query.endsWith(' ')) {
-    const baseSuggestions = getCommandSuggestions(COMMANDS, '', undefined, true, previousCommands);
+    const availabilityContext = query.trim()
+      ? getAvailabilityContext()
+      : createSelectionAvailabilityContext([]);
+    const baseSuggestions = getCommandSuggestions(
+      COMMANDS,
+      '',
+      undefined,
+      true,
+      previousCommands,
+      availabilityContext
+    );
 
     // Pristine input — prepend the top N recent sequences so users can re-run
     // any of them with one click. Skip mid-chain so suggestions stay focused
@@ -476,14 +552,24 @@ async function handleNormalMode(
   }
 
   const completeCommands = buildSuggestionSummary(previousCommands);
-  const matchedCommand = findCommand(currentPart)[0];
+  const availabilityContext = getAvailabilityContext();
+  const matchedCommand = findCommand(currentPart, availabilityContext)[0];
   const hasNumber = VALUE_FORMAT_REGEX.number.exec(currentPart);
   const hasHex = VALUE_FORMAT_REGEX.hex.exec(currentPart);
 
   if (matchedCommand) {
-    handleMatchedCommand(matchedCommand, currentPart, completeCommands, previousCommands, hasNumber, hasHex, result);
+    handleMatchedCommand(
+      matchedCommand,
+      currentPart,
+      completeCommands,
+      previousCommands,
+      hasNumber,
+      hasHex,
+      result,
+      availabilityContext
+    );
   } else {
-    handleUnmatchedCommand(currentPart, result);
+    handleUnmatchedCommand(currentPart, result, availabilityContext);
   }
 }
 
@@ -530,7 +616,8 @@ function handleMatchedCommand(
   previousCommands: Record<string, string>,
   hasNumber: RegExpExecArray | null,
   hasHex: RegExpExecArray | null,
-  result: ParameterInputEvent['result']
+  result: ParameterInputEvent['result'],
+  availabilityContext: SelectionAvailabilityContext
 ): void {
   const isValidValue =
     (matchedCommand.type === "commandWithValue" || matchedCommand.type === "optionalValueCommand") &&
@@ -587,12 +674,23 @@ function handleMatchedCommand(
   }
 
   // Add related commands
-  const relatedSuggestions = getCommandSuggestions(COMMANDS, currentPart, matchedCommand, false, previousCommands);
+  const relatedSuggestions = getCommandSuggestions(
+    COMMANDS,
+    currentPart,
+    matchedCommand,
+    false,
+    previousCommands,
+    availabilityContext
+  );
   result.setSuggestions([...suggestions, ...relatedSuggestions]);
 }
 
 // Handle suggestions when no command is matched
-function handleUnmatchedCommand(currentPart: string, result: ParameterInputEvent['result']): void {
+function handleUnmatchedCommand(
+  currentPart: string,
+  result: ParameterInputEvent['result'],
+  availabilityContext: SelectionAvailabilityContext
+): void {
   const cmdLower = currentPart.toLowerCase();
   const allMatching = COMMANDS.filter(cmd =>
     cmd.name.toLowerCase().includes(cmdLower) ||
@@ -604,9 +702,9 @@ function handleUnmatchedCommand(currentPart: string, result: ParameterInputEvent
     return;
   }
 
-  // Check if matching commands are valid for current selection
-  const selection = figma.currentPage.selection;
-  const available = allMatching.filter(cmd => isCommandAvailableForSelection(cmd, selection));
+  const available = allMatching.filter(cmd =>
+    isCommandAvailableForSelectionWithContext(cmd, availabilityContext)
+  );
 
   if (available.length === 0) {
     result.setSuggestions(allMatching.map(cmd => `'${cmd.name}' not available on selection`));
@@ -630,17 +728,24 @@ function setupInputHandler() {
     if (key !== 'command') return;
     originalInput = query;
 
+    let availabilityContext: SelectionAvailabilityContext | null = null;
+    const getAvailabilityContext = () => {
+      if (!availabilityContext) {
+        availabilityContext = createSelectionAvailabilityContext(figma.currentPage.selection);
+      }
+      return availabilityContext;
+    };
     const segments = query.split(COMMAND_BREAK_PATTERN);
     const currentSegment = segments[segments.length - 1];
     const previousSegments = segments.slice(0, -1);
 
     // Try binding mode first
-    if (await handleBindingMode(currentSegment, result)) return;
+    if (await handleBindingMode(currentSegment, result, getAvailabilityContext)) return;
 
     // History command shows recent sequences instead of related commands.
     // Only trigger when the History command is the entire input — chains like
     // "w100  hi" should not hijack suggestions.
-    if (previousSegments.length === 0 && isHistoryInvocation(currentSegment)) {
+    if (previousSegments.length === 0 && isHistoryInvocation(currentSegment, currentSegment.trim() ? getAvailabilityContext() : undefined)) {
       await handleHistoryCommand(result);
       return;
     }
@@ -648,9 +753,11 @@ function setupInputHandler() {
     // Normal mode
     const parts = currentSegment.split(' ');
     const currentPart = parts[parts.length - 1];
-    const previousCommands = trackPreviousCommands(previousSegments, parts.slice(0, -1));
+    const previousCommands = previousSegments.length > 0 || parts.length > 1
+      ? trackPreviousCommands(previousSegments, parts.slice(0, -1), getAvailabilityContext())
+      : {};
 
-    await handleNormalMode(query, currentPart, previousCommands, result);
+    await handleNormalMode(query, currentPart, previousCommands, result, getAvailabilityContext);
   };
 
   figma.parameters.on('input', currentInputHandler);

@@ -18,8 +18,11 @@ async function main() {
     parseNumberList,
     extractValue,
     checkSpecialConditions,
+    createSelectionAvailabilityContext,
     findCommand,
     getCommandSuggestions,
+    isCommandAvailableForSelection,
+    isCommandAvailableForSelectionWithContext,
   } = utils;
 
   assert.equal(calculateExpression('1 + 2 x 3'), '7');
@@ -101,6 +104,64 @@ async function main() {
     true
   );
   assert.equal(checkSpecialConditions({ type: 'RECTANGLE' }, ['TextStyleApplied']), false);
+
+  const availabilitySelection = [
+    { type: 'FRAME', layoutMode: 'HORIZONTAL', parent: { layoutMode: 'NONE' } },
+    { type: 'FRAME', layoutMode: 'VERTICAL', parent: { layoutMode: 'NONE' } },
+  ];
+  const availabilityContext = createSelectionAvailabilityContext(availabilitySelection);
+  const availabilityCommands = [
+    { supportedNodes: ['FRAME'] },
+    { supportedNodes: ['TEXT'] },
+    { selectionCount: 2 },
+    { selectionCount: 1 },
+    { specialConditions: ['IsAutoLayout'] },
+    { specialConditions: ['IsGridLayout'] },
+    { selectionPredicate: selection => selection.length === 2 },
+    { selectionPredicate: selection => selection.length === 1 },
+  ];
+
+  for (const command of availabilityCommands) {
+    assert.equal(
+      isCommandAvailableForSelectionWithContext(command, availabilityContext),
+      isCommandAvailableForSelection(command, availabilitySelection),
+      'context-based command availability should match the compatibility wrapper'
+    );
+  }
+
+  assert.equal(
+    isCommandAvailableForSelectionWithContext(
+      { specialConditions: ['IsNotInAutoLayout', 'IsAutoLayout'] },
+      createSelectionAvailabilityContext([
+        { type: 'RECTANGLE', parent: { layoutMode: 'NONE' } },
+        { type: 'FRAME', layoutMode: 'HORIZONTAL' },
+      ])
+    ),
+    true,
+    'special condition groups should remain OR-per-node and AND-across-selection'
+  );
+
+  let predicateCalls = 0;
+  const sharedPredicate = selection => {
+    predicateCalls++;
+    return selection.length === 2;
+  };
+  const predicateContext = createSelectionAvailabilityContext(availabilitySelection);
+  assert.equal(isCommandAvailableForSelectionWithContext({ selectionPredicate: sharedPredicate }, predicateContext), true);
+  assert.equal(isCommandAvailableForSelectionWithContext({ selectionPredicate: sharedPredicate }, predicateContext), true);
+  assert.equal(predicateCalls, 1, 'selection predicates should be cached by function reference within a context');
+
+  let typeReads = 0;
+  const countedTypeSelection = [
+    { get type() { typeReads++; return 'RECTANGLE'; } },
+    { get type() { typeReads++; return 'FRAME'; } },
+    { get type() { typeReads++; return 'RECTANGLE'; } },
+  ];
+  const typeContext = createSelectionAvailabilityContext(countedTypeSelection);
+  assert.equal(isCommandAvailableForSelectionWithContext({ supportedNodes: ['RECTANGLE', 'FRAME'] }, typeContext), true);
+  assert.equal(isCommandAvailableForSelectionWithContext({ supportedNodes: ['RECTANGLE'] }, typeContext), false);
+  assert.equal(isCommandAvailableForSelectionWithContext({ supportedNodes: ['FRAME', 'RECTANGLE'] }, typeContext), true);
+  assert.equal(typeReads, countedTypeSelection.length, 'selected node types should be read once per context');
 
   figma.currentPage.selection = [];
   assert.equal(findCommand('width')[0]?.name, 'Width');
@@ -312,6 +373,41 @@ async function main() {
   assert.equal(
     doubleSelectionSuggestions.some((suggestion) => suggestion.includes('· SwapPosition')),
     true
+  );
+
+  let unrelatedPredicateCalls = 0;
+  const filteredSuggestionContext = createSelectionAvailabilityContext([{ type: 'RECTANGLE' }]);
+  const filteredSuggestions = getCommandSuggestions(
+    [
+      {
+        name: 'Width',
+        alias: ['w'],
+        type: 'commandWithValue',
+        valueFormat: 'number',
+        functionWithParam() {},
+      },
+      {
+        name: 'UnrelatedSlowCommand',
+        alias: ['zz'],
+        type: 'commandWithoutValue',
+        functionWithoutParam() {},
+        selectionPredicate() {
+          unrelatedPredicateCalls++;
+          return true;
+        },
+      },
+    ],
+    'wid',
+    undefined,
+    false,
+    {},
+    filteredSuggestionContext
+  );
+  assert.deepEqual(filteredSuggestions, ['w · Width']);
+  assert.equal(
+    unrelatedPredicateCalls,
+    0,
+    'command suggestions should filter by typed text before running selection predicates'
   );
 
   console.log('utils tests passed');

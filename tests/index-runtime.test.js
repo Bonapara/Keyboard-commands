@@ -164,6 +164,17 @@ export const COMMANDS = [
     },
   },
   {
+    name: 'ResetInstanceOverrides',
+    alias: ['rio'],
+    type: 'commandWithValue',
+    valueFormat: 'string',
+    suggestion: '?select override to reset',
+    functionWithParam: (value) => impl.recordCommand('ResetInstanceOverrides', value),
+    bindingSupport: {
+      instanceOverrides: true,
+    },
+  },
+  {
     name: 'History',
     alias: ['z', 'hi'],
     type: 'commandWithoutValue',
@@ -179,9 +190,11 @@ function buildUtilsStubSource() {
 import { COMMANDS } from 'virtual:commands-stub';
 
 export const bindingSearches = [];
+export const availabilitySelections = [];
 
 export function __reset() {
   bindingSearches.length = 0;
+  availabilitySelections.length = 0;
 }
 
 export const COMMAND_SPLITTER_REGEX = /\\s+|,\\s*(?=[a-zA-Z])/;
@@ -290,6 +303,15 @@ export function isCommandAvailableForSelection(command, selection) {
   return matchesSelectionCount && matchesSelectionPredicate;
 }
 
+export function createSelectionAvailabilityContext(selection) {
+  availabilitySelections.push(selection);
+  return { selection };
+}
+
+export function isCommandAvailableForSelectionWithContext(command, context) {
+  return isCommandAvailableForSelection(command, context.selection);
+}
+
 export async function searchStylesAndVariables(searchTerm, bindingSupport) {
   bindingSearches.push(searchTerm);
 
@@ -396,6 +418,10 @@ export function recordCommand(name, value) {
   executionCalls.push({ name, value });
 }
 
+export function stripInstancePropertyVariantGroupToken(value) {
+  return value.replace(/\\[\\[kc-variant-options=[^\\]]*\\]\\]/g, '');
+}
+
 export function recordPadding(value) {
   executionCalls.push({
     name: 'Padding',
@@ -440,8 +466,15 @@ export async function searchInstanceProperties(searchTerm) {
   if (searchTerm.includes(',')) {
     return [];
   }
-  if (!searchTerm) {
-    return [{ name: 'Name:Primary', data: 'Name:Primary' }];
+  const normalized = searchTerm.trim().toLowerCase();
+  if (!normalized) {
+    return [{ name: 'Name: (Text - Current -> type :text to change)', data: 'Name: (Text - Current -> type :text to change)' }];
+  }
+  if (normalized.startsWith('name:')) {
+    return ['Name: ' + searchTerm.slice(searchTerm.indexOf(':') + 1).trim()];
+  }
+  if ('name'.includes(normalized)) {
+    return [{ name: 'Name: (Text - Current -> type :text to change)', data: 'Name: (Text - Current -> type :text to change)' }];
   }
   return [];
 }
@@ -566,8 +599,14 @@ async function main() {
 
   resetHarness(runtime, harness);
   harness.historyStub.__setHistory(['w100', 'cs;old : targ']);
+  runtime.figma.currentPage.selection = [{ id: 'selected-instance', type: 'INSTANCE' }];
 
   const pristineSuggestions = await runtime.input('');
+  assert.deepEqual(
+    harness.utilsStub.availabilitySelections.map((selection) => selection.length),
+    [0],
+    'empty input startup should not build command availability from the active selection'
+  );
   assert.deepEqual(
     pristineSuggestions.slice(0, 2).map((item) => item.data),
     ['w100', 'cs;old : targ'],
@@ -727,6 +766,57 @@ async function main() {
       { commandName: 'InstanceProperty', value: 'state:active' },
     ],
     'instance-property chains should record each pair separately in recent values'
+  );
+
+  resetHarness(runtime, harness);
+
+  harness.recentStub.__setRecentValues({
+    InstanceProperty: ['Ghost?', 'Name:Secondary'],
+  });
+
+  const instancePropertySuggestions = await runtime.input('ip?');
+  assert.deepEqual(
+    instancePropertySuggestions,
+    [
+      {
+        name: 'Name: (Text - Current -> type :text to change)',
+        data: 'Name: (Text - Current -> type :text to change)',
+      },
+    ],
+    'instance-property search should hide recent values and show only current-selection properties'
+  );
+
+  resetHarness(runtime, harness);
+
+  const heightOverrideRef = JSON.stringify({
+    nodeId: '100094:76668',
+    field: 'height',
+    nodeName: 'Button/Light Icon Button',
+  });
+  const propertyOverrideRef = JSON.stringify({
+    nodeId: '99656:321804;80899:342414',
+    field: 'componentProperties',
+    nodeName: 'Tabler icons',
+    componentPropertyName: 'Icon',
+  });
+  harness.recentStub.__setRecentValues({
+    ResetInstanceOverrides: [heightOverrideRef, propertyOverrideRef],
+  });
+
+  const overrideRecentSuggestions = await runtime.input('rio?');
+  assert.deepEqual(
+    overrideRecentSuggestions,
+    [
+      {
+        name: 'Button/Light Icon Button -> Height (recent)',
+        data: heightOverrideRef,
+      },
+      {
+        name: 'Tabler icons -> Property: Icon (recent)',
+        data: propertyOverrideRef,
+      },
+    ],
+    'instance override recents should display human-readable labels while keeping JSON data'
   );
 
   resetHarness(runtime, harness);
