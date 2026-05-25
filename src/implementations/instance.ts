@@ -80,6 +80,54 @@ interface PropertyData {
   type: string;
   values: Set<string>;
   propertyDef: PropertyDefinition;
+  cleanedName?: string;
+  displayName?: string;
+  originKey?: string;
+  order?: number;
+  optionSignature?: string;
+  variantOptions?: string[];
+  showOptionSetLabel?: boolean;
+}
+
+interface NonVariantPropertyTarget {
+  rootInstance: InstanceNode;
+  instance: InstanceNode;
+  propertyKey: string;
+  propertyDef: PropertyDefinition;
+}
+
+interface PropertyAccumulator {
+  key: string;
+  name: string;
+  data: PropertyData;
+  rootIds: Set<string>;
+  targets: NonVariantPropertyTarget[];
+}
+
+interface VariantPropertyTarget {
+  rootInstance: InstanceNode;
+  instance: InstanceNode;
+  propertyKey: string;
+  allProperties: ComponentPropertyDefinitions;
+}
+
+interface VariantPropertyGroup {
+  cleanedName: string;
+  displayName: string;
+  optionSignature: string;
+  selectionSignature: string;
+  order: number;
+  variantOptions: string[];
+  propertyDef: PropertyDefinition;
+  targets: VariantPropertyTarget[];
+  rootIds: Set<string>;
+  values: Set<string>;
+}
+
+interface VariantOptionCandidate {
+  display: string;
+  option: string;
+  group: VariantPropertyGroup;
 }
 
 function getComponentPropertyDefinitions(mainComponent: ComponentNode): ComponentPropertyDefinitions {
@@ -92,6 +140,31 @@ function getComponentPropertyDefinitions(mainComponent: ComponentNode): Componen
 
 function cleanPropertyName(propertyName: string): string {
   return propertyName.replace(PROPERTY_ID_SUFFIX_REGEX, '');
+}
+
+function normalizePropertySearchText(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[\W_]+/g, ' ')
+    .trim();
+}
+
+function compactPropertySearchText(value: string): string {
+  return normalizePropertySearchText(value).replace(/\s+/g, '');
+}
+
+function matchesPropertySearch(searchTerm: string, ...targets: string[]): boolean {
+  const normalizedSearch = normalizePropertySearchText(searchTerm);
+  if (!normalizedSearch) return true;
+
+  const tokens = normalizedSearch.split(/\s+/).filter(Boolean);
+  const normalizedTargets = targets.map(normalizePropertySearchText);
+  const compactTargets = targets.map(compactPropertySearchText);
+
+  return tokens.every(token =>
+    normalizedTargets.some(target => target.includes(token)) ||
+    compactTargets.some(target => target.includes(token))
+  );
 }
 
 function findPropertyKey(
@@ -140,8 +213,542 @@ function extractPropertyValue(property: string | boolean | { value: string | boo
 
 type SuggestionItem = string | { name: string; data: unknown };
 
+const VARIANT_OPTION_SIGNATURE_SEPARATOR = '\x1f';
+const VARIANT_GROUP_KEY_SEPARATOR = '\x1e';
+const VARIANT_GROUP_TOKEN_REGEX = /\[\[kc-variant-options=([^\]]*)\]\]/;
+const VARIANT_GROUP_TOKEN_FRAGMENT_REGEX = /\[\[kc-variant-options=[^\]]*\]\]/g;
+const PROPERTY_ORIGIN_TOKEN_REGEX = /\[\[kc-property-origin=([^\]]*)\]\]/;
+const PROPERTY_ORIGIN_TOKEN_FRAGMENT_REGEX = /\[\[kc-property-origin=[^\]]*\]\]/g;
+
+function getVariantOptionSignature(options: readonly string[]): string {
+  return [...options].sort().join(VARIANT_OPTION_SIGNATURE_SEPARATOR);
+}
+
+function safeDecodeURIComponent(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function withVariantGroupToken(propertyName: string, optionSignature: string): string {
+  return `${propertyName}[[kc-variant-options=${encodeURIComponent(optionSignature)}]]`;
+}
+
+function withPropertyOriginToken(propertyName: string, originKey: string): string {
+  return `${propertyName}[[kc-property-origin=${encodeURIComponent(originKey)}]]`;
+}
+
+function stripInstancePropertyTokens(value: string): string {
+  return value
+    .replace(VARIANT_GROUP_TOKEN_FRAGMENT_REGEX, '')
+    .replace(PROPERTY_ORIGIN_TOKEN_FRAGMENT_REGEX, '');
+}
+
+function parseVariantGroupPropertyName(propertyName: string): { propertyName: string; optionSignature: string | null } {
+  const tokenMatch = propertyName.match(VARIANT_GROUP_TOKEN_REGEX);
+  return {
+    propertyName: stripInstancePropertyTokens(propertyName).trim(),
+    optionSignature: tokenMatch ? safeDecodeURIComponent(tokenMatch[1]) : null
+  };
+}
+
+export function stripInstancePropertyVariantGroupToken(value: string): string {
+  return stripInstancePropertyTokens(value);
+}
+
+function parsePropertyOriginPropertyName(propertyName: string): { propertyName: string; originKey: string | null } {
+  const tokenMatch = propertyName.match(PROPERTY_ORIGIN_TOKEN_REGEX);
+  return {
+    propertyName: stripInstancePropertyTokens(propertyName).trim(),
+    originKey: tokenMatch ? safeDecodeURIComponent(tokenMatch[1]) : null
+  };
+}
+
+function formatVariantOptionSetLabel(options: readonly string[]): string {
+  const maxDisplay = 4;
+  if (options.length <= maxDisplay) {
+    return options.join(', ');
+  }
+
+  const displayedOptions = options.slice(0, maxDisplay).join(', ');
+  return `${displayedOptions}, +${options.length - maxDisplay}`;
+}
+
+function getPropertyOriginKey(rootInstance: InstanceNode, instance: InstanceNode): string {
+  return instance === rootInstance ? 'direct' : `nested:${instance.name}`;
+}
+
+function getPropertyDisplayName(rootInstance: InstanceNode, instance: InstanceNode, propertyName: string): string {
+  const cleanedName = cleanPropertyName(propertyName);
+  return instance === rootInstance ? cleanedName : `${instance.name} -> ${cleanedName}`;
+}
+
+function getPropertyKeysInFigmaPanelOrder(allProperties: ComponentPropertyDefinitions): string[] {
+  const propertyKeys = Object.keys(allProperties);
+  const variantKeys: string[] = [];
+  const nonVariantKeys: string[] = [];
+
+  for (const propertyKey of propertyKeys) {
+    const propertyDef = allProperties[propertyKey];
+    if (propertyDef?.type === 'VARIANT') {
+      variantKeys.push(propertyKey);
+    } else {
+      nonVariantKeys.push(propertyKey);
+    }
+  }
+
+  return [...variantKeys, ...nonVariantKeys];
+}
+
+function addVariantPropertyGroupTarget(
+  groups: Map<string, VariantPropertyGroup>,
+  rootInstance: InstanceNode,
+  instance: InstanceNode,
+  allProperties: ComponentPropertyDefinitions,
+  propertyKey: string,
+  order: number
+): void {
+  const propertyDef = allProperties[propertyKey];
+  if (!propertyDef || propertyDef.type !== 'VARIANT' || !propertyDef.variantOptions) return;
+
+  const cleanedName = cleanPropertyName(propertyKey);
+  const displayName = getPropertyDisplayName(rootInstance, instance, propertyKey);
+  const optionSignature = getVariantOptionSignature(propertyDef.variantOptions);
+  const originKey = getPropertyOriginKey(rootInstance, instance);
+  const selectionSignature = `${originKey}${VARIANT_GROUP_KEY_SEPARATOR}${optionSignature}`;
+  const groupKey = `${originKey}${VARIANT_GROUP_KEY_SEPARATOR}${cleanedName}${VARIANT_GROUP_KEY_SEPARATOR}${optionSignature}`;
+
+  let group = groups.get(groupKey);
+  if (!group) {
+    group = {
+      cleanedName,
+      displayName,
+      optionSignature,
+      selectionSignature,
+      order,
+      variantOptions: propertyDef.variantOptions,
+      propertyDef,
+      targets: [],
+      rootIds: new Set(),
+      values: new Set()
+    };
+    groups.set(groupKey, group);
+  }
+
+  group.targets.push({ rootInstance, instance, propertyKey, allProperties });
+  group.rootIds.add(rootInstance.id);
+
+  const currentProp = instance.componentProperties[propertyKey];
+  if (currentProp !== undefined) {
+    group.values.add(String(extractPropertyValue(currentProp)));
+  }
+}
+
+function collectVariantPropertiesFromDefinitions(
+  groups: Map<string, VariantPropertyGroup>,
+  rootInstance: InstanceNode,
+  instance: InstanceNode,
+  allProperties: ComponentPropertyDefinitions,
+  propertyName: string | undefined,
+  nextOrder: () => number
+): void {
+  if (propertyName) {
+    const { key: realPropertyKey, definition: propertyDef } = findPropertyKey(propertyName, allProperties);
+    if (realPropertyKey && propertyDef && propertyDef.type === 'VARIANT') {
+      addVariantPropertyGroupTarget(groups, rootInstance, instance, allProperties, realPropertyKey, nextOrder());
+    }
+    return;
+  }
+
+  for (const propertyKey of getPropertyKeysInFigmaPanelOrder(allProperties)) {
+    const order = nextOrder();
+    addVariantPropertyGroupTarget(groups, rootInstance, instance, allProperties, propertyKey, order);
+  }
+}
+
+async function collectVariantPropertyGroups(
+  instances: InstanceNode[],
+  propertyName?: string
+): Promise<VariantPropertyGroup[]> {
+  const parsed = propertyName
+    ? parseVariantGroupPropertyName(propertyName)
+    : { propertyName: '', optionSignature: null };
+  const groups = new Map<string, VariantPropertyGroup>();
+  let order = 0;
+  const nextOrder = () => order++;
+  const propertyFilter = parsed.propertyName || undefined;
+
+  for (const instance of instances) {
+    const mainComponent = await getCachedMainComponent(instance);
+    if (mainComponent) {
+      collectVariantPropertiesFromDefinitions(
+        groups,
+        instance,
+        instance,
+        getComponentPropertyDefinitions(mainComponent),
+        undefined,
+        nextOrder
+      );
+    }
+
+    if (instance.exposedInstances) {
+      for (const exposedInstance of instance.exposedInstances) {
+        const exposedMainComponent = await getCachedMainComponent(exposedInstance);
+        if (!exposedMainComponent) continue;
+
+        collectVariantPropertiesFromDefinitions(
+          groups,
+          instance,
+          exposedInstance,
+          getComponentPropertyDefinitions(exposedMainComponent),
+          undefined,
+          nextOrder
+        );
+      }
+    }
+  }
+
+  let collectedGroups = Array.from(groups.values());
+  if (propertyFilter) {
+    collectedGroups = collectedGroups.filter(group =>
+      matchesPropertySearch(propertyFilter, group.cleanedName, group.displayName)
+    );
+  }
+
+  if (!parsed.optionSignature) return collectedGroups;
+
+  return collectedGroups.filter(group => group.selectionSignature === parsed.optionSignature);
+}
+
+function filterSharedVariantPropertyGroups(
+  instances: InstanceNode[],
+  groups: VariantPropertyGroup[]
+): VariantPropertyGroup[] {
+  if (instances.length <= 1) return groups;
+  return groups.filter(group => group.rootIds.size === instances.length);
+}
+
+function addNonVariantPropertyAccumulator(
+  propertiesMap: Map<string, PropertyAccumulator>,
+  rootInstance: InstanceNode,
+  instance: InstanceNode,
+  propertyKey: string,
+  propertyDef: PropertyDefinition,
+  order: number
+): void {
+  if (propertyDef.type === 'VARIANT') return;
+
+  const cleanedName = cleanPropertyName(propertyKey);
+  const displayName = getPropertyDisplayName(rootInstance, instance, propertyKey);
+  const originKey = getPropertyOriginKey(rootInstance, instance);
+  const groupKey = `${originKey}${VARIANT_GROUP_KEY_SEPARATOR}${cleanedName}${VARIANT_GROUP_KEY_SEPARATOR}${propertyDef.type}`;
+
+  let accumulator = propertiesMap.get(groupKey);
+  if (!accumulator) {
+    accumulator = {
+      key: groupKey,
+      name: propertyKey,
+      data: {
+        type: propertyDef.type,
+        values: new Set(),
+        propertyDef,
+        cleanedName,
+        displayName,
+        originKey,
+        order
+      },
+      rootIds: new Set(),
+      targets: []
+    };
+    propertiesMap.set(groupKey, accumulator);
+  }
+
+  accumulator.rootIds.add(rootInstance.id);
+  accumulator.targets.push({ rootInstance, instance, propertyKey, propertyDef });
+
+  const currentProp = instance.componentProperties[propertyKey];
+  if (currentProp !== undefined) {
+    const actualValue = extractPropertyValue(currentProp);
+    accumulator.data.values.add(String(actualValue));
+  }
+}
+
+function filterSharedPropertyAccumulators(
+  instances: InstanceNode[],
+  propertiesMap: Map<string, PropertyAccumulator>
+): PropertyAccumulator[] {
+  const accumulators = Array.from(propertiesMap.values());
+  if (instances.length <= 1) return accumulators;
+  return accumulators.filter(accumulator => accumulator.rootIds.size === instances.length);
+}
+
+async function collectNonVariantPropertyAccumulators(instances: InstanceNode[]): Promise<Map<string, PropertyAccumulator>> {
+  const propertiesMap = new Map<string, PropertyAccumulator>();
+  let propertyOrder = 0;
+
+  for (const instance of instances) {
+    const mainComponent = await getCachedMainComponent(instance);
+    if (!mainComponent) continue;
+
+    const allProperties = getComponentPropertyDefinitions(mainComponent);
+
+    const propKeys = getPropertyKeysInFigmaPanelOrder(allProperties);
+    for (const propName of propKeys) {
+      const order = propertyOrder++;
+      const propDef = allProperties[propName];
+      if (!propDef) continue;
+
+      addNonVariantPropertyAccumulator(propertiesMap, instance, instance, propName, propDef, order);
+    }
+
+    if (instance.exposedInstances && instance.exposedInstances.length > 0) {
+      for (const exposedInstance of instance.exposedInstances) {
+        const exposedMainComponent = await getCachedMainComponent(exposedInstance);
+        if (!exposedMainComponent) continue;
+
+        const exposedProperties = getComponentPropertyDefinitions(exposedMainComponent);
+        const exposedPropKeys = getPropertyKeysInFigmaPanelOrder(exposedProperties);
+
+        for (const exposedPropName of exposedPropKeys) {
+          const order = propertyOrder++;
+          const exposedPropDef = exposedProperties[exposedPropName];
+          if (!exposedPropDef) continue;
+
+          addNonVariantPropertyAccumulator(
+            propertiesMap,
+            instance,
+            exposedInstance,
+            exposedPropName,
+            exposedPropDef,
+            order
+          );
+        }
+      }
+    }
+  }
+
+  return propertiesMap;
+}
+
+async function collectSharedNonVariantPropertyAccumulators(instances: InstanceNode[]): Promise<PropertyAccumulator[]> {
+  return filterSharedPropertyAccumulators(
+    instances,
+    await collectNonVariantPropertyAccumulators(instances)
+  );
+}
+
+function getPropertyReferenceMatchRank(propertyReference: string, data: PropertyData): number {
+  const normalizedReference = normalizePropertySearchText(propertyReference);
+  const normalizedName = normalizePropertySearchText(data.cleanedName || '');
+  const normalizedDisplayName = normalizePropertySearchText(data.displayName || data.cleanedName || '');
+  const compactReference = normalizedReference.replace(/\s+/g, '');
+  const compactName = normalizedName.replace(/\s+/g, '');
+  const compactDisplayName = normalizedDisplayName.replace(/\s+/g, '');
+
+  if (normalizedDisplayName === normalizedReference) return 0;
+  if (normalizedName === normalizedReference) return 1;
+  if (compactDisplayName === compactReference) return 2;
+  if (compactName === compactReference) return 3;
+  if (normalizedDisplayName.startsWith(normalizedReference)) return 4;
+  if (normalizedName.startsWith(normalizedReference)) return 5;
+  return 6;
+}
+
+async function findSharedNonVariantPropertyAccumulator(
+  instances: InstanceNode[],
+  propertyReference: string,
+  allowedTypes?: string[]
+): Promise<PropertyAccumulator | null> {
+  const parsed = parsePropertyOriginPropertyName(propertyReference);
+  const accumulators = await collectSharedNonVariantPropertyAccumulators(instances);
+
+  const matches = accumulators
+    .filter(accumulator => !allowedTypes || allowedTypes.includes(accumulator.data.type))
+    .filter(accumulator => !parsed.originKey || accumulator.data.originKey === parsed.originKey)
+    .filter(accumulator => matchesPropertySearch(
+      parsed.propertyName,
+      accumulator.data.cleanedName || accumulator.name,
+      accumulator.data.displayName || accumulator.data.cleanedName || accumulator.name
+    ))
+    .sort((a, b) => {
+      const rankComparison =
+        getPropertyReferenceMatchRank(parsed.propertyName, a.data) -
+        getPropertyReferenceMatchRank(parsed.propertyName, b.data);
+      if (rankComparison !== 0) return rankComparison;
+      return (a.data.order ?? 0) - (b.data.order ?? 0);
+    });
+
+  return matches[0] || null;
+}
+
+function getNonVariantExecutionPropertyName(data: PropertyData): string {
+  const cleanName = data.cleanedName || data.displayName || '';
+  if (data.originKey && data.originKey !== 'direct') {
+    return withPropertyOriginToken(cleanName, data.originKey);
+  }
+  return cleanName;
+}
+
+function formatTextPropertyValueSuggestion(accumulator: PropertyAccumulator, value: string): SuggestionItem {
+  const data = accumulator.data;
+  const displayName = data.displayName || data.cleanedName || accumulator.name;
+  const executionName = getNonVariantExecutionPropertyName(data);
+  const executionValue = `${executionName}:${value}`;
+
+  if (value) {
+    const name = `${displayName}: ${value}`;
+    return name === executionValue ? name : { name, data: executionValue };
+  }
+
+  const currentValues = Array.from(data.values);
+  const currentValue = currentValues.length === 1
+    ? currentValues[0]
+    : currentValues.length > 1
+      ? 'Mixed'
+      : 'current value';
+  const name = `${displayName}: Type what you want to replace '${currentValue}' with`;
+  return name === executionValue ? name : { name, data: executionValue };
+}
+
+async function formatInstanceSwapPropertyValueSuggestions(
+  instances: InstanceNode[],
+  accumulator: PropertyAccumulator,
+  value: string
+): Promise<SuggestionItem[]> {
+  const executionName = getNonVariantExecutionPropertyName(accumulator.data);
+  const propertyDef = accumulator.data.propertyDef;
+
+  if (value === '') {
+    const preferredComponents = await resolvePreferredValues(propertyDef.preferredValues);
+    const preferredResults = preferredComponents.map(c => ({
+      name: `${c.name} (${c.library})`,
+      data: `${executionName}:${c.name} (${c.library})`
+    }));
+
+    const sameFrameComponents = await getSameFrameComponents(instances);
+    const preferredNames = new Set(preferredComponents.map(p => p.name));
+    const sameFrameResults = sameFrameComponents
+      .filter(c => !preferredNames.has(c.name))
+      .map(c => ({
+        name: `${c.name} (${c.library})`,
+        data: `${executionName}:${c.name} (${c.library})`
+      }));
+
+    const usedNames = new Set([...preferredNames, ...sameFrameComponents.map(c => c.name)]);
+    const components = await searchLibraryComponents('', 100);
+    const otherComponents = components
+      .filter(c => !usedNames.has(c.name))
+      .map(c => ({
+        name: `${c.name} (${c.library})`,
+        data: `${executionName}:${c.name} (${c.library})`
+      }));
+
+    const allResults = [...preferredResults, ...sameFrameResults, ...otherComponents];
+    return allResults.length === 0 ? ['No components found'] : allResults;
+  }
+
+  const components = await searchLibraryComponents(value, 100);
+
+  if (components.length === 0) {
+    return [`No components found matching "${value}"`];
+  }
+  return components.map(c => ({
+    name: `${c.name} (${c.library})`,
+    data: `${executionName}:${c.name} (${c.library})`
+  }));
+}
+
+function getUnanimousTargetCurrentValue(targets: VariantPropertyTarget[]): string | null {
+  let value: string | null = null;
+  for (const target of targets) {
+    const prop = target.instance.componentProperties[target.propertyKey];
+    if (prop === undefined) return null;
+
+    const extracted = String(extractPropertyValue(prop));
+    if (value === null) value = extracted;
+    else if (value !== extracted) return null;
+  }
+  return value;
+}
+
+function formatVariantOptionSuggestions(candidates: VariantOptionCandidate[]): SuggestionItem[] {
+  const displayCounts = new Map<string, number>();
+  for (const candidate of candidates) {
+    displayCounts.set(candidate.display, (displayCounts.get(candidate.display) || 0) + 1);
+  }
+
+  return candidates.map(candidate => {
+    const data = `${withVariantGroupToken(candidate.group.cleanedName, candidate.group.selectionSignature)}:${candidate.option}`;
+    const hasDuplicateDisplay = (displayCounts.get(candidate.display) || 0) > 1;
+
+    return {
+      name: hasDuplicateDisplay
+        ? `${candidate.display} (${formatVariantOptionSetLabel(candidate.group.variantOptions)})`
+        : candidate.display,
+      data
+    };
+  });
+}
+
 function isInfoSuggestion(text: string): boolean {
   return text.startsWith('No ');
+}
+
+function getInstanceSelectionScope(instances: InstanceNode[]): { prefix: string; suffix: string } {
+  if (instances.length <= 1) {
+    return { prefix: '', suffix: 'on the selected instance' };
+  }
+
+  return { prefix: 'shared ', suffix: `across ${instances.length} selected instances` };
+}
+
+function formatPropertySearchEmptyState(instances: InstanceNode[], searchTerm: string): string {
+  const { prefix, suffix } = getInstanceSelectionScope(instances);
+  const cleanedSearch = stripInstancePropertyTokens(searchTerm).trim();
+
+  if (cleanedSearch) {
+    return `No ${prefix}editable properties matching "${cleanedSearch}" ${suffix}`;
+  }
+
+  return `No ${prefix}editable properties found ${suffix}`;
+}
+
+function formatVariantPropertyEmptyState(instances: InstanceNode[], propertyName: string): string {
+  const { prefix, suffix } = getInstanceSelectionScope(instances);
+  const cleanedPropertyName = stripInstancePropertyTokens(propertyName).trim();
+
+  if (cleanedPropertyName) {
+    return `No ${prefix}variant property matching "${cleanedPropertyName}" ${suffix}`;
+  }
+
+  return `No ${prefix}variant properties found ${suffix}`;
+}
+
+function formatVariantOptionEmptyState(
+  instances: InstanceNode[],
+  propertyName: string,
+  optionFilter: string
+): string {
+  const { suffix } = getInstanceSelectionScope(instances);
+  const cleanedPropertyName = stripInstancePropertyTokens(propertyName).trim();
+
+  if (optionFilter) {
+    return `No variant option matching "${optionFilter}" for "${cleanedPropertyName}" ${suffix}`;
+  }
+
+  return `No other variant options available for "${cleanedPropertyName}" ${suffix}`;
+}
+
+function formatAllVariantOptionsEmptyState(instances: InstanceNode[], optionFilter: string): string {
+  const { prefix, suffix } = getInstanceSelectionScope(instances);
+
+  if (optionFilter) {
+    return `No ${prefix}variant options matching "${optionFilter}" ${suffix}`;
+  }
+
+  return `No ${prefix}variant options available ${suffix}`;
 }
 
 function prefixChainedSuggestion(item: SuggestionItem, prefix: string): SuggestionItem {
@@ -159,132 +766,76 @@ function prefixChainedSuggestion(item: SuggestionItem, prefix: string): Suggesti
   return { ...item, data };
 }
 
-function getUnanimousCurrentValue(nodes: InstanceNode[], propertyKey: string): string | null {
-  let value: string | null = null;
-  for (const node of nodes) {
-    const prop = node.componentProperties[propertyKey];
-    if (prop === undefined) return null;
-    const extracted = String(extractPropertyValue(prop));
-    if (value === null) value = extracted;
-    else if (value !== extracted) return null;
+async function searchVariantOptions(
+  instances: InstanceNode[],
+  propertyName: string,
+  optionFilter: string = ''
+): Promise<SuggestionItem[]> {
+  const groups = filterSharedVariantPropertyGroups(
+    instances,
+    await collectVariantPropertyGroups(instances, propertyName)
+  );
+
+  if (groups.length === 0) {
+    return [formatVariantPropertyEmptyState(instances, propertyName)];
   }
-  return value;
-}
 
-async function searchVariantOptions(instances: InstanceNode[], propertyName: string, optionFilter: string = ''): Promise<string[]> {
+  const filterLower = optionFilter.toLowerCase();
+  const candidates: VariantOptionCandidate[] = [];
 
-  for (const instance of instances) {
-    // First check main component properties
-    const mainComponent = await getCachedMainComponent(instance);
-    if (mainComponent) {
-      const allProperties = getComponentPropertyDefinitions(mainComponent);
-      const { key: realPropertyKey, definition: propertyDef } = findPropertyKey(propertyName, allProperties);
+  for (const group of groups) {
+    const currentValue = getUnanimousTargetCurrentValue(group.targets);
 
-      if (realPropertyKey && propertyDef && propertyDef.type === 'VARIANT' && propertyDef.variantOptions) {
+    for (const option of group.variantOptions) {
+      if (currentValue !== null && option === currentValue) continue;
+      if (filterLower && !option.toLowerCase().includes(filterLower)) continue;
 
-        let options = propertyDef.variantOptions;
-        if (optionFilter) {
-          const filterLower = optionFilter.toLowerCase();
-          options = options.filter((opt: string) => opt.toLowerCase().includes(filterLower));
-        }
-
-        const currentValue = getUnanimousCurrentValue(instances, realPropertyKey);
-        if (currentValue !== null) {
-          options = options.filter(opt => opt !== currentValue);
-        }
-
-        if (options.length === 0) {
-          return [`No options matching "${optionFilter}" for "${cleanPropertyName(realPropertyKey)}"`];
-        }
-
-        return options.map((option: string) => `${cleanPropertyName(realPropertyKey)}:${option}`);
-      }
-    }
-
-    // Then check exposed instances (nested components)
-    if (instance.exposedInstances && instance.exposedInstances.length > 0) {
-      for (const exposedInstance of instance.exposedInstances) {
-        const exposedMainComponent = await getCachedMainComponent(exposedInstance);
-        if (!exposedMainComponent) continue;
-
-        const exposedProperties = getComponentPropertyDefinitions(exposedMainComponent);
-        const { key: exposedRealKey, definition: exposedPropDef } = findPropertyKey(propertyName, exposedProperties);
-
-        if (exposedRealKey && exposedPropDef && exposedPropDef.type === 'VARIANT' && exposedPropDef.variantOptions) {
-
-          let options = exposedPropDef.variantOptions;
-          if (optionFilter) {
-            const filterLower = optionFilter.toLowerCase();
-            options = options.filter((opt: string) => opt.toLowerCase().includes(filterLower));
-          }
-
-          const currentValue = getUnanimousCurrentValue([exposedInstance], exposedRealKey);
-          if (currentValue !== null) {
-            options = options.filter(opt => opt !== currentValue);
-          }
-
-          if (options.length === 0) {
-            return [`No options matching "${optionFilter}" for "${cleanPropertyName(exposedRealKey)}"`];
-          }
-
-          return options.map((option: string) => `${cleanPropertyName(exposedRealKey)}:${option}`);
-        }
-      }
+      candidates.push({
+        display: `${group.displayName}:${option}`,
+        option,
+        group
+      });
     }
   }
 
-  return [`No variant options found for "${propertyName}"`];
+  if (candidates.length === 0) {
+    return [formatVariantOptionEmptyState(instances, propertyName, optionFilter)];
+  }
+
+  return formatVariantOptionSuggestions(candidates);
 }
 
 async function searchAllVariantOptions(
   instances: InstanceNode[],
   optionFilter: string
-): Promise<string[]> {
+): Promise<SuggestionItem[]> {
   const filterLower = optionFilter.toLowerCase();
-  const results: string[] = [];
-  const seen = new Set<string>();
+  const groups = filterSharedVariantPropertyGroups(
+    instances,
+    await collectVariantPropertyGroups(instances)
+  );
+  const candidates: VariantOptionCandidate[] = [];
 
-  const collectFrom = (allProperties: ComponentPropertyDefinitions, sourceNodes: InstanceNode[]) => {
-    for (const key of Object.keys(allProperties)) {
-      const def = allProperties[key];
-      if (!def || def.type !== 'VARIANT' || !def.variantOptions) continue;
+  for (const group of groups) {
+    const currentValue = getUnanimousTargetCurrentValue(group.targets);
 
-      const currentValue = getUnanimousCurrentValue(sourceNodes, key);
+    for (const option of group.variantOptions) {
+      if (currentValue !== null && option === currentValue) continue;
+      if (filterLower && !option.toLowerCase().includes(filterLower)) continue;
 
-      const displayKey = cleanPropertyName(key);
-      for (const option of def.variantOptions) {
-        if (currentValue !== null && option === currentValue) continue;
-        if (filterLower && !option.toLowerCase().includes(filterLower)) continue;
-        const entry = `${displayKey}:${option}`;
-        if (seen.has(entry)) continue;
-        seen.add(entry);
-        results.push(entry);
-      }
-    }
-  };
-
-  for (const instance of instances) {
-    const mainComponent = await getCachedMainComponent(instance);
-    if (mainComponent) {
-      collectFrom(getComponentPropertyDefinitions(mainComponent), instances);
-    }
-
-    if (instance.exposedInstances) {
-      for (const exposedInstance of instance.exposedInstances) {
-        const exposedMain = await getCachedMainComponent(exposedInstance);
-        if (!exposedMain) continue;
-        collectFrom(getComponentPropertyDefinitions(exposedMain), [exposedInstance]);
-      }
+      candidates.push({
+        display: `${group.displayName}:${option}`,
+        option,
+        group
+      });
     }
   }
 
-  if (results.length === 0) {
-    return optionFilter
-      ? [`No variant options matching "${optionFilter}"`]
-      : ['No variant options available'];
+  if (candidates.length === 0) {
+    return [formatAllVariantOptionsEmptyState(instances, optionFilter)];
   }
 
-  return results;
+  return formatVariantOptionSuggestions(candidates);
 }
 
 async function applyToExposedInstances(
@@ -401,73 +952,47 @@ async function setVariantProperty(instances: InstanceNode[], propertyName: strin
   let successCount = 0;
   let errorCount = 0;
   let matchedPropertyName = '';
+  const groups = filterSharedVariantPropertyGroups(
+    instances,
+    await collectVariantPropertyGroups(instances, propertyName)
+  );
+  const targetGroup = groups.find(group => group.variantOptions.includes(optionValue));
 
-  for (const instance of instances) {
-    const mainComponent = await getCachedMainComponent(instance);
-    if (mainComponent) {
-      const allVariantProperties = getComponentPropertyDefinitions(mainComponent);
-      const { key: realPropertyKey, definition: propertyDef } = findPropertyKey(propertyName, allVariantProperties);
+  if (!targetGroup) {
+    return;
+  }
 
-      if (realPropertyKey && propertyDef && propertyDef.type === 'VARIANT') {
-        try {
+  matchedPropertyName = targetGroup.cleanedName;
 
-          const propertiesToSet: { [key: string]: string | boolean } = {};
+  for (const target of targetGroup.targets) {
+    try {
+      const propertiesToSet: { [key: string]: string | boolean } = {};
 
-          const propKeys = Object.keys(allVariantProperties);
-          for (const propName of propKeys) {
-            const propDef = allVariantProperties[propName];
-            if (propDef && propDef.type === 'VARIANT') {
-              const currentValue = extractPropertyValue(instance.componentProperties[propName]);
-              propertiesToSet[propName] = String(currentValue);
-            }
-          }
-
-          propertiesToSet[realPropertyKey] = optionValue;
-
-          instance.setProperties(propertiesToSet);
-
-          if (successCount === 0) {
-            matchedPropertyName = cleanPropertyName(realPropertyKey);
-          }
-
-          successCount++;
-        } catch (error) {
-          console.error(`Error setting variant property ${propertyName}:`, error);
-          errorCount++;
-        }
-      }
-    }
-
-    const exposedCount = await applyToExposedInstances(instance, propertyName, 'VARIANT', async (exposedInstance, key) => {
-      const exposedMainComponent = await getCachedMainComponent(exposedInstance);
-      if (!exposedMainComponent) return;
-
-      const exposedProperties = getComponentPropertyDefinitions(exposedMainComponent);
-      const exposedPropertiesToSet: { [key: string]: string | boolean } = {};
-
-      const exposedPropKeys = Object.keys(exposedProperties);
-      for (const propName of exposedPropKeys) {
-        const propDef = exposedProperties[propName];
+      const propKeys = Object.keys(target.allProperties);
+      for (const propName of propKeys) {
+        const propDef = target.allProperties[propName];
         if (propDef && propDef.type === 'VARIANT') {
-          const currentValue = extractPropertyValue(exposedInstance.componentProperties[propName]);
-          exposedPropertiesToSet[propName] = String(currentValue);
+          const currentValue = target.instance.componentProperties[propName];
+          if (currentValue !== undefined) {
+            propertiesToSet[propName] = String(extractPropertyValue(currentValue));
+          }
         }
       }
 
-      exposedPropertiesToSet[key] = optionValue;
-      exposedInstance.setProperties(exposedPropertiesToSet);
+      propertiesToSet[target.propertyKey] = optionValue;
+      target.instance.setProperties(propertiesToSet);
 
-      if (successCount === 0 && !matchedPropertyName) {
-        matchedPropertyName = cleanPropertyName(key);
-      }
-    });
-
-    successCount += exposedCount;
+      successCount++;
+    } catch (error) {
+      console.error(`Error setting variant property ${propertyName}:`, error);
+      errorCount++;
+    }
   }
 
   if (successCount > 0) {
 
-    const wasPartialMatch = matchedPropertyName.toLowerCase() !== propertyName.toLowerCase();
+    const displayPropertyName = stripInstancePropertyVariantGroupToken(propertyName);
+    const wasPartialMatch = matchedPropertyName.toLowerCase() !== displayPropertyName.toLowerCase();
     const message = wasPartialMatch
       ? `Matched "${matchedPropertyName}" -> set to "${optionValue}" on ${successCount} instance${successCount > 1 ? 's' : ''}`
       : `Set "${matchedPropertyName}" to "${optionValue}" on ${successCount} instance${successCount > 1 ? 's' : ''}`;
@@ -528,6 +1053,81 @@ async function setTextProperty(instances: InstanceNode[], propertyName: string, 
       : `Set "${matchedPropertyName}" to "${textValue}" on ${successCount} instance${successCount > 1 ? 's' : ''}`;
 
     figma.notify(message);
+  }
+
+  if (errorCount > 0) {
+    figma.notify(`Failed to update ${errorCount} instance${errorCount > 1 ? 's' : ''}`, { error: true });
+  }
+}
+
+async function setTextPropertyAccumulator(
+  accumulator: PropertyAccumulator,
+  textValue: string
+): Promise<void> {
+  let successCount = 0;
+  let errorCount = 0;
+  const matchedPropertyName = accumulator.data.displayName || accumulator.data.cleanedName || accumulator.name;
+
+  for (const target of accumulator.targets) {
+    try {
+      target.instance.setProperties({
+        [target.propertyKey]: textValue
+      });
+      successCount++;
+    } catch (error) {
+      console.error(`Error setting text property ${matchedPropertyName}:`, error);
+      errorCount++;
+    }
+  }
+
+  if (successCount > 0) {
+    figma.notify(`Set "${matchedPropertyName}" to "${textValue}" on ${successCount} instance${successCount > 1 ? 's' : ''}`);
+  }
+
+  if (errorCount > 0) {
+    figma.notify(`Failed to update ${errorCount} instance${errorCount > 1 ? 's' : ''}`, { error: true });
+  }
+}
+
+async function setInstanceSwapPropertyAccumulator(
+  accumulator: PropertyAccumulator,
+  component: ComponentNode
+): Promise<void> {
+  let successCount = 0;
+  const matchedPropertyName = accumulator.data.displayName || accumulator.data.cleanedName || accumulator.name;
+
+  for (const target of accumulator.targets) {
+    target.instance.setProperties({ [target.propertyKey]: component.id });
+    successCount++;
+  }
+
+  if (successCount > 0) {
+    figma.notify(`Swapped "${matchedPropertyName}" to "${component.name}" on ${successCount} instance${successCount > 1 ? 's' : ''}`);
+  } else {
+    figma.notify(`Failed to set property on selected instances`, { error: true });
+  }
+}
+
+async function toggleBooleanPropertyAccumulator(accumulator: PropertyAccumulator): Promise<void> {
+  let successCount = 0;
+  let errorCount = 0;
+  const matchedPropertyName = accumulator.data.displayName || accumulator.data.cleanedName || accumulator.name;
+
+  for (const target of accumulator.targets) {
+    try {
+      const currentValue = extractPropertyValue(target.instance.componentProperties[target.propertyKey]) as boolean;
+      target.instance.setProperties({
+        [target.propertyKey]: !currentValue
+      });
+      successCount++;
+    } catch (error) {
+      console.error(`Error setting boolean property ${matchedPropertyName}:`, error);
+      errorCount++;
+    }
+  }
+
+  if (successCount > 0) {
+    figma.notify(`Updated "${matchedPropertyName}" on ${successCount} instance${successCount > 1 ? 's' : ''}`);
   }
 
   if (errorCount > 0) {
@@ -956,13 +1556,29 @@ export async function searchInstanceProperties(searchTerm: string): Promise<Arra
   if (propertyWithValueMatch) {
     const propertyName = propertyWithValueMatch[1].trim();
     const value = propertyWithValueMatch[2].trim();
+    const lookupPropertyName = stripInstancePropertyVariantGroupToken(propertyName);
+    const nonVariantAccumulator = await findSharedNonVariantPropertyAccumulator(
+      instances,
+      propertyName,
+      ['TEXT', 'INSTANCE_SWAP']
+    );
+
+    if (nonVariantAccumulator) {
+      if (nonVariantAccumulator.data.type === 'TEXT') {
+        return [formatTextPropertyValueSuggestion(nonVariantAccumulator, value)];
+      }
+
+      if (nonVariantAccumulator.data.type === 'INSTANCE_SWAP') {
+        return await formatInstanceSwapPropertyValueSuggestions(instances, nonVariantAccumulator, value);
+      }
+    }
 
     for (const instance of instances) {
       const mainComponent = await getCachedMainComponent(instance);
       if (!mainComponent) continue;
 
       const allProperties = getComponentPropertyDefinitions(mainComponent);
-      const { key: realPropertyKey, definition: propertyDef } = findPropertyKey(propertyName, allProperties);
+      const { key: realPropertyKey, definition: propertyDef } = findPropertyKey(lookupPropertyName, allProperties);
 
       if (propertyDef) {
         if (propertyDef.type === 'VARIANT') {
@@ -1041,7 +1657,7 @@ export async function searchInstanceProperties(searchTerm: string): Promise<Arra
           if (!exposedMainComponent) continue;
 
           const exposedProperties = getComponentPropertyDefinitions(exposedMainComponent);
-          const { key: exposedRealKey, definition: exposedPropDef } = findPropertyKey(propertyName, exposedProperties);
+          const { key: exposedRealKey, definition: exposedPropDef } = findPropertyKey(lookupPropertyName, exposedProperties);
 
           if (exposedPropDef) {
             if (exposedPropDef.type === 'VARIANT') {
@@ -1118,8 +1734,8 @@ export async function searchInstanceProperties(searchTerm: string): Promise<Arra
     return await searchVariantOptions(instances, propertyName, value);
   }
 
-  const propertiesMap = new Map<string, PropertyData>();
-  const seenCleanedNames = new Set<string>();
+  const propertiesMap = new Map<string, PropertyAccumulator>();
+  let propertyOrder = 0;
 
   for (const instance of instances) {
     const mainComponent = await getCachedMainComponent(instance);
@@ -1127,30 +1743,13 @@ export async function searchInstanceProperties(searchTerm: string): Promise<Arra
 
     const allProperties = getComponentPropertyDefinitions(mainComponent);
 
-    const propKeys = Object.keys(allProperties);
+    const propKeys = getPropertyKeysInFigmaPanelOrder(allProperties);
     for (const propName of propKeys) {
+      const order = propertyOrder++;
       const propDef = allProperties[propName];
       if (!propDef) continue;
 
-      const cleanedName = cleanPropertyName(propName);
-
-      if (!seenCleanedNames.has(cleanedName)) {
-        seenCleanedNames.add(cleanedName);
-
-        if (!propertiesMap.has(propName)) {
-          propertiesMap.set(propName, {
-            type: propDef.type,
-            values: new Set(),
-            propertyDef: propDef
-          });
-        }
-
-        const currentProp = instance.componentProperties[propName];
-        if (currentProp !== undefined) {
-          const actualValue = extractPropertyValue(currentProp);
-          propertiesMap.get(propName)!.values.add(String(actualValue));
-        }
-      }
+      addNonVariantPropertyAccumulator(propertiesMap, instance, instance, propName, propDef, order);
     }
 
     // Add exposed properties from nested instances
@@ -1160,58 +1759,78 @@ export async function searchInstanceProperties(searchTerm: string): Promise<Arra
         if (!exposedMainComponent) continue;
 
         const exposedProperties = getComponentPropertyDefinitions(exposedMainComponent);
-        const exposedPropKeys = Object.keys(exposedProperties);
+        const exposedPropKeys = getPropertyKeysInFigmaPanelOrder(exposedProperties);
 
         for (const exposedPropName of exposedPropKeys) {
+          const order = propertyOrder++;
           const exposedPropDef = exposedProperties[exposedPropName];
           if (!exposedPropDef) continue;
 
-          const cleanedExposedName = cleanPropertyName(exposedPropName);
-
-          // Only add if we haven't seen this property name yet (deduplication)
-          if (!seenCleanedNames.has(cleanedExposedName)) {
-            seenCleanedNames.add(cleanedExposedName);
-
-            if (!propertiesMap.has(exposedPropName)) {
-              propertiesMap.set(exposedPropName, {
-                type: exposedPropDef.type,
-                values: new Set(),
-                propertyDef: exposedPropDef
-              });
-            }
-
-            // Get current value from the exposed instance's component properties
-            const exposedCurrentProp = exposedInstance.componentProperties[exposedPropName];
-            if (exposedCurrentProp !== undefined) {
-              const actualValue = extractPropertyValue(exposedCurrentProp);
-              propertiesMap.get(exposedPropName)!.values.add(String(actualValue));
-            }
-          }
+          addNonVariantPropertyAccumulator(
+            propertiesMap,
+            instance,
+            exposedInstance,
+            exposedPropName,
+            exposedPropDef,
+            order
+          );
         }
       }
     }
   }
 
-  const searchLower = searchTerm.toLowerCase();
+  const sharedPropertiesMap = new Map<string, PropertyData>();
+  for (const accumulator of filterSharedPropertyAccumulators(instances, propertiesMap)) {
+    sharedPropertiesMap.set(accumulator.key, accumulator.data);
+  }
+
+  const variantGroups = filterSharedVariantPropertyGroups(
+    instances,
+    await collectVariantPropertyGroups(instances)
+  );
+  const variantNameCounts = new Map<string, number>();
+  for (const group of variantGroups) {
+    variantNameCounts.set(group.displayName, (variantNameCounts.get(group.displayName) || 0) + 1);
+  }
+
+  for (const group of variantGroups) {
+    sharedPropertiesMap.set(`${group.displayName}${VARIANT_GROUP_KEY_SEPARATOR}${group.selectionSignature}`, {
+      type: 'VARIANT',
+      values: group.values,
+      propertyDef: group.propertyDef,
+      cleanedName: group.cleanedName,
+      displayName: group.displayName,
+      order: group.order,
+      optionSignature: group.selectionSignature,
+      variantOptions: group.variantOptions,
+      showOptionSetLabel: (variantNameCounts.get(group.displayName) || 0) > 1
+    });
+  }
+
   const matchingProperties: Array<{ name: string; data: PropertyData }> = [];
 
-  for (const [propName, data] of propertiesMap.entries()) {
-    if (propName.toLowerCase().includes(searchLower)) {
+  for (const [propName, data] of sharedPropertiesMap.entries()) {
+    const searchableName = data.cleanedName || cleanPropertyName(propName);
+    const searchableDisplayName = data.displayName || searchableName;
+    if (matchesPropertySearch(searchTerm, searchableName, searchableDisplayName)) {
       matchingProperties.push({ name: propName, data });
     }
   }
 
   if (matchingProperties.length === 0) {
-    return ['No matching properties found'];
+    return [formatPropertySearchEmptyState(instances, searchTerm)];
   }
+
+  matchingProperties.sort((a, b) => (a.data.order ?? 0) - (b.data.order ?? 0));
 
   return await Promise.all(matchingProperties.map(async ({ name, data }) => {
     return await formatPropertySuggestion(name, data);
   }));
 }
 
-async function formatPropertySuggestion(propertyName: string, data: PropertyData): Promise<string> {
-  const cleanName = cleanPropertyName(propertyName);
+async function formatPropertySuggestion(propertyName: string, data: PropertyData): Promise<SuggestionItem> {
+  const cleanName = data.cleanedName || cleanPropertyName(propertyName);
+  const visibleName = data.displayName || cleanName;
   const typeDisplay = data.type.charAt(0) + data.type.slice(1).toLowerCase();
 
   let optionsDisplay = '';
@@ -1238,7 +1857,7 @@ async function formatPropertySuggestion(propertyName: string, data: PropertyData
         optionsDisplay = 'Mixed -> type: to change';
       } else if (data.propertyDef.variantOptions) {
         // Fallback: show options if no current value
-        const options = data.propertyDef.variantOptions;
+        const options = data.variantOptions || data.propertyDef.variantOptions;
         const maxDisplay = 3;
         if (options.length <= maxDisplay) {
           optionsDisplay = `${options.join(', ')} -> type: to change`;
@@ -1247,6 +1866,9 @@ async function formatPropertySuggestion(propertyName: string, data: PropertyData
           const remaining = options.length - maxDisplay;
           optionsDisplay = `${displayedOptions}, +${remaining} -> type: to change`;
         }
+      }
+      if (data.showOptionSetLabel && data.variantOptions) {
+        optionsDisplay = `${optionsDisplay} | ${formatVariantOptionSetLabel(data.variantOptions)}`;
       }
       break;
     }
@@ -1286,9 +1908,27 @@ async function formatPropertySuggestion(propertyName: string, data: PropertyData
       optionsDisplay = 'Value';
   }
 
-  const displayName = (data.type === 'VARIANT' || data.type === 'TEXT' || data.type === 'INSTANCE_SWAP') ? `${cleanName}:` : cleanName;
+  const displayName = (data.type === 'VARIANT' || data.type === 'TEXT' || data.type === 'INSTANCE_SWAP') ? `${visibleName}:` : visibleName;
+  const suggestionName = `${displayName} (${typeDisplay} - ${optionsDisplay})`;
 
-  return `${displayName} (${typeDisplay} - ${optionsDisplay})`;
+  if (data.type === 'VARIANT' && data.optionSignature) {
+    const executionName = `${withVariantGroupToken(cleanName, data.optionSignature)}:`;
+    return {
+      name: suggestionName,
+      data: `${executionName} (Variant - type: to change)`
+    };
+  }
+
+  if (visibleName !== cleanName || (data.originKey && data.originKey !== 'direct')) {
+    const scopedName = getNonVariantExecutionPropertyName(data);
+    const executionName = (data.type === 'TEXT' || data.type === 'INSTANCE_SWAP') ? `${scopedName}:` : scopedName;
+    return {
+      name: suggestionName,
+      data: `${executionName} (${typeDisplay} - ${optionsDisplay})`
+    };
+  }
+
+  return suggestionName;
 }
 
 export async function setInstanceProperty(propertyReference: string) {
@@ -1310,21 +1950,21 @@ export async function setInstanceProperty(propertyReference: string) {
 
   const variantWithDescMatch = propertyReference.match(/^([^:]+):\s*\(Variant\s*-/);
   if (variantWithDescMatch) {
-    const propertyName = variantWithDescMatch[1].trim();
+    const propertyName = stripInstancePropertyVariantGroupToken(variantWithDescMatch[1].trim());
     figma.notify(`💡 Type "ip?${propertyName}:" in the command bar to see all available options for this variant`);
     return;
   }
 
   const textWithDescMatch = propertyReference.match(/^([^:]+):\s*\(Text\s*-/);
   if (textWithDescMatch) {
-    const propertyName = textWithDescMatch[1].trim();
+    const propertyName = stripInstancePropertyVariantGroupToken(textWithDescMatch[1].trim());
     figma.notify(`💡 Type "ip?${propertyName}:Your text here" to set the text value`);
     return;
   }
 
   const instanceSwapWithDescMatch = propertyReference.match(/^([^:]+):\s*\(Instance_swap\s*-/);
   if (instanceSwapWithDescMatch) {
-    const propertyName = instanceSwapWithDescMatch[1].trim();
+    const propertyName = stripInstancePropertyVariantGroupToken(instanceSwapWithDescMatch[1].trim());
     figma.notify(`💡 Type "ip?${propertyName}:" to search for components to swap`);
     return;
   }
@@ -1333,15 +1973,35 @@ export async function setInstanceProperty(propertyReference: string) {
   if (propertyWithValueMatch) {
     const propertyName = propertyWithValueMatch[1].trim();
     const value = propertyWithValueMatch[2].trim();
+    const lookupPropertyName = stripInstancePropertyVariantGroupToken(propertyName);
+    const nonVariantAccumulator = await findSharedNonVariantPropertyAccumulator(
+      instances,
+      propertyName,
+      ['TEXT', 'INSTANCE_SWAP']
+    );
+
+    if (nonVariantAccumulator) {
+      if (nonVariantAccumulator.data.type === 'TEXT') {
+        return await setTextPropertyAccumulator(nonVariantAccumulator, value);
+      }
+
+      if (nonVariantAccumulator.data.type === 'INSTANCE_SWAP') {
+        const { component } = await findAndImportComponent(value);
+        if (component) {
+          return await setInstanceSwapPropertyAccumulator(nonVariantAccumulator, component);
+        }
+        return;
+      }
+    }
 
     const firstInstance = instances[0];
-    const { definition: propertyDef } = await findPropertyInInstanceOrExposed(firstInstance, propertyName);
+    const { definition: propertyDef } = await findPropertyInInstanceOrExposed(firstInstance, lookupPropertyName);
 
     if (propertyDef) {
       if (propertyDef.type === 'VARIANT') {
         return await setVariantProperty(instances, propertyName, value);
       } else if (propertyDef.type === 'TEXT') {
-        return await setTextProperty(instances, propertyName, value);
+        return await setTextProperty(instances, lookupPropertyName, value);
       } else if (propertyDef.type === 'INSTANCE_SWAP') {
         const { component } = await findAndImportComponent(value);
 
@@ -1351,7 +2011,7 @@ export async function setInstanceProperty(propertyReference: string) {
             const main = await getCachedMainComponent(inst);
             if (main) {
               const props = getComponentPropertyDefinitions(main);
-              const { key: realKey } = findPropertyKey(propertyName, props);
+              const { key: realKey } = findPropertyKey(lookupPropertyName, props);
 
               if (realKey) {
                 inst.setProperties({ [realKey]: component.id });
@@ -1359,14 +2019,14 @@ export async function setInstanceProperty(propertyReference: string) {
               }
             }
 
-            const exposedCount = await applyToExposedInstances(inst, propertyName, 'INSTANCE_SWAP', (exposedInstance, key) => {
+            const exposedCount = await applyToExposedInstances(inst, lookupPropertyName, 'INSTANCE_SWAP', (exposedInstance, key) => {
               exposedInstance.setProperties({ [key]: component.id });
             });
 
             successCount += exposedCount;
           }
           if (successCount > 0) {
-            figma.notify(`Swapped "${propertyName}" to "${component.name}" on ${successCount} instance${successCount > 1 ? 's' : ''}`);
+            figma.notify(`Swapped "${lookupPropertyName}" to "${component.name}" on ${successCount} instance${successCount > 1 ? 's' : ''}`);
           } else {
             figma.notify(`Failed to set property on selected instances`, { error: true });
           }
@@ -1384,6 +2044,15 @@ export async function setInstanceProperty(propertyReference: string) {
   }
 
   const propertyName = match[1].trim();
+  const booleanAccumulator = await findSharedNonVariantPropertyAccumulator(
+    instances,
+    propertyName,
+    ['BOOLEAN']
+  );
+
+  if (booleanAccumulator) {
+    return await toggleBooleanPropertyAccumulator(booleanAccumulator);
+  }
 
   let successCount = 0;
   let errorCount = 0;

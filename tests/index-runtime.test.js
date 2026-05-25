@@ -407,6 +407,10 @@ export function recordCommand(name, value) {
   executionCalls.push({ name, value });
 }
 
+export function stripInstancePropertyVariantGroupToken(value) {
+  return value.replace(/\\[\\[kc-variant-options=[^\\]]*\\]\\]/g, '');
+}
+
 export function recordPadding(value) {
   executionCalls.push({
     name: 'Padding',
@@ -451,8 +455,15 @@ export async function searchInstanceProperties(searchTerm) {
   if (searchTerm.includes(',')) {
     return [];
   }
-  if (!searchTerm) {
-    return [{ name: 'Name:Primary', data: 'Name:Primary' }];
+  const normalized = searchTerm.trim().toLowerCase();
+  if (!normalized) {
+    return [{ name: 'Name: (Text - Current -> type :text to change)', data: 'Name: (Text - Current -> type :text to change)' }];
+  }
+  if (normalized.startsWith('name:')) {
+    return ['Name: ' + searchTerm.slice(searchTerm.indexOf(':') + 1).trim()];
+  }
+  if ('name'.includes(normalized)) {
+    return [{ name: 'Name: (Text - Current -> type :text to change)', data: 'Name: (Text - Current -> type :text to change)' }];
   }
   return [];
 }
@@ -738,6 +749,24 @@ async function main() {
       { commandName: 'InstanceProperty', value: 'state:active' },
     ],
     'instance-property chains should record each pair separately in recent values'
+  );
+
+  resetHarness(runtime, harness);
+
+  harness.recentStub.__setRecentValues({
+    InstanceProperty: ['Ghost?', 'Name:Secondary'],
+  });
+
+  const instancePropertySuggestions = await runtime.input('ip?');
+  assert.deepEqual(
+    instancePropertySuggestions,
+    [
+      {
+        name: 'Name: (Text - Current -> type :text to change)',
+        data: 'Name: (Text - Current -> type :text to change)',
+      },
+    ],
+    'instance-property search should hide recent values and show only current-selection properties'
   );
 
   resetHarness(runtime, harness);

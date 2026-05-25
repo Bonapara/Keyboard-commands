@@ -62,8 +62,8 @@ function findCommandIgnoringSelection(part: string): (typeof COMMANDS)[0] | unde
 }
 
 function getSuggestionDataKey(item: string | { data: unknown }): string | null {
-  if (typeof item === 'string') return item;
-  if (item && typeof item.data === 'string') return item.data;
+  if (typeof item === 'string') return impl.stripInstancePropertyVariantGroupToken(item);
+  if (item && typeof item.data === 'string') return impl.stripInstancePropertyVariantGroupToken(item.data);
   return null;
 }
 
@@ -136,8 +136,9 @@ async function buildRecentSuggestions(
   searchTerm: string,
   existing: Array<string | { name: string; data: unknown }>
 ): Promise<Array<{ name: string; data: unknown }>> {
-  // Libraries don't benefit — they're a selection list, not an action.
-  if (matchedCommand.bindingSupport?.libraries) return [];
+  // Libraries are selection lists, and instance-property search should stay
+  // focused on the properties currently editable from the selected instances.
+  if (matchedCommand.bindingSupport?.libraries || matchedCommand.bindingSupport?.instanceProperties) return [];
 
   const recents = await getRecentValues(matchedCommand.name);
   if (recents.length === 0) return [];
@@ -149,7 +150,7 @@ async function buildRecentSuggestions(
     existing.map(getSuggestionDataKey).filter((k): k is string => k !== null)
   );
 
-  return recents
+  const matchingRecents = recents
     .map(r => ({ value: r, name: getRecentSuggestionName(matchedCommand, r) }))
     .filter(r => !committed.has(r.value))
     .filter(r => (
@@ -157,8 +158,9 @@ async function buildRecentSuggestions(
       r.value.toLowerCase().includes(activeLower) ||
       r.name.toLowerCase().includes(activeLower)
     ))
-    .filter(r => !existingKeys.has(prefix + r.value))
-    .map(r => ({ name: r.name, data: prefix + r.value }));
+    .filter(r => !existingKeys.has(prefix + r.value));
+
+  return matchingRecents.map(r => ({ name: r.name, data: prefix + r.value }));
 }
 
 async function generateBindingSuggestions(
@@ -192,7 +194,10 @@ async function generateBindingSuggestions(
     }
 
     const recentItems = await buildRecentSuggestions(matchedCommand, searchTerm, suggestions);
-    return recentItems.length > 0 ? [...recentItems, ...suggestions] : suggestions;
+    if (recentItems.length === 0) return suggestions;
+    return matchedCommand.bindingSupport.instanceProperties
+      ? [...suggestions, ...recentItems]
+      : [...recentItems, ...suggestions];
   } catch (error) {
     console.error('Error searching:', error);
     return [];
@@ -389,7 +394,10 @@ async function executeBindingCommand(
   // Record for recent-values. ip chains on ",", each pair is its own entry.
   if (matchedCommand) {
     const recordable = matchedCommand.bindingSupport?.instanceProperties
-      ? valueToUse.split(',').map(v => v.trim()).filter(Boolean)
+      ? valueToUse
+        .split(',')
+        .map(v => impl.stripInstancePropertyVariantGroupToken(v.trim()))
+        .filter(Boolean)
       : [valueToUse.trim()];
     for (const entry of recordable) {
       await recordRecentValue(matchedCommand.name, entry);
