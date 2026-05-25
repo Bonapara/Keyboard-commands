@@ -1,6 +1,6 @@
 {
   "name": "keyboard-commands",
-  "version": "1.0.0",
+  "version": "10.2.0",
   "description": "Design 2x faster with keyboard shortcuts. Manage properties, bind variables and styles, set values, all with keyboard commands",
   "main": "code.js",
   "scripts": {
