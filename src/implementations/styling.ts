@@ -4,6 +4,368 @@
 
 import { resolvePaintValue, resolveStyleValue, resolveDelta } from '../utils';
 
+type StyleTransferField =
+  | 'opacity'
+  | 'strokeWeight'
+  | 'strokeTopWeight'
+  | 'strokeRightWeight'
+  | 'strokeBottomWeight'
+  | 'strokeLeftWeight';
+
+type VariableBindableSceneNode = SceneNode & {
+  readonly boundVariables?: Record<string, VariableAlias | VariableAlias[] | undefined>;
+  setBoundVariable?: (field: StyleTransferField, variable: Variable | null) => void;
+};
+
+type StyleMutableSceneNode = SceneNode & {
+  setFillStyleIdAsync?: (styleId: string) => Promise<void>;
+  setStrokeStyleIdAsync?: (styleId: string) => Promise<void>;
+  setEffectStyleIdAsync?: (styleId: string) => Promise<void>;
+  setTextStyleIdAsync?: (styleId: string) => Promise<void>;
+  setFillsAsync?: (paints: ReadonlyArray<Paint>) => Promise<void>;
+  setStrokesAsync?: (paints: ReadonlyArray<Paint>) => Promise<void>;
+};
+
+function cloneValue<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value));
+}
+
+async function loadTextNodeFonts(node: TextNode): Promise<void> {
+  if (node.fontName !== figma.mixed) {
+    await figma.loadFontAsync(node.fontName);
+    return;
+  }
+
+  const fonts = node.getRangeAllFontNames(0, node.characters.length);
+  const seen = new Set<string>();
+  const uniqueFonts = fonts.filter((font) => {
+    const key = `${font.family}:${font.style}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  await Promise.all(uniqueFonts.map((font) => figma.loadFontAsync(font)));
+}
+
+async function copyNodeVariableBinding(
+  source: SceneNode,
+  target: SceneNode,
+  field: StyleTransferField
+): Promise<void> {
+  const sourceAlias = (source as VariableBindableSceneNode).boundVariables?.[field];
+
+  if (Array.isArray(sourceAlias)) {
+    return;
+  }
+
+  let variable: Variable | null = null;
+  if (sourceAlias?.id) {
+    variable = await figma.variables.getVariableByIdAsync(sourceAlias.id);
+  }
+
+  (target as VariableBindableSceneNode).setBoundVariable?.(field, variable);
+}
+
+async function setFillStyleId(node: SceneNode, styleId: string): Promise<void> {
+  const styleNode = node as StyleMutableSceneNode & { fillStyleId?: string | typeof figma.mixed };
+  if (styleNode.setFillStyleIdAsync) {
+    await styleNode.setFillStyleIdAsync(styleId);
+  } else if ('fillStyleId' in styleNode) {
+    styleNode.fillStyleId = styleId;
+  }
+}
+
+async function setStrokeStyleId(node: SceneNode, styleId: string): Promise<void> {
+  const styleNode = node as StyleMutableSceneNode & { strokeStyleId?: string };
+  if (styleNode.setStrokeStyleIdAsync) {
+    await styleNode.setStrokeStyleIdAsync(styleId);
+  } else if ('strokeStyleId' in styleNode) {
+    styleNode.strokeStyleId = styleId;
+  }
+}
+
+async function setEffectStyleId(node: SceneNode, styleId: string): Promise<void> {
+  const styleNode = node as StyleMutableSceneNode & { effectStyleId?: string };
+  if (styleNode.setEffectStyleIdAsync) {
+    await styleNode.setEffectStyleIdAsync(styleId);
+  } else if ('effectStyleId' in styleNode) {
+    styleNode.effectStyleId = styleId;
+  }
+}
+
+async function setTextStyleId(node: TextNode, styleId: string): Promise<void> {
+  const styleNode = node as TextNode & StyleMutableSceneNode & { textStyleId?: string | typeof figma.mixed };
+  if (styleNode.setTextStyleIdAsync) {
+    await styleNode.setTextStyleIdAsync(styleId);
+  } else if ('textStyleId' in styleNode) {
+    styleNode.textStyleId = styleId;
+  }
+}
+
+async function setFills(node: SceneNode, paints: ReadonlyArray<Paint>): Promise<void> {
+  const styleNode = node as StyleMutableSceneNode & { fills?: ReadonlyArray<Paint> | typeof figma.mixed };
+  const clonedPaints = cloneValue(paints);
+  if (styleNode.setFillsAsync) {
+    await styleNode.setFillsAsync(clonedPaints);
+  } else if ('fills' in styleNode) {
+    styleNode.fills = clonedPaints;
+  }
+}
+
+async function setStrokes(node: SceneNode, paints: ReadonlyArray<Paint>): Promise<void> {
+  const styleNode = node as StyleMutableSceneNode & { strokes?: ReadonlyArray<Paint> };
+  const clonedPaints = cloneValue(paints);
+  if (styleNode.setStrokesAsync) {
+    await styleNode.setStrokesAsync(clonedPaints);
+  } else if ('strokes' in styleNode) {
+    styleNode.strokes = clonedPaints;
+  }
+}
+
+async function copyFillStyle(source: SceneNode, target: SceneNode): Promise<void> {
+  if (!('fills' in source) || !('fills' in target)) {
+    return;
+  }
+
+  const sourceFillStyleId = 'fillStyleId' in source ? source.fillStyleId : '';
+  if (typeof sourceFillStyleId === 'string' && sourceFillStyleId !== '') {
+    await setFillStyleId(target, sourceFillStyleId);
+    return;
+  }
+
+  await setFillStyleId(target, '');
+  if (source.fills !== figma.mixed) {
+    await setFills(target, source.fills);
+  }
+}
+
+function copyUniformStrokeWeights(
+  source: SceneNode & {
+    strokeWeight: number | typeof figma.mixed;
+    strokeTopWeight?: number;
+    strokeRightWeight?: number;
+    strokeBottomWeight?: number;
+    strokeLeftWeight?: number;
+  },
+  target: SceneNode & {
+    strokeWeight: number | typeof figma.mixed;
+    strokeTopWeight?: number;
+    strokeRightWeight?: number;
+    strokeBottomWeight?: number;
+    strokeLeftWeight?: number;
+  }
+) {
+  if (source.strokeWeight === figma.mixed) {
+    return;
+  }
+
+  target.strokeWeight = source.strokeWeight;
+  if ('strokeTopWeight' in target) target.strokeTopWeight = source.strokeWeight;
+  if ('strokeRightWeight' in target) target.strokeRightWeight = source.strokeWeight;
+  if ('strokeBottomWeight' in target) target.strokeBottomWeight = source.strokeWeight;
+  if ('strokeLeftWeight' in target) target.strokeLeftWeight = source.strokeWeight;
+}
+
+function copyPerSideStrokeWeights(
+  source: SceneNode & {
+    strokeTopWeight?: number;
+    strokeRightWeight?: number;
+    strokeBottomWeight?: number;
+    strokeLeftWeight?: number;
+  },
+  target: SceneNode & {
+    strokeTopWeight?: number;
+    strokeRightWeight?: number;
+    strokeBottomWeight?: number;
+    strokeLeftWeight?: number;
+  }
+) {
+  if ('strokeTopWeight' in source && 'strokeTopWeight' in target) target.strokeTopWeight = source.strokeTopWeight;
+  if ('strokeRightWeight' in source && 'strokeRightWeight' in target) target.strokeRightWeight = source.strokeRightWeight;
+  if ('strokeBottomWeight' in source && 'strokeBottomWeight' in target) target.strokeBottomWeight = source.strokeBottomWeight;
+  if ('strokeLeftWeight' in source && 'strokeLeftWeight' in target) target.strokeLeftWeight = source.strokeLeftWeight;
+}
+
+async function copyStrokeStyle(source: SceneNode, target: SceneNode): Promise<void> {
+  if (!('strokes' in source) || !('strokes' in target)) {
+    return;
+  }
+
+  const sourceStrokeStyleId = 'strokeStyleId' in source ? source.strokeStyleId : '';
+  if (typeof sourceStrokeStyleId === 'string' && sourceStrokeStyleId !== '') {
+    await setStrokeStyleId(target, sourceStrokeStyleId);
+  } else {
+    await setStrokeStyleId(target, '');
+    await setStrokes(target, source.strokes);
+  }
+
+  await copyNodeVariableBinding(source, target, 'strokeWeight');
+  await copyNodeVariableBinding(source, target, 'strokeTopWeight');
+  await copyNodeVariableBinding(source, target, 'strokeRightWeight');
+  await copyNodeVariableBinding(source, target, 'strokeBottomWeight');
+  await copyNodeVariableBinding(source, target, 'strokeLeftWeight');
+
+  if ('strokeWeight' in source && 'strokeWeight' in target) {
+    copyUniformStrokeWeights(source, target);
+    if (source.strokeWeight === figma.mixed) {
+      copyPerSideStrokeWeights(source, target);
+    }
+  }
+
+  if ('strokeAlign' in source && 'strokeAlign' in target) {
+    target.strokeAlign = source.strokeAlign;
+  }
+
+  if ('dashPattern' in source && 'dashPattern' in target) {
+    target.dashPattern = [...source.dashPattern];
+  }
+
+  if ('strokeCap' in source && 'strokeCap' in target && source.strokeCap !== figma.mixed) {
+    target.strokeCap = source.strokeCap;
+  }
+
+  if ('strokeJoin' in source && 'strokeJoin' in target && source.strokeJoin !== figma.mixed) {
+    target.strokeJoin = source.strokeJoin;
+  }
+
+  if ('strokeMiterLimit' in source && 'strokeMiterLimit' in target) {
+    target.strokeMiterLimit = source.strokeMiterLimit;
+  }
+}
+
+async function copyEffectsStyle(source: SceneNode, target: SceneNode): Promise<void> {
+  if (!('effects' in source) || !('effects' in target)) {
+    return;
+  }
+
+  const sourceEffectStyleId = 'effectStyleId' in source ? source.effectStyleId : '';
+  if (typeof sourceEffectStyleId === 'string' && sourceEffectStyleId !== '') {
+    await setEffectStyleId(target, sourceEffectStyleId);
+    return;
+  }
+
+  await setEffectStyleId(target, '');
+  target.effects = cloneValue(source.effects);
+}
+
+async function copyOpacityStyle(source: SceneNode, target: SceneNode): Promise<void> {
+  if (!('opacity' in source) || !('opacity' in target)) {
+    return;
+  }
+
+  await copyNodeVariableBinding(source, target, 'opacity');
+  target.opacity = source.opacity;
+}
+
+function copyRadiusStyle(source: SceneNode, target: SceneNode): void {
+  if ('cornerSmoothing' in source && 'cornerSmoothing' in target) {
+    target.cornerSmoothing = source.cornerSmoothing;
+  }
+
+  if ('cornerRadius' in source && 'cornerRadius' in target && source.cornerRadius !== figma.mixed) {
+    target.cornerRadius = source.cornerRadius;
+    if ('topLeftRadius' in target) target.topLeftRadius = source.cornerRadius;
+    if ('topRightRadius' in target) target.topRightRadius = source.cornerRadius;
+    if ('bottomRightRadius' in target) target.bottomRightRadius = source.cornerRadius;
+    if ('bottomLeftRadius' in target) target.bottomLeftRadius = source.cornerRadius;
+    return;
+  }
+
+  if ('topLeftRadius' in source && 'topLeftRadius' in target) {
+    target.topLeftRadius = source.topLeftRadius;
+    target.topRightRadius = source.topRightRadius;
+    target.bottomRightRadius = source.bottomRightRadius;
+    target.bottomLeftRadius = source.bottomLeftRadius;
+  }
+}
+
+async function copyTextStyle(source: SceneNode, target: SceneNode): Promise<void> {
+  if (source.type !== 'TEXT' || target.type !== 'TEXT') {
+    return;
+  }
+
+  const sourceTextStyleId = source.textStyleId;
+  const hasLinkedTextStyle = typeof sourceTextStyleId === 'string' && sourceTextStyleId !== '';
+
+  await setTextStyleId(target, hasLinkedTextStyle ? sourceTextStyleId : '');
+
+  if (!hasLinkedTextStyle) {
+    await loadTextNodeFonts(target);
+
+    if (source.fontName !== figma.mixed) {
+      await figma.loadFontAsync(source.fontName);
+      target.fontName = cloneValue(source.fontName);
+    }
+
+    if (source.fontSize !== figma.mixed) {
+      target.fontSize = source.fontSize;
+    }
+
+    if (source.letterSpacing !== figma.mixed) {
+      target.letterSpacing = cloneValue(source.letterSpacing);
+    }
+
+    if (source.lineHeight !== figma.mixed) {
+      target.lineHeight = cloneValue(source.lineHeight);
+    }
+
+    if (source.paragraphSpacing !== figma.mixed) {
+      target.paragraphSpacing = source.paragraphSpacing;
+    }
+
+    if (source.paragraphIndent !== figma.mixed) {
+      target.paragraphIndent = source.paragraphIndent;
+    }
+
+    if (source.textCase !== figma.mixed) {
+      target.textCase = source.textCase;
+    }
+
+    if (source.textDecoration !== figma.mixed) {
+      target.textDecoration = source.textDecoration;
+    }
+
+    if (source.leadingTrim !== figma.mixed) {
+      target.leadingTrim = source.leadingTrim;
+    }
+  }
+
+  if (source.textAlignHorizontal !== figma.mixed) {
+    target.textAlignHorizontal = source.textAlignHorizontal;
+  }
+
+  if (source.textAlignVertical !== figma.mixed) {
+    target.textAlignVertical = source.textAlignVertical;
+  }
+}
+
+export async function matchStyle() {
+  const selection = figma.currentPage.selection;
+  if (selection.length < 2) {
+    throw new Error('Select at least 2 layers to match style');
+  }
+
+  const [source, ...targets] = selection;
+  let matchedCount = 0;
+
+  for (const target of targets) {
+    try {
+      await copyFillStyle(source, target);
+      await copyStrokeStyle(source, target);
+      await copyEffectsStyle(source, target);
+      await copyOpacityStyle(source, target);
+      copyRadiusStyle(source, target);
+      await copyTextStyle(source, target);
+      matchedCount++;
+    } catch (error) {
+      console.error(`Failed to match style onto ${target.name}:`, error);
+    }
+  }
+
+  figma.notify(`Matched style to ${matchedCount} layer${matchedCount === 1 ? '' : 's'}`);
+}
+
 export async function setFill(value: string) {
   const selection = figma.currentPage.selection;
 

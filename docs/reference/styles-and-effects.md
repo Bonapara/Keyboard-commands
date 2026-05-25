@@ -2,6 +2,16 @@
 
 This file covers fills, strokes, color swaps, corner styling, effects, and theme toggling.
 
+## Match Style
+
+- `mst`: copy style from the first selected node to the rest of the selection
+
+Behavior:
+
+- copies fill, stroke, effects, radius, opacity, and text styling
+- preserves linked fill/stroke/effect/text styles when the source node uses them
+- only applies properties that both the source and target node types support
+
 ## Fill
 
 - `f`: apply a fill value, or toggle fill when no value is given

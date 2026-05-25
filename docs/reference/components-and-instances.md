@@ -80,6 +80,16 @@ Behavior by property type:
 - text: sets the text property value
 - instance swap: resolves and imports the target component, then sets the property to that component id
 
+Variant properties are consolidated across selected instances when the cleaned
+property name and the full variant option set match. This allows a header
+component and cell component that both expose `State: Default, Selected` to be
+changed together with `ip State:Selected`.
+
+When several instances are selected, suggestions only include properties shared
+by every selected root instance. A selected component exposing `State: Default,
+Selected, Sorted` and another exposing `State: Default, Selected` will not show
+`State` as a shared editable property for that multi-selection.
+
 ### Empty-property search by option
 
 Example:
@@ -113,10 +123,13 @@ The command does not stop at top-level properties.
 
 The suggestion system is property-type aware.
 
+- live property suggestions follow the same direct/exposed-instance order as Figma's right panel
 - boolean properties can be toggled from the bare property name
 - variant properties show option search flows
 - text properties show the current text value and prompt for replacement text
 - instance-swap properties surface preferred values, same-frame components, and library components
+- nested properties are prefixed with the exposed instance name, for example `Field icon -> Icon`
+- recent `ip` values are shown only when they still resolve against the current selection
 
 ## `rio` / Reset Specific Override
 
