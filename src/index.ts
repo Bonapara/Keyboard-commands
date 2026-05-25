@@ -67,6 +67,50 @@ function getSuggestionDataKey(item: string | { data: unknown }): string | null {
   return null;
 }
 
+function formatRecentFieldLabel(field: string): string {
+  if (field === 'cornerRadius') return 'Corner Radius';
+  if (field === 'stroke') return 'Stroke';
+
+  return field
+    .replace(/_/g, ' ')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+function formatInstanceOverrideRecentLabel(value: string): string | null {
+  try {
+    const data = JSON.parse(value) as Record<string, unknown>;
+    const field = typeof data.field === 'string' ? data.field : '';
+    const nodeName = typeof data.nodeName === 'string' ? data.nodeName : '';
+    const componentPropertyName = typeof data.componentPropertyName === 'string'
+      ? data.componentPropertyName
+      : '';
+
+    if (!field || !nodeName) return null;
+
+    const fieldLabel = field === 'componentProperties' && componentPropertyName
+      ? `Property: ${componentPropertyName}`
+      : formatRecentFieldLabel(field);
+
+    return `${nodeName} -> ${fieldLabel}`;
+  } catch {
+    return null;
+  }
+}
+
+function getRecentSuggestionName(
+  matchedCommand: (typeof COMMANDS)[0],
+  value: string
+): string {
+  const displayValue = matchedCommand.bindingSupport?.instanceOverrides
+    ? formatInstanceOverrideRecentLabel(value) || value
+    : value;
+
+  return `${displayValue} (recent)`;
+}
+
 // Extract the "active" portion of a chained search (what's after the last ",")
 // and the committed prefix (everything up to and including that ","). Only
 // instance-property chains use "," so other commands pass through untouched.
@@ -106,10 +150,15 @@ async function buildRecentSuggestions(
   );
 
   return recents
-    .filter(r => !committed.has(r))
-    .filter(r => !activeLower || r.toLowerCase().includes(activeLower))
-    .filter(r => !existingKeys.has(prefix + r))
-    .map(r => ({ name: `${r} (recent)`, data: prefix + r }));
+    .map(r => ({ value: r, name: getRecentSuggestionName(matchedCommand, r) }))
+    .filter(r => !committed.has(r.value))
+    .filter(r => (
+      !activeLower ||
+      r.value.toLowerCase().includes(activeLower) ||
+      r.name.toLowerCase().includes(activeLower)
+    ))
+    .filter(r => !existingKeys.has(prefix + r.value))
+    .map(r => ({ name: r.name, data: prefix + r.value }));
 }
 
 async function generateBindingSuggestions(

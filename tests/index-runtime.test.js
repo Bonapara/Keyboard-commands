@@ -164,6 +164,17 @@ export const COMMANDS = [
     },
   },
   {
+    name: 'ResetInstanceOverrides',
+    alias: ['rio'],
+    type: 'commandWithValue',
+    valueFormat: 'string',
+    suggestion: '?select override to reset',
+    functionWithParam: (value) => impl.recordCommand('ResetInstanceOverrides', value),
+    bindingSupport: {
+      instanceOverrides: true,
+    },
+  },
+  {
     name: 'History',
     alias: ['z', 'hi'],
     type: 'commandWithoutValue',
@@ -727,6 +738,39 @@ async function main() {
       { commandName: 'InstanceProperty', value: 'state:active' },
     ],
     'instance-property chains should record each pair separately in recent values'
+  );
+
+  resetHarness(runtime, harness);
+
+  const heightOverrideRef = JSON.stringify({
+    nodeId: '100094:76668',
+    field: 'height',
+    nodeName: 'Button/Light Icon Button',
+  });
+  const propertyOverrideRef = JSON.stringify({
+    nodeId: '99656:321804;80899:342414',
+    field: 'componentProperties',
+    nodeName: 'Tabler icons',
+    componentPropertyName: 'Icon',
+  });
+  harness.recentStub.__setRecentValues({
+    ResetInstanceOverrides: [heightOverrideRef, propertyOverrideRef],
+  });
+
+  const overrideRecentSuggestions = await runtime.input('rio?');
+  assert.deepEqual(
+    overrideRecentSuggestions,
+    [
+      {
+        name: 'Button/Light Icon Button -> Height (recent)',
+        data: heightOverrideRef,
+      },
+      {
+        name: 'Tabler icons -> Property: Icon (recent)',
+        data: propertyOverrideRef,
+      },
+    ],
+    'instance override recents should display human-readable labels while keeping JSON data'
   );
 
   resetHarness(runtime, harness);

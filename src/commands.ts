@@ -823,6 +823,13 @@ export const COMMAND_DEFINITIONS = {
       libraryStyles: true
     }
   },
+  MatchStyle: {
+    type: "commandWithoutValue",
+    alias: ['mst'],
+    suggestion: 'Copy the first selected layer style to the others',
+    functionWithoutParam: () => impl.matchStyle(),
+    selectionPredicate: selection => selection.length >= 2,
+  },
   Rotate: {
     type: "optionalValueCommand",
     alias: ['ro'],
