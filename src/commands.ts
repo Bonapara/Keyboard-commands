@@ -609,7 +609,7 @@ export const COMMAND_DEFINITIONS = {
   },
   TidyGap: {
     type: "optionalValueCommand",
-    alias: ['tg'],
+    alias: ['tg', 'thg'],
     valueFormat: "number",
     suggestion: "Tidy / smart selection gap in px (No value = dominant existing gap)",
     functionWithParam: (value: string) => impl.setTidyGap(value),
@@ -619,7 +619,7 @@ export const COMMAND_DEFINITIONS = {
   },
   TidyRowGap: {
     type: "commandWithValue",
-    alias: ['trg'],
+    alias: ['trg', 'tvg'],
     valueFormat: "number",
     suggestion: "Tidy / smart selection row gap in px",
     functionWithParam: (value: string) => impl.setTidyRowGap(value),
