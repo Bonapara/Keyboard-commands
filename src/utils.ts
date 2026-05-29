@@ -446,7 +446,7 @@ export function extractValue(text: string, format: ValueFormat): string | null {
   // back to Number(), which silently ignores leading "+" and treats "-N" as
   // a negative absolute (matching prior behavior).
   if (format === 'number') {
-    const deltaMatch = text.match(/^[\p{L}][\p{L}\-]*\s*([+\-*/])\s*(-?\d+(?:\.\d+)?)\s*$/u);
+    const deltaMatch = text.match(/^[\p{L}][\p{L}-]*\s*([+\-*/])\s*(-?\d+(?:\.\d+)?)\s*$/u);
     if (deltaMatch) {
       return `${deltaMatch[1]}${deltaMatch[2]}`;
     }
@@ -454,7 +454,7 @@ export function extractValue(text: string, format: ValueFormat): string | null {
     // Detect "<alias><n>,<n>(,<n>)*" comma-separated list (e.g. "p20,30",
     // "r10,20,30,40"). Returned as the raw "20,30" string so multi-value
     // commands can split it via parseNumberList().
-    const listMatch = text.match(/^[\p{L}][\p{L}\-]*\s*(-?\d+(?:\.\d+)?(?:,-?\d+(?:\.\d+)?)+)\s*$/u);
+    const listMatch = text.match(/^[\p{L}][\p{L}-]*\s*(-?\d+(?:\.\d+)?(?:,-?\d+(?:\.\d+)?)+)\s*$/u);
     if (listMatch) {
       return listMatch[1];
     }

@@ -2,6 +2,7 @@
 // Text Functions
 // ================================
 
+import type { NumberResolution } from '../types';
 import { clearNodeBoundVariables, resolveDelta, resolveNumberValue, resolveNumberVariable, setNodeBoundVariable } from '../utils';
 
 async function loadTextNodeFonts(node: TextNode): Promise<void> {
@@ -179,9 +180,11 @@ export async function setLineHeight(value: string) {
     throw new Error('No items selected');
   }
 
-  let resolution;
+  // AUTO is handled by the dedicated branch below before `resolution` is ever
+  // read, so this placeholder just needs to be a valid NumberResolution.
+  let resolution: NumberResolution;
   if (value === 'AUTO') {
-    resolution = { type: 'literal', value: 0, unit: 'AUTO' }; // Special case for AUTO
+    resolution = { type: 'literal', value: 0, unit: 'PIXELS' };
   } else {
     resolution = await resolveNumberValue(value);
   }

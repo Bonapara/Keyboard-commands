@@ -221,7 +221,10 @@ function applyGapToInferredLayout(
   axis: 'PRIMARY' | 'COUNTER'
 ) {
   const inferred = node.inferredAutoLayout;
-  if (!inferred || inferred.layoutMode === 'NONE') {
+  // GRID is always an explicit layout mode, so inferredAutoLayout never reports
+  // it; the guard keeps `direction` narrowed to the linear axes the tidy-gap
+  // helpers below expect.
+  if (!inferred || inferred.layoutMode === 'NONE' || inferred.layoutMode === 'GRID') {
     return false;
   }
 
@@ -284,7 +287,9 @@ function applyGapToInferredLayout(
   const current = typeof inferred.counterAxisSpacing === 'number'
     ? inferred.counterAxisSpacing
     : getDominantGap(collectTrackGaps(lineTracks, counterDirection));
-  const next = Math.max(0, resolveDelta(gap, current));
+  const next = gap === undefined
+    ? Math.max(0, current)
+    : Math.max(0, resolveDelta(gap, current));
   repositionTracksAlongAxis(lineTracks, counterDirection, next);
   figma.notify(`Tidy row gap set to ${gap}`);
   return true;
@@ -352,7 +357,9 @@ function applyGapToSelection(
   }
 
   const current = getDominantGap(collectTrackGaps(lineTracks, counterDirection));
-  const next = Math.max(0, resolveDelta(gap, current));
+  const next = gap === undefined
+    ? Math.max(0, current)
+    : Math.max(0, resolveDelta(gap, current));
   repositionTracksAlongAxis(lineTracks, counterDirection, next);
   figma.notify(`Tidy row gap set to ${gap}`);
 }
@@ -704,8 +711,8 @@ export async function setTidyGap(gap?: string) {
     throw new Error('No items selected');
   }
 
-  const resolution = gap === undefined
-    ? { type: 'literal', value: 0, unit: 'PIXELS' as const }
+  const resolution: NumberResolution = gap === undefined
+    ? { type: 'literal', value: 0, unit: 'PIXELS' }
     : await resolveNumberValue(gap);
 
   if (selection.length === 1) {
