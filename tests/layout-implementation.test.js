@@ -104,6 +104,23 @@ async function main() {
 
   notifications.length = 0;
 
+  const centeredPrimaryGapNode = {
+    type: 'FRAME',
+    layoutMode: 'VERTICAL',
+    primaryAxisAlignItems: 'CENTER',
+    counterAxisAlignItems: 'CENTER',
+    itemSpacing: 8,
+  };
+  figma.currentPage.selection = [centeredPrimaryGapNode];
+  await setPrimaryGap('80');
+
+  assert.equal(centeredPrimaryGapNode.primaryAxisAlignItems, 'CENTER');
+  assert.equal(centeredPrimaryGapNode.counterAxisAlignItems, 'CENTER');
+  assert.equal(centeredPrimaryGapNode.itemSpacing, 80);
+  assert.equal(notifications.at(-1)?.message, 'Primary gap set to 80');
+
+  notifications.length = 0;
+
   const tidyParent = { type: 'PAGE' };
   const tidyPrimarySelection = [
     createNode({ x: 0, y: 0, width: 100, height: 100, parent: tidyParent }),
