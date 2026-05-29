@@ -72,6 +72,8 @@ async function setFillStyleId(node: SceneNode, styleId: string): Promise<void> {
   if (styleNode.setFillStyleIdAsync) {
     await styleNode.setFillStyleIdAsync(styleId);
   } else if ('fillStyleId' in styleNode) {
+    // Fallback for older API versions that lack the async setter.
+    // eslint-disable-next-line @figma/figma-plugins/ban-deprecated-sync-prop-setters
     styleNode.fillStyleId = styleId;
   }
 }
@@ -81,6 +83,8 @@ async function setStrokeStyleId(node: SceneNode, styleId: string): Promise<void>
   if (styleNode.setStrokeStyleIdAsync) {
     await styleNode.setStrokeStyleIdAsync(styleId);
   } else if ('strokeStyleId' in styleNode) {
+    // Fallback for older API versions that lack the async setter.
+    // eslint-disable-next-line @figma/figma-plugins/ban-deprecated-sync-prop-setters
     styleNode.strokeStyleId = styleId;
   }
 }
@@ -90,6 +94,8 @@ async function setEffectStyleId(node: SceneNode, styleId: string): Promise<void>
   if (styleNode.setEffectStyleIdAsync) {
     await styleNode.setEffectStyleIdAsync(styleId);
   } else if ('effectStyleId' in styleNode) {
+    // Fallback for older API versions that lack the async setter.
+    // eslint-disable-next-line @figma/figma-plugins/ban-deprecated-sync-prop-setters
     styleNode.effectStyleId = styleId;
   }
 }
@@ -99,6 +105,8 @@ async function setTextStyleId(node: TextNode, styleId: string): Promise<void> {
   if (styleNode.setTextStyleIdAsync) {
     await styleNode.setTextStyleIdAsync(styleId);
   } else if ('textStyleId' in styleNode) {
+    // Fallback for older API versions that lack the async setter.
+    // eslint-disable-next-line @figma/figma-plugins/ban-deprecated-sync-prop-setters
     styleNode.textStyleId = styleId;
   }
 }
@@ -263,13 +271,25 @@ function copyRadiusStyle(source: SceneNode, target: SceneNode): void {
     target.cornerSmoothing = source.cornerSmoothing;
   }
 
-  if ('cornerRadius' in source && 'cornerRadius' in target && source.cornerRadius !== figma.mixed) {
-    target.cornerRadius = source.cornerRadius;
-    if ('topLeftRadius' in target) target.topLeftRadius = source.cornerRadius;
-    if ('topRightRadius' in target) target.topRightRadius = source.cornerRadius;
-    if ('bottomRightRadius' in target) target.bottomRightRadius = source.cornerRadius;
-    if ('bottomLeftRadius' in target) target.bottomLeftRadius = source.cornerRadius;
-    return;
+  if ('cornerRadius' in source && 'cornerRadius' in target) {
+    // `in`-narrowing on the SceneNode union leaves cornerRadius read-only and
+    // widened, so cast to an explicit writable radius shape before copying.
+    const sourceRadius = (source as { cornerRadius: number | typeof figma.mixed }).cornerRadius;
+    if (sourceRadius !== figma.mixed) {
+      const radiusTarget = target as {
+        cornerRadius: number | typeof figma.mixed;
+        topLeftRadius?: number;
+        topRightRadius?: number;
+        bottomRightRadius?: number;
+        bottomLeftRadius?: number;
+      };
+      radiusTarget.cornerRadius = sourceRadius;
+      if ('topLeftRadius' in radiusTarget) radiusTarget.topLeftRadius = sourceRadius;
+      if ('topRightRadius' in radiusTarget) radiusTarget.topRightRadius = sourceRadius;
+      if ('bottomRightRadius' in radiusTarget) radiusTarget.bottomRightRadius = sourceRadius;
+      if ('bottomLeftRadius' in radiusTarget) radiusTarget.bottomLeftRadius = sourceRadius;
+      return;
+    }
   }
 
   if ('topLeftRadius' in source && 'topLeftRadius' in target) {
@@ -310,13 +330,9 @@ async function copyTextStyle(source: SceneNode, target: SceneNode): Promise<void
       target.lineHeight = cloneValue(source.lineHeight);
     }
 
-    if (source.paragraphSpacing !== figma.mixed) {
-      target.paragraphSpacing = source.paragraphSpacing;
-    }
-
-    if (source.paragraphIndent !== figma.mixed) {
-      target.paragraphIndent = source.paragraphIndent;
-    }
+    // paragraphSpacing/paragraphIndent are node-level (never figma.mixed).
+    target.paragraphSpacing = source.paragraphSpacing;
+    target.paragraphIndent = source.paragraphIndent;
 
     if (source.textCase !== figma.mixed) {
       target.textCase = source.textCase;
@@ -331,13 +347,9 @@ async function copyTextStyle(source: SceneNode, target: SceneNode): Promise<void
     }
   }
 
-  if (source.textAlignHorizontal !== figma.mixed) {
-    target.textAlignHorizontal = source.textAlignHorizontal;
-  }
-
-  if (source.textAlignVertical !== figma.mixed) {
-    target.textAlignVertical = source.textAlignVertical;
-  }
+  // Text alignment is node-level (never figma.mixed).
+  target.textAlignHorizontal = source.textAlignHorizontal;
+  target.textAlignVertical = source.textAlignVertical;
 }
 
 export async function matchStyle() {

@@ -257,8 +257,8 @@ function trackCommandsFromSegment(
         } else if (hasNumber) {
           // Preserve delta operator (e.g. "w+10" tracked as "+10") and
           // comma lists (e.g. "p20,30" tracked as "20,30").
-          const deltaMatch = part.match(/^[\p{L}][\p{L}\-]*\s*([+\-*/])\s*(-?\d+(?:\.\d+)?)\s*$/u);
-          const listMatch = part.match(/^[\p{L}][\p{L}\-]*\s*(-?\d+(?:\.\d+)?(?:,-?\d+(?:\.\d+)?)+)\s*$/u);
+          const deltaMatch = part.match(/^[\p{L}][\p{L}-]*\s*([+\-*/])\s*(-?\d+(?:\.\d+)?)\s*$/u);
+          const listMatch = part.match(/^[\p{L}][\p{L}-]*\s*(-?\d+(?:\.\d+)?(?:,-?\d+(?:\.\d+)?)+)\s*$/u);
           if (deltaMatch) {
             commands[matchedCommand.name] = `${deltaMatch[1]}${deltaMatch[2]}`;
           } else if (listMatch) {
@@ -647,8 +647,8 @@ function handleMatchedCommand(
       // Preserve delta operator (e.g. "w+10" → "Width:+10") and comma lists
       // (e.g. "p20,30" → "Padding:20,30") so the summary round-trips correctly
       // through executeCommand's normalization.
-      const deltaMatch = currentPart.match(/^[\p{L}][\p{L}\-]*\s*([+\-*/])\s*(-?\d+(?:\.\d+)?)\s*$/u);
-      const listMatch = currentPart.match(/^[\p{L}][\p{L}\-]*\s*(-?\d+(?:\.\d+)?(?:,-?\d+(?:\.\d+)?)+)\s*$/u);
+      const deltaMatch = currentPart.match(/^[\p{L}][\p{L}-]*\s*([+\-*/])\s*(-?\d+(?:\.\d+)?)\s*$/u);
+      const listMatch = currentPart.match(/^[\p{L}][\p{L}-]*\s*(-?\d+(?:\.\d+)?(?:,-?\d+(?:\.\d+)?)+)\s*$/u);
       if (deltaMatch) {
         completeCommands.push(`${matchedCommand.name}:${deltaMatch[1]}${deltaMatch[2]}`);
       } else if (listMatch) {

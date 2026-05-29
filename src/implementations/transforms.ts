@@ -475,7 +475,6 @@ export function swapPosition() {
   }
 
   const firstParent = firstNode.parent;
-  const secondParent = secondNode.parent;
 
   if (sameParent && hasSizedParent(firstParent)) {
     swapAbsolutePosition(firstNode, secondNode, firstParent);

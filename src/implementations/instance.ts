@@ -1,7 +1,6 @@
 
 
 import { getStoredLibraries, getActiveLibraries } from './library';
-import { getRecentValues } from '../recent-values';
 
 const PROPERTY_ID_SUFFIX_REGEX = /#\d+:\d+$/;
 const VARIANT_SPACING = 20;
@@ -580,13 +579,6 @@ async function collectNonVariantPropertyAccumulators(instances: InstanceNode[]):
   return (await collectInstancePropertyInventory(instances)).nonVariantProperties;
 }
 
-async function collectSharedNonVariantPropertyAccumulators(instances: InstanceNode[]): Promise<PropertyAccumulator[]> {
-  return filterSharedPropertyAccumulators(
-    instances,
-    await collectNonVariantPropertyAccumulators(instances)
-  );
-}
-
 function getPropertyReferenceMatchRank(propertyReference: string, data: PropertyData): number {
   const normalizedReference = normalizePropertySearchText(propertyReference);
   const normalizedName = normalizePropertySearchText(data.cleanedName || '');
@@ -826,19 +818,6 @@ function prefixChainedSuggestion(item: SuggestionItem, prefix: string): Suggesti
     : item.data;
 
   return { ...item, data };
-}
-
-async function searchVariantOptions(
-  instances: InstanceNode[],
-  propertyName: string,
-  optionFilter: string = ''
-): Promise<SuggestionItem[]> {
-  return searchVariantOptionsFromGroups(
-    instances,
-    (await collectInstancePropertyInventory(instances)).variantGroups,
-    propertyName,
-    optionFilter
-  );
 }
 
 function searchVariantOptionsFromGroups(
