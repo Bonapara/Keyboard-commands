@@ -4,7 +4,7 @@ This folder documents the current behavior of the `Keyboard Commands` Figma plug
 
 The plugin is not just a flat list of shortcuts. It is a small command language with:
 
-- `184` registered commands in `src/commands.ts`
+- `192` registered commands in `src/commands.ts`
 - typed value parsing for numbers, expressions, colors, strings, binding references, and comma-chains
 - autocomplete that is selection-aware
 - binding search for styles, variables, libraries, instance properties, component swaps, selection colors, and override resets
