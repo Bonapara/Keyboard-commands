@@ -639,7 +639,9 @@ export async function setPrimaryGap(gap: string | 'AUTO') {
       continue;
     }
 
-    node.primaryAxisAlignItems = 'MIN';
+    if (node.primaryAxisAlignItems === 'SPACE_BETWEEN') {
+      node.primaryAxisAlignItems = 'MIN';
+    }
     if (resolution!.type === 'variable') {
       setNodeBoundVariable(node, 'itemSpacing', await resolveNumberVariable(resolution!));
     } else {
