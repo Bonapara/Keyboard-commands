@@ -186,6 +186,28 @@ async function main() {
   );
 
   const commandByName = new Map(COMMANDS.map((command) => [command.name, command]));
+  const lockAspectRatioPredicate = commandByName.get('LockAspectRatio')?.selectionPredicate;
+  assert.equal(
+    typeof lockAspectRatioPredicate,
+    'function',
+    'LockAspectRatio should validate aspect-ratio-lockable selections via selectionPredicate'
+  );
+  assert.equal(
+    lockAspectRatioPredicate?.([{
+      type: 'RECTANGLE',
+      targetAspectRatio: null,
+      lockAspectRatio() {},
+      unlockAspectRatio() {},
+    }]),
+    true,
+    'LockAspectRatio should be available for native aspect-ratio-lockable nodes'
+  );
+  assert.equal(
+    lockAspectRatioPredicate?.([{ type: 'SLICE' }]),
+    false,
+    'LockAspectRatio should be hidden for nodes without aspect ratio lock support'
+  );
+
   for (const commandName of [
     'Gap',
     'VerticalGap',

@@ -8,6 +8,9 @@
   "HeightWidth": {
     "with": "f68e7d2529bc46dd2fa47187063b90757d537470138b0e8e2c473975fccbbbb9"
   },
+  "LockAspectRatio": {
+    "without": "25fce8bcb59c1a9c9a37a2050c8a6a6d9f83535886ab7cb529be135a60238900"
+  },
   "InstanceSwap": {
     "with": "d96478f6ea4f8c84481a25b4f53d5117c7ab8142d38f54a941d213552ac8c5cf"
   },

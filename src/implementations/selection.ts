@@ -156,32 +156,88 @@ export function duplicate() {
   figma.notify('Duplicated selection');
 }
 
-export function reorderLayer(direction: 'FRONT' | 'BACK' | 'FORWARD' | 'BACKWARD') {
+type ReorderDirection = 'FRONT' | 'BACK' | 'FORWARD' | 'BACKWARD';
+type ReorderableParentNode = BaseNode & ChildrenMixin;
+
+function isReorderableParent(parent: BaseNode | null): parent is ReorderableParentNode {
+  return !!parent && 'children' in parent && 'insertChild' in parent;
+}
+
+function usesReverseAutoLayoutZIndex(parent: ReorderableParentNode): boolean {
+  return 'layoutMode' in parent &&
+    (parent.layoutMode === 'HORIZONTAL' || parent.layoutMode === 'VERTICAL') &&
+    'itemReverseZIndex' in parent &&
+    parent.itemReverseZIndex === true;
+}
+
+function moveChildToIndex(children: readonly SceneNode[], node: SceneNode, targetIndex: number): SceneNode[] {
+  const nextOrder = [...children];
+  const currentIndex = nextOrder.indexOf(node);
+  if (currentIndex === -1) return nextOrder;
+
+  const [movedNode] = nextOrder.splice(currentIndex, 1);
+  nextOrder.splice(Math.max(0, Math.min(targetIndex, nextOrder.length)), 0, movedNode);
+  return nextOrder;
+}
+
+function applyChildrenOrder(parent: ReorderableParentNode, nextOrder: readonly SceneNode[]): void {
+  nextOrder.forEach((child, index) => {
+    if (parent.children[index] !== child) {
+      parent.insertChild(index, child);
+    }
+  });
+}
+
+function getReorderTargetIndex(
+  index: number,
+  childCount: number,
+  direction: ReorderDirection,
+  reverseZIndex: boolean
+): number {
+  const firstIndex = 0;
+  const lastIndex = childCount - 1;
+
+  switch (direction) {
+    case 'FRONT':
+      return reverseZIndex ? firstIndex : lastIndex;
+    case 'BACK':
+      return reverseZIndex ? lastIndex : firstIndex;
+    case 'FORWARD':
+      return reverseZIndex ? Math.max(firstIndex, index - 1) : Math.min(lastIndex, index + 1);
+    case 'BACKWARD':
+      return reverseZIndex ? Math.min(lastIndex, index + 1) : Math.max(firstIndex, index - 1);
+  }
+}
+
+async function loadParentIfNeeded(parent: ReorderableParentNode): Promise<void> {
+  if (parent.type === 'PAGE' && 'loadAsync' in parent) {
+    await parent.loadAsync();
+  }
+}
+
+export async function reorderLayer(direction: ReorderDirection) {
   const selection = figma.currentPage.selection;
   if (selection.length === 0) return;
 
   for (const node of selection) {
     const parent = node.parent;
-    if (!parent) continue;
+    if (!isReorderableParent(parent)) continue;
 
-    const index = parent.children.indexOf(node);
-    switch (direction) {
-      case 'FRONT':
-        parent.insertChild(parent.children.length - 1, node);
-        break;
-      case 'BACK':
-        parent.insertChild(0, node);
-        break;
-      case 'FORWARD':
-        if (index < parent.children.length - 1) {
-          parent.insertChild(index + 1, node);
-        }
-        break;
-      case 'BACKWARD':
-        if (index > 0) {
-          parent.insertChild(index - 1, node);
-        }
-        break;
-    }
+    await loadParentIfNeeded(parent);
+
+    const children = parent.children;
+    const index = children.indexOf(node);
+    if (index === -1) continue;
+
+    const reverseZIndex = usesReverseAutoLayoutZIndex(parent);
+    const targetIndex = getReorderTargetIndex(
+      index,
+      children.length,
+      direction,
+      reverseZIndex
+    );
+    const nextOrder = moveChildToIndex(children, node, targetIndex);
+
+    if (targetIndex !== index) applyChildrenOrder(parent, nextOrder);
   }
 }

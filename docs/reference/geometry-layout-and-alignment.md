@@ -16,6 +16,15 @@ Behavior:
 - uses `resolveDelta()`, so values like `+10` and `/2` are relative
 - clamps width and height to at least `0.01`
 
+### Aspect ratio lock
+
+- `lar`, `lockar`: toggle aspect ratio lock
+
+Behavior:
+
+- works on selected nodes that expose Figma aspect ratio lock support
+- aspect ratio lock toggles all selected lockable nodes; mixed selections lock all, fully locked selections unlock all
+
 ## Move And Position Commands
 
 ### Relative move

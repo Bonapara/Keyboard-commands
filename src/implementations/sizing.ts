@@ -5,6 +5,56 @@
 import { MIN_SCALE_FACTOR } from '../constants';
 import { clearNodeBoundVariables, resolveDelta, resolveNumberValue, resolveNumberVariable, setNodeBoundVariable } from '../utils';
 
+type NativeAspectRatioLockNode = SceneNode & {
+  readonly targetAspectRatio: Vector | null;
+  lockAspectRatio: () => void;
+  unlockAspectRatio: () => void;
+};
+
+type LegacyAspectRatioLockNode = SceneNode & {
+  constrainProportions: boolean;
+};
+
+type AspectRatioLockNode = NativeAspectRatioLockNode | LegacyAspectRatioLockNode;
+
+function supportsNativeAspectRatioLock(node: SceneNode): node is NativeAspectRatioLockNode {
+  const candidate = node as Partial<NativeAspectRatioLockNode>;
+  return (
+    typeof candidate.lockAspectRatio === 'function' &&
+    typeof candidate.unlockAspectRatio === 'function' &&
+    'targetAspectRatio' in candidate
+  );
+}
+
+function supportsLegacyAspectRatioLock(node: SceneNode): node is LegacyAspectRatioLockNode {
+  return 'constrainProportions' in node && typeof node.constrainProportions === 'boolean';
+}
+
+export function supportsAspectRatioLock(node: SceneNode): node is AspectRatioLockNode {
+  return supportsNativeAspectRatioLock(node) || supportsLegacyAspectRatioLock(node);
+}
+
+function isAspectRatioLocked(node: AspectRatioLockNode): boolean {
+  if (supportsNativeAspectRatioLock(node)) {
+    return node.targetAspectRatio !== null;
+  }
+
+  return node.constrainProportions;
+}
+
+function setAspectRatioLocked(node: AspectRatioLockNode, locked: boolean): void {
+  if (supportsNativeAspectRatioLock(node)) {
+    if (locked) {
+      node.lockAspectRatio();
+    } else {
+      node.unlockAspectRatio();
+    }
+    return;
+  }
+
+  node.constrainProportions = locked;
+}
+
 export function resize(value: string, resizeType?: 'width' | 'height') {
   const selection = figma.currentPage.selection;
   if (selection.length === 0) {
@@ -59,6 +109,22 @@ export function scale(value?: string, dimension?: 'width' | 'height') {
   : `Scaled items to ${value}%`;
   
   figma.notify(message);
+}
+
+export function toggleAspectRatioLock() {
+  const selection = figma.currentPage.selection;
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+
+  if (!selection.every(supportsAspectRatioLock)) {
+    throw new Error('Selected items must support aspect ratio lock');
+  }
+
+  const shouldLock = !selection.every(isAspectRatioLocked);
+  selection.forEach(node => setAspectRatioLocked(node, shouldLock));
+
+  figma.notify(shouldLock ? 'Locked aspect ratio' : 'Unlocked aspect ratio');
 }
 
 interface DimensionOptions {

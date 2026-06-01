@@ -53,6 +53,10 @@ function supportsConstraints(node: SceneNode): boolean {
   return 'constraints' in node;
 }
 
+function supportsAspectRatioLock(node: SceneNode): boolean {
+  return impl.supportsAspectRatioLock(node);
+}
+
 function canAlignToParent(node: SceneNode): boolean {
   const parent = node.parent;
   return 'x' in node && 'y' in node && !!parent && 'width' in parent && 'height' in parent;
@@ -227,6 +231,13 @@ export const COMMAND_DEFINITIONS = {
     suggestion: "Set both width/height to...",
     functionWithParam: (value: string) => impl.resize(value),
     supportedNodes: [...NODE_GROUPS.RESIZABLE],
+  },
+  LockAspectRatio: {
+    type: "commandWithoutValue",
+    alias: ['lar', 'lockar'],
+    suggestion: 'Toggle aspect ratio lock',
+    functionWithoutParam: () => impl.toggleAspectRatioLock(),
+    selectionPredicate: selection => selection.every(supportsAspectRatioLock),
   },
 
   InstanceSwap: {
