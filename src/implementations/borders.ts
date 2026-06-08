@@ -7,6 +7,7 @@ import { DEFAULT_BORDER_WIDTH } from '../constants';
 
 type IndividualSide = 'left' | 'right' | 'top' | 'bottom';
 type Side = 'all' | IndividualSide;
+type SideWeights = Record<IndividualSide, number>;
 
 type StrokeNode = SceneNode & {
   strokes: ReadonlyArray<Paint>;
@@ -47,6 +48,29 @@ function setSideWeight(node: StrokeNode, side: IndividualSide, value: number): v
   }
 }
 
+function getSideWeights(node: StrokeNode): SideWeights {
+  return {
+    left: node.strokeLeftWeight,
+    right: node.strokeRightWeight,
+    top: node.strokeTopWeight,
+    bottom: node.strokeBottomWeight,
+  };
+}
+
+function zeroSideWeights(): SideWeights {
+  return { left: 0, right: 0, top: 0, bottom: 0 };
+}
+
+function applySideWeights(node: StrokeNode, changedSide: IndividualSide, weights: SideWeights): void {
+  setSideWeight(node, changedSide, weights[changedSide]);
+
+  for (const side of ['top', 'right', 'bottom', 'left'] as const) {
+    if (side !== changedSide) {
+      setSideWeight(node, side, weights[side]);
+    }
+  }
+}
+
 function sideBoundField(side: IndividualSide): 'strokeLeftWeight' | 'strokeRightWeight' | 'strokeTopWeight' | 'strokeBottomWeight' {
   return `stroke${side.charAt(0).toUpperCase() + side.slice(1)}Weight` as
     'strokeLeftWeight' | 'strokeRightWeight' | 'strokeTopWeight' | 'strokeBottomWeight';
@@ -62,20 +86,24 @@ function ensureStrokePaint(node: StrokeNode): void {
   }
 }
 
-// Figma exposes per-side weights only under INSIDE alignment. When flipping
-// from CENTER/OUTSIDE, seed each side with the previous uniform weight so the
-// visible border doesn't get wiped the first time we touch one side.
+// Figma exposes per-side weights only under INSIDE alignment. Before touching
+// one side, seed side weights from a visible uniform stroke so the untouched
+// sides don't get wiped when the node switches to individual-side weights.
 function prepareIndividualSides(node: StrokeNode): void {
   ensureStrokePaint(node);
+  const hasSideWeights = anySideHasBorder(node);
+  const uniform = typeof node.strokeWeight === 'number' ? node.strokeWeight : 0;
+  const shouldSeedUniform = uniform > 0 && (node.strokeAlign !== 'INSIDE' || !hasSideWeights);
+
   if (node.strokeAlign !== 'INSIDE') {
-    const uniform = typeof node.strokeWeight === 'number' ? node.strokeWeight : 0;
     node.strokeAlign = 'INSIDE';
-    if (uniform > 0) {
-      node.strokeTopWeight = uniform;
-      node.strokeBottomWeight = uniform;
-      node.strokeLeftWeight = uniform;
-      node.strokeRightWeight = uniform;
-    }
+  }
+
+  if (shouldSeedUniform) {
+    node.strokeTopWeight = uniform;
+    node.strokeBottomWeight = uniform;
+    node.strokeLeftWeight = uniform;
+    node.strokeRightWeight = uniform;
   }
 }
 
@@ -103,7 +131,8 @@ function firstNonZeroSideWeight(node: StrokeNode): number {
 function hasVisibleBorder(node: StrokeNode): boolean {
   if (node.strokes.length === 0) return false;
   if (node.strokeAlign === 'INSIDE') {
-    return anySideHasBorder(node);
+    return anySideHasBorder(node) ||
+      (typeof node.strokeWeight === 'number' && node.strokeWeight > 0);
   }
   return typeof node.strokeWeight === 'number' && node.strokeWeight > 0;
 }
@@ -111,7 +140,8 @@ function hasVisibleBorder(node: StrokeNode): boolean {
 function sideHasBorder(node: StrokeNode, side: IndividualSide): boolean {
   if (node.strokes.length === 0) return false;
   if (node.strokeAlign === 'INSIDE') {
-    return getSideWeight(node, side) > 0;
+    return getSideWeight(node, side) > 0 ||
+      (!anySideHasBorder(node) && typeof node.strokeWeight === 'number' && node.strokeWeight > 0);
   }
   return typeof node.strokeWeight === 'number' && node.strokeWeight > 0;
 }
@@ -156,13 +186,18 @@ export async function setBorder(side: Side, width: string) {
       zeroAllSides(node);
     }
 
+    const desiredSideWeights = getSideWeights(node);
+    desiredSideWeights[side] = resolution.type === 'variable'
+      ? desiredSideWeights[side]
+      : resolution.value!;
+
     if (resolution.type === 'variable') {
       const variable = await resolveNumberVariable(resolution);
       clearNodeBoundVariables(node, 'strokeWeight');
       setNodeBoundVariable(node, sideBoundField(side), variable);
     } else {
       clearNodeBoundVariables(node, 'strokeWeight', sideBoundField(side));
-      setSideWeight(node, side, resolution.value!);
+      applySideWeights(node, side, desiredSideWeights);
     }
   }
 
@@ -199,17 +234,18 @@ export function toggleBorder(side: Side) {
     const hadBorderOnSide = sideHasBorder(node, side);
 
     prepareIndividualSides(node);
+    const desiredSideWeights = hadBorderAnywhere ? getSideWeights(node) : zeroSideWeights();
     clearNodeBoundVariables(node, 'strokeWeight', sideBoundField(side));
 
     if (!hadBorderAnywhere) {
-      zeroAllSides(node);
-      setSideWeight(node, side, DEFAULT_BORDER_WIDTH);
+      desiredSideWeights[side] = DEFAULT_BORDER_WIDTH;
     } else if (hadBorderOnSide) {
-      setSideWeight(node, side, 0);
+      desiredSideWeights[side] = 0;
     } else {
       const width = firstNonZeroSideWeight(node) || DEFAULT_BORDER_WIDTH;
-      setSideWeight(node, side, width);
+      desiredSideWeights[side] = width;
     }
+    applySideWeights(node, side, desiredSideWeights);
   }
 
   figma.notify(`${side.charAt(0).toUpperCase() + side.slice(1)} border toggled`);

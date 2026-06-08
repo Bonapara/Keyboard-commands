@@ -32,6 +32,18 @@ function alignItems(
   }
 }
 
+function alignAutoLayoutNode(
+  node: AutoLayoutNode,
+  primary: PrimaryAxisAlignment,
+  counter: CounterAxisAlignment,
+  options: { preserveSpaceBetween?: boolean } = {}
+) {
+  if (!options.preserveSpaceBetween || node.primaryAxisAlignItems !== 'SPACE_BETWEEN') {
+    alignItems('PRIMARY', primary, node);
+  }
+  alignItems('COUNTER', counter, node);
+}
+
 // Function for AutoLayout alignment
 export async function setAutoLayoutAlignment(horizontal: {
   primary: PrimaryAxisAlignment,
@@ -60,8 +72,7 @@ export async function setAutoLayoutAlignment(horizontal: {
     const isHorizontal = node.layoutMode === 'HORIZONTAL';
     const { primary, counter } = isHorizontal ? horizontal : vertical;
 
-    alignItems('PRIMARY', primary, node);
-    alignItems('COUNTER', counter, node);
+    alignAutoLayoutNode(node, primary, counter);
 
     figma.notify(`Alignment set for ${isHorizontal ? 'horizontal' : 'vertical'} layout`);
   }
@@ -133,8 +144,7 @@ export async function smartAlign(position: AlignmentPosition, scope: 'AUTO' | 'C
     if (scope !== 'PARENT' && isAutoLayoutNode(node) && node.layoutMode !== 'NONE') {
       const isHorizontal = node.layoutMode === 'HORIZONTAL';
       const { primary, counter } = getAutoLayoutAlignment(position, isHorizontal);
-      alignItems('PRIMARY', primary, node);
-      alignItems('COUNTER', counter, node);
+      alignAutoLayoutNode(node, primary, counter, { preserveSpaceBetween: true });
       handled = true;
       alignedCount++;
     }
@@ -335,4 +345,3 @@ export function alignNodesToParent(alignment: AlignmentPosition | 'CENTER_CENTER
 
   figma.notify(`Aligned ${count} item(s) to ${alignment.toLowerCase().replace('_', ' ')} of parent`);
 }
-

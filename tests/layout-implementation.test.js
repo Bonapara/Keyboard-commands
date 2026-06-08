@@ -52,6 +52,7 @@ async function main() {
   globalThis.figma = figma;
 
   const { createAutoLayout, setPadding, setPrimaryGap, setCounterGap, setTidyGap, setTidyRowGap } = await import('../src/implementations/layout.ts');
+  const { smartAlign } = await import('../src/implementations/alignment.ts');
 
   const paddingNode = {
     type: 'FRAME',
@@ -118,6 +119,32 @@ async function main() {
   assert.equal(centeredPrimaryGapNode.counterAxisAlignItems, 'CENTER');
   assert.equal(centeredPrimaryGapNode.itemSpacing, 80);
   assert.equal(notifications.at(-1)?.message, 'Primary gap set to 80');
+
+  notifications.length = 0;
+
+  const spaceBetweenAlignmentNode = {
+    type: 'FRAME',
+    layoutMode: 'HORIZONTAL',
+    primaryAxisAlignItems: 'SPACE_BETWEEN',
+    counterAxisAlignItems: 'MIN',
+    itemSpacing: 8,
+  };
+  figma.currentPage.selection = [spaceBetweenAlignmentNode];
+  await smartAlign('CENTER');
+
+  assert.equal(spaceBetweenAlignmentNode.primaryAxisAlignItems, 'SPACE_BETWEEN');
+  assert.equal(spaceBetweenAlignmentNode.counterAxisAlignItems, 'CENTER');
+  assert.equal(spaceBetweenAlignmentNode.itemSpacing, 8);
+  assert.equal(notifications.at(-1)?.message, 'Aligned 1 item(s) to center');
+
+  notifications.length = 0;
+
+  await smartAlign('BOTTOM_CENTER');
+
+  assert.equal(spaceBetweenAlignmentNode.primaryAxisAlignItems, 'SPACE_BETWEEN');
+  assert.equal(spaceBetweenAlignmentNode.counterAxisAlignItems, 'MAX');
+  assert.equal(spaceBetweenAlignmentNode.itemSpacing, 8);
+  assert.equal(notifications.at(-1)?.message, 'Aligned 1 item(s) to bottom center');
 
   notifications.length = 0;
 

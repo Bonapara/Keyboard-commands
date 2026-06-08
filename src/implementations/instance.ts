@@ -596,6 +596,65 @@ function getPropertyReferenceMatchRank(propertyReference: string, data: Property
   return 6;
 }
 
+function getNonVariantPropertyReferenceMatchRank(
+  propertyReference: string,
+  accumulator: PropertyAccumulator
+): number {
+  const parsed = parsePropertyOriginPropertyName(propertyReference);
+  return getPropertyReferenceMatchRank(parsed.propertyName, accumulator.data);
+}
+
+function getVariantPropertyGroupReferenceMatchRank(
+  propertyReference: string,
+  group: VariantPropertyGroup
+): number {
+  return getPropertyReferenceMatchRank(propertyReference, {
+    type: 'VARIANT',
+    values: group.values,
+    propertyDef: group.propertyDef,
+    cleanedName: group.cleanedName,
+    displayName: group.displayName,
+    order: group.order,
+    optionSignature: group.selectionSignature,
+    variantOptions: group.variantOptions
+  });
+}
+
+function filterBestRankedVariantPropertyGroups(
+  propertyReference: string,
+  groups: VariantPropertyGroup[]
+): VariantPropertyGroup[] {
+  const parsed = parseVariantGroupPropertyName(propertyReference);
+  if (!parsed.propertyName || groups.length <= 1) return groups;
+
+  const bestRank = Math.min(
+    ...groups.map(group => getVariantPropertyGroupReferenceMatchRank(parsed.propertyName, group))
+  );
+
+  return groups.filter(group =>
+    getVariantPropertyGroupReferenceMatchRank(parsed.propertyName, group) === bestRank
+  );
+}
+
+function getBestVariantPropertyReferenceMatchRank(
+  instances: InstanceNode[],
+  allGroups: VariantPropertyGroup[],
+  propertyReference: string
+): number | null {
+  const groups = filterSharedVariantPropertyGroups(
+    instances,
+    filterVariantPropertyGroupsByReference(allGroups, propertyReference)
+  );
+  if (groups.length === 0) return null;
+
+  const parsed = parseVariantGroupPropertyName(propertyReference);
+  if (!parsed.propertyName) return 0;
+
+  return Math.min(
+    ...groups.map(group => getVariantPropertyGroupReferenceMatchRank(parsed.propertyName, group))
+  );
+}
+
 function findSharedNonVariantPropertyAccumulatorFromMap(
   instances: InstanceNode[],
   propertiesMap: Map<string, PropertyAccumulator>,
@@ -615,8 +674,8 @@ function findSharedNonVariantPropertyAccumulatorFromMap(
     ))
     .sort((a, b) => {
       const rankComparison =
-        getPropertyReferenceMatchRank(parsed.propertyName, a.data) -
-        getPropertyReferenceMatchRank(parsed.propertyName, b.data);
+        getNonVariantPropertyReferenceMatchRank(propertyReference, a) -
+        getNonVariantPropertyReferenceMatchRank(propertyReference, b);
       if (rankComparison !== 0) return rankComparison;
       return (a.data.order ?? 0) - (b.data.order ?? 0);
     });
@@ -830,15 +889,16 @@ function searchVariantOptionsFromGroups(
     instances,
     filterVariantPropertyGroupsByReference(allGroups, propertyName)
   );
+  const bestRankedGroups = filterBestRankedVariantPropertyGroups(propertyName, groups);
 
-  if (groups.length === 0) {
+  if (bestRankedGroups.length === 0) {
     return [formatVariantPropertyEmptyState(instances, propertyName)];
   }
 
   const filterLower = optionFilter.toLowerCase();
   const candidates: VariantOptionCandidate[] = [];
 
-  for (const group of groups) {
+  for (const group of bestRankedGroups) {
     const currentValue = getUnanimousTargetCurrentValue(group.targets);
 
     for (const option of group.variantOptions) {
@@ -1618,8 +1678,16 @@ export async function searchInstanceProperties(searchTerm: string): Promise<Arra
       propertyName,
       ['TEXT', 'INSTANCE_SWAP']
     );
+    const nonVariantRank = nonVariantAccumulator
+      ? getNonVariantPropertyReferenceMatchRank(propertyName, nonVariantAccumulator)
+      : null;
+    const variantRank = getBestVariantPropertyReferenceMatchRank(
+      instances,
+      inventory.variantGroups,
+      propertyName
+    );
 
-    if (nonVariantAccumulator) {
+    if (nonVariantAccumulator && (variantRank === null || (nonVariantRank !== null && nonVariantRank <= variantRank))) {
       if (nonVariantAccumulator.data.type === 'TEXT') {
         return [formatTextPropertyValueSuggestion(nonVariantAccumulator, value)];
       }

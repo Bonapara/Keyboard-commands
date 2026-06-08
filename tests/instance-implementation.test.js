@@ -159,6 +159,28 @@ function createSingleRootWithDirectAndNestedIcon() {
   return { wrapper, nestedIcon };
 }
 
+function createSingleRootWithContainerAndNestedIcon() {
+  const wrapperMain = createMainComponent('container-wrapper-main', {
+    'Container#75:1': variantProperty(['24px', '32px']),
+  });
+  const nestedIconMain = createMainComponent('container-nested-icon-main', {
+    'Weight#76:1': variantProperty(['Light', 'Regular']),
+    'IconSize#76:2': variantProperty(['16px', '20px']),
+    'Icon#76:3': instanceSwapProperty(),
+  });
+
+  const nestedIcon = createInstance('Icon/Tabler', nestedIconMain, {
+    'Weight#76:1': propertyValue('Light'),
+    'IconSize#76:2': propertyValue('16px'),
+    'Icon#76:3': propertyValue('bell'),
+  });
+  const wrapper = createInstance('container-wrapper', wrapperMain, {
+    'Container#75:1': propertyValue('32px'),
+  }, [nestedIcon]);
+
+  return { wrapper, nestedIcon };
+}
+
 function createRightPanelOrderedSelection() {
   const wrapperMain = createMainComponent('ordered-wrapper-main', {
     'Label#90:2': textProperty('Amount:'),
@@ -346,6 +368,16 @@ async function main() {
   assert.ok(
     iconSuggestions.some(item => String(suggestionData(item)).includes('[[kc-property-origin=')),
     'nested instance properties should carry private scope tokens'
+  );
+
+  const containerWithNestedIcon = createSingleRootWithContainerAndNestedIcon();
+  figma.currentPage.selection = [containerWithNestedIcon.wrapper];
+  const containerValueSuggestions = await searchInstanceProperties('con:');
+
+  assert.deepEqual(
+    containerValueSuggestions.map(suggestionName),
+    ['Container:24px'],
+    'property value search should prefer a variant prefix match over an instance-swap substring match'
   );
 
   const ordered = createRightPanelOrderedSelection();

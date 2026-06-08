@@ -300,6 +300,7 @@ Behavior:
 - with no value, scope is `AUTO`
 - with any value starting with `p`, scope is forced to `PARENT`
 - in `AUTO` scope, auto-layout alignment is attempted first
+- when the auto-layout primary axis is already `SPACE_BETWEEN`, the primary distribution is preserved and only the counter axis is updated
 - if auto-layout handling does not apply, the plugin falls back to aligning the node inside its parent by x/y coordinates
 
 ## Free-Layout Alignment
