@@ -51,7 +51,7 @@ async function main() {
   const { figma, notifications } = createFigmaStub();
   globalThis.figma = figma;
 
-  const { createAutoLayout, setPadding, setPrimaryGap, setCounterGap, setTidyGap, setTidyRowGap } = await import('../src/implementations/layout.ts');
+  const { createAutoLayout, setPadding, setPaddingExcept, setPrimaryGap, setCounterGap, setTidyGap, setTidyRowGap } = await import('../src/implementations/layout.ts');
   const { smartAlign } = await import('../src/implementations/alignment.ts');
 
   const paddingNode = {
@@ -77,6 +77,29 @@ async function main() {
       bottom: paddingNode.paddingBottom,
     },
     { left: 15, right: 0, top: 23, bottom: 0 }
+  );
+  assert.equal(notifications.at(-1)?.message, 'Padding updated for all selected items');
+
+  notifications.length = 0;
+
+  const paddingExceptBottomNode = {
+    type: 'FRAME',
+    paddingLeft: 10,
+    paddingRight: 15,
+    paddingTop: 20,
+    paddingBottom: 5,
+  };
+  figma.currentPage.selection = [paddingExceptBottomNode];
+  await setPaddingExcept('bottom', '24');
+
+  assert.deepEqual(
+    {
+      left: paddingExceptBottomNode.paddingLeft,
+      right: paddingExceptBottomNode.paddingRight,
+      top: paddingExceptBottomNode.paddingTop,
+      bottom: paddingExceptBottomNode.paddingBottom,
+    },
+    { left: 24, right: 24, top: 24, bottom: 5 }
   );
   assert.equal(notifications.at(-1)?.message, 'Padding updated for all selected items');
 

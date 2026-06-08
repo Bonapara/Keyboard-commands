@@ -49,6 +49,10 @@ Style behavior:
 - `rtr`: top-right radius
 - `rbr`: bottom-right radius
 - `rbl`: bottom-left radius
+- `-rtl`: all corners except top-left
+- `-rtr`: all corners except top-right
+- `-rbr`: all corners except bottom-right
+- `-rbl`: all corners except bottom-left
 - `r`: all corners, with shorthand
 - `rl`: left side
 - `rt`: top side
@@ -61,11 +65,13 @@ Shorthand behavior for `r`:
 - `r10,20` -> top-left/bottom-right `10`, top-right/bottom-left `20`
 - `r10,20,30` -> top-left `10`, top-right/bottom-left `20`, bottom-right `30`
 - `r10,20,30,40` -> top-left/top-right/bottom-right/bottom-left
+- `-rbr12` -> top-left/top-right/bottom-left `12`, bottom-right unchanged
 
 Notes:
 
 - values are delta-aware
 - no-value forms on optional commands reset the targeted corner set to `0`
+- except-corner commands require a value
 - unsupported nodes are filtered by the `CORNER_RADIUS` node group
 
 ## Corner Smoothing
@@ -85,6 +91,10 @@ Behavior:
 - `str`, `br`: right side
 - `stt`, `bt`: top side
 - `stb`, `bb`: bottom side
+- `-stl`, `-bl`: all sides except left
+- `-str`, `-br`: all sides except right
+- `-stt`, `-bt`: all sides except top
+- `-stb`, `-bb`: all sides except bottom
 
 Binding support:
 
@@ -98,10 +108,11 @@ No-value behavior:
 
 - `st` toggles the overall border on or off
 - side commands toggle just that side
+- except-side commands require a numeric value, e.g. `-br1` sets top, bottom, and left to `1` and leaves right unchanged
 
 Per-side implementation details:
 
-- if the node is not already using `INSIDE` stroke alignment, the plugin switches it to `INSIDE` before editing side weights
+- side and except-side commands preserve the current stroke alignment (`CENTER`, `INSIDE`, or `OUTSIDE`)
 - when converting from a uniform stroke, existing weight is seeded into all sides first
 - if the stroke was previously invisible, all side weights are zeroed before enabling the requested side
 

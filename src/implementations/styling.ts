@@ -4,6 +4,18 @@
 
 import { resolvePaintValue, resolveStyleValue, resolveDelta } from '../utils';
 
+type RadiusCorner = 'topLeft' | 'topRight' | 'bottomRight' | 'bottomLeft';
+type RadiusField = 'topLeftRadius' | 'topRightRadius' | 'bottomRightRadius' | 'bottomLeftRadius';
+type RadiusUpdate = Partial<Record<RadiusField, string>>;
+
+const RADIUS_CORNERS = ['topLeft', 'topRight', 'bottomRight', 'bottomLeft'] as const;
+const RADIUS_FIELD_BY_CORNER: Record<RadiusCorner, RadiusField> = {
+  topLeft: 'topLeftRadius',
+  topRight: 'topRightRadius',
+  bottomRight: 'bottomRightRadius',
+  bottomLeft: 'bottomLeftRadius',
+};
+
 type StyleTransferField =
   | 'opacity'
   | 'strokeWeight'
@@ -479,17 +491,22 @@ export function toggleFill() {
   }
 }
 
+function radiusExcept(excludedCorner: RadiusCorner, value: string): RadiusUpdate {
+  const update: RadiusUpdate = {};
+  for (const corner of RADIUS_CORNERS) {
+    if (corner !== excludedCorner) {
+      update[RADIUS_FIELD_BY_CORNER[corner]] = value;
+    }
+  }
+  return update;
+}
+
 export function setRadius({
   topLeftRadius,
   topRightRadius,
   bottomLeftRadius,
   bottomRightRadius
-}: {
-  topLeftRadius?: string;
-  topRightRadius?: string;
-  bottomLeftRadius?: string;
-  bottomRightRadius?: string;
-}) {
+}: RadiusUpdate) {
   const selection = figma.currentPage.selection;
 
   if (selection.length === 0) {
@@ -506,6 +523,10 @@ export function setRadius({
   }
 
   figma.notify('Radius updated for all selected items');
+}
+
+export function setRadiusExcept(excludedCorner: RadiusCorner, value: string) {
+  setRadius(radiusExcept(excludedCorner, value));
 }
 
 export function setCornerSmoothing(value: string) {

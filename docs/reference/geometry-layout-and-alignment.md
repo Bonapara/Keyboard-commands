@@ -161,6 +161,10 @@ Behavior:
 - `pt`: top padding
 - `pr`: right padding
 - `pb`: bottom padding
+- `-pl`: all sides except left
+- `-pt`: all sides except top
+- `-pr`: all sides except right
+- `-pb`: all sides except bottom
 
 Shorthand behavior:
 
@@ -168,12 +172,14 @@ Shorthand behavior:
 - `p20,30` -> top/bottom `20`, left/right `30`
 - `p20,30,40` -> top `20`, left/right `30`, bottom `40`
 - `p20,30,40,50` -> top/right/bottom/left
+- `-pb24` -> top/right/left `24`, bottom unchanged
 
 Important notes:
 
 - padding values are delta-aware
 - negative results are clamped to `0`
 - no-value side commands reset their scope to `0`
+- except-side commands require a value
 - only frame-like nodes are supported
 
 ### Clip content

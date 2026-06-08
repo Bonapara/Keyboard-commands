@@ -180,7 +180,24 @@ async function main() {
   };
   globalThis.figma = figma;
 
-  const { matchStyle } = await import('../src/implementations/styling.ts');
+  const { matchStyle, setRadiusExcept } = await import('../src/implementations/styling.ts');
+
+  const radiusExceptBottomRightNode = createShapeNode({
+    topLeftRadius: 1,
+    topRightRadius: 2,
+    bottomRightRadius: 3,
+    bottomLeftRadius: 4,
+  });
+  figma.currentPage.selection = [radiusExceptBottomRightNode];
+  setRadiusExcept('bottomRight', '12');
+
+  assert.equal(radiusExceptBottomRightNode.topLeftRadius, 12);
+  assert.equal(radiusExceptBottomRightNode.topRightRadius, 12);
+  assert.equal(radiusExceptBottomRightNode.bottomRightRadius, 3);
+  assert.equal(radiusExceptBottomRightNode.bottomLeftRadius, 12);
+  assert.equal(notifications.at(-1)?.message, 'Radius updated for all selected items');
+
+  notifications.length = 0;
 
   const sourceShape = createShapeNode({
     name: 'Source Shape',

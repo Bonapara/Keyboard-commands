@@ -6,11 +6,22 @@ import type { NumberResolution } from '../types';
 import { clearNodeBoundVariables, resolveDelta, resolveNumberValue, resolveNumberVariable, setNodeBoundVariable } from '../utils';
 
 type ConvertibleAutoLayoutNode = FrameNode | ComponentNode;
+type PaddingSide = 'left' | 'right' | 'top' | 'bottom';
+type PaddingField = 'paddingLeft' | 'paddingRight' | 'paddingTop' | 'paddingBottom';
+type PaddingUpdate = Partial<Record<PaddingField, string>>;
 type PositionedSceneNode = SceneNode & {
   x: number;
   y: number;
   width: number;
   height: number;
+};
+
+const PADDING_SIDES = ['top', 'right', 'bottom', 'left'] as const;
+const PADDING_FIELD_BY_SIDE: Record<PaddingSide, PaddingField> = {
+  left: 'paddingLeft',
+  right: 'paddingRight',
+  top: 'paddingTop',
+  bottom: 'paddingBottom',
 };
 
 type WrapTrack = {
@@ -456,12 +467,17 @@ export function createAutoLayout(direction: 'HORIZONTAL' | 'VERTICAL' = 'HORIZON
   figma.notify(`Auto-layout frame created in ${direction.toLowerCase()} direction`);
 }
 
-export async function setPadding({ paddingLeft, paddingRight, paddingTop, paddingBottom }: {
-  paddingLeft?: string;
-  paddingRight?: string;
-  paddingTop?: string;
-  paddingBottom?: string;
-}) {
+function paddingExcept(excludedSide: PaddingSide, value: string): PaddingUpdate {
+  const update: PaddingUpdate = {};
+  for (const side of PADDING_SIDES) {
+    if (side !== excludedSide) {
+      update[PADDING_FIELD_BY_SIDE[side]] = value;
+    }
+  }
+  return update;
+}
+
+export async function setPadding({ paddingLeft, paddingRight, paddingTop, paddingBottom }: PaddingUpdate) {
   const selection = figma.currentPage.selection;
 
   if (selection.length === 0) {
@@ -517,6 +533,10 @@ export async function setPadding({ paddingLeft, paddingRight, paddingTop, paddin
   }
 
   figma.notify('Padding updated for all selected items');
+}
+
+export async function setPaddingExcept(excludedSide: PaddingSide, value: string) {
+  await setPadding(paddingExcept(excludedSide, value));
 }
 
 export function layoutSizing(direction: 'HORIZONTAL' | 'VERTICAL', value: 'HUG' | 'FIXED' | 'FILL') {

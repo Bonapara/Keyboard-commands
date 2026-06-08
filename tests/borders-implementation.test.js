@@ -23,6 +23,37 @@ function createStrokeNode(overrides = {}) {
   };
 }
 
+function createVariableAwareStrokeNode(overrides = {}) {
+  const boundVariables = new Map();
+  const bindingCalls = [];
+
+  return {
+    ...createStrokeNode(overrides),
+    boundVariables,
+    bindingCalls,
+    setBoundVariable(field, variable) {
+      bindingCalls.push({ field, variableId: variable?.id ?? null });
+      if (variable) {
+        boundVariables.set(field, variable);
+      } else {
+        boundVariables.delete(field);
+      }
+    },
+  };
+}
+
+function createFloatVariable(id, name = 'Stroke Token') {
+  return {
+    id,
+    name,
+    resolvedType: 'FLOAT',
+    variableCollectionId: 'collection-1',
+    valuesByMode: {
+      'mode-1': 1,
+    },
+  };
+}
+
 function createUniformCollapsingInstanceStrokeNode() {
   const node = createStrokeNode({
     type: 'INSTANCE',
@@ -113,19 +144,51 @@ function assertSideWeights(node, expected) {
 }
 
 async function main() {
-  const { figma, notifications } = createFigmaStub();
+  const strokeVariable = createFloatVariable('var-stroke');
+  const { figma, notifications } = createFigmaStub({
+    localVariables: [strokeVariable],
+    localVariableCollections: [{ id: 'collection-1', name: 'Stroke Tokens' }],
+  });
   globalThis.figma = figma;
 
-  const { setBorder, toggleBorder } = await import('../src/implementations/borders.ts');
+  const { setBorder, setBorderExcept, toggleBorder } = await import('../src/implementations/borders.ts');
 
   const freshNode = createStrokeNode();
   figma.currentPage.selection = [freshNode];
   toggleBorder('left');
 
-  assert.equal(freshNode.strokeAlign, 'INSIDE');
+  assert.equal(freshNode.strokeAlign, 'CENTER');
   assert.equal(freshNode.strokes.length, 1);
   assertSideWeights(freshNode, { top: 0, right: 0, bottom: 0, left: 1 });
   assert.equal(notifications.at(-1)?.message, 'Left border toggled');
+
+  notifications.length = 0;
+
+  const zeroWidthStrokeNode = createStrokeNode({
+    strokes: [createSolidPaint()],
+    strokeAlign: 'INSIDE',
+    strokeWeight: 0,
+    strokeTopWeight: 0,
+    strokeRightWeight: 0,
+    strokeBottomWeight: 0,
+    strokeLeftWeight: 0,
+  });
+  figma.currentPage.selection = [zeroWidthStrokeNode];
+  toggleBorder('all');
+
+  assert.equal(zeroWidthStrokeNode.strokes.length, 0);
+  assert.equal(zeroWidthStrokeNode.strokeWeight, 0);
+  assertSideWeights(zeroWidthStrokeNode, { top: 0, right: 0, bottom: 0, left: 0 });
+  assert.equal(notifications.at(-1)?.message, 'All border toggled');
+
+  notifications.length = 0;
+
+  toggleBorder('all');
+
+  assert.equal(zeroWidthStrokeNode.strokes.length, 1);
+  assert.equal(zeroWidthStrokeNode.strokeWeight, 1);
+  assertSideWeights(zeroWidthStrokeNode, { top: 1, right: 1, bottom: 1, left: 1 });
+  assert.equal(notifications.at(-1)?.message, 'All border toggled');
 
   notifications.length = 0;
 
@@ -137,9 +200,27 @@ async function main() {
   figma.currentPage.selection = [uniformNode];
   toggleBorder('left');
 
-  assert.equal(uniformNode.strokeAlign, 'INSIDE');
+  assert.equal(uniformNode.strokeAlign, 'CENTER');
   assertSideWeights(uniformNode, { top: 3, right: 3, bottom: 3, left: 0 });
   assert.equal(notifications.at(-1)?.message, 'Left border toggled');
+
+  notifications.length = 0;
+
+  const outsideRightNode = createStrokeNode({
+    strokes: [createSolidPaint()],
+    strokeWeight: figma.mixed,
+    strokeAlign: 'OUTSIDE',
+    strokeTopWeight: 0,
+    strokeRightWeight: 2,
+    strokeBottomWeight: 0,
+    strokeLeftWeight: 0,
+  });
+  figma.currentPage.selection = [outsideRightNode];
+  await setBorder('right', '1');
+
+  assert.equal(outsideRightNode.strokeAlign, 'OUTSIDE');
+  assertSideWeights(outsideRightNode, { top: 0, right: 1, bottom: 0, left: 0 });
+  assert.equal(notifications.at(-1)?.message, 'Right stroke set to 1px');
 
   notifications.length = 0;
 
@@ -200,6 +281,62 @@ async function main() {
 
   assertSideWeights(collapsingInstanceNode, { top: 1, right: 0, bottom: 1, left: 1 });
   assert.equal(notifications.at(-1)?.message, 'Right border toggled');
+
+  notifications.length = 0;
+
+  const exceptRightNode = createStrokeNode();
+  figma.currentPage.selection = [exceptRightNode];
+  await setBorderExcept('right', '2');
+
+  assert.equal(exceptRightNode.strokeAlign, 'CENTER');
+  assert.equal(exceptRightNode.strokes.length, 1);
+  assertSideWeights(exceptRightNode, { top: 2, right: 0, bottom: 2, left: 2 });
+  assert.equal(notifications.at(-1)?.message, 'All except right stroke set to 2px');
+
+  notifications.length = 0;
+
+  const collapsingExceptRightNode = createUniformCollapsingInstanceStrokeNode();
+  figma.currentPage.selection = [collapsingExceptRightNode];
+  await setBorderExcept('right', '0');
+
+  assertSideWeights(collapsingExceptRightNode, { top: 0, right: 1, bottom: 0, left: 0 });
+  assert.equal(notifications.at(-1)?.message, 'All except right stroke set to 0px');
+
+  notifications.length = 0;
+
+  const boundExceptRightNode = createVariableAwareStrokeNode({
+    strokes: [createSolidPaint()],
+    strokeAlign: 'INSIDE',
+    strokeTopWeight: 3,
+    strokeRightWeight: 7,
+    strokeBottomWeight: 3,
+    strokeLeftWeight: 3,
+  });
+  boundExceptRightNode.boundVariables.set('strokeTopWeight', strokeVariable);
+  boundExceptRightNode.boundVariables.set('strokeRightWeight', strokeVariable);
+  figma.currentPage.selection = [boundExceptRightNode];
+  await setBorderExcept('right', '2');
+
+  assertSideWeights(boundExceptRightNode, { top: 2, right: 7, bottom: 2, left: 2 });
+  assert.equal(boundExceptRightNode.boundVariables.has('strokeTopWeight'), false);
+  assert.equal(boundExceptRightNode.boundVariables.get('strokeRightWeight')?.id, 'var-stroke');
+  assert.equal(notifications.at(-1)?.message, 'All except right stroke set to 2px');
+
+  notifications.length = 0;
+
+  const uniformBoundExceptRightNode = createVariableAwareStrokeNode({
+    strokes: [createSolidPaint()],
+    strokeWeight: 8,
+    strokeAlign: 'CENTER',
+  });
+  uniformBoundExceptRightNode.boundVariables.set('strokeWeight', strokeVariable);
+  figma.currentPage.selection = [uniformBoundExceptRightNode];
+  await setBorderExcept('right', '2');
+
+  assertSideWeights(uniformBoundExceptRightNode, { top: 2, right: 8, bottom: 2, left: 2 });
+  assert.equal(uniformBoundExceptRightNode.boundVariables.has('strokeWeight'), false);
+  assert.equal(uniformBoundExceptRightNode.boundVariables.get('strokeRightWeight')?.id, 'var-stroke');
+  assert.equal(notifications.at(-1)?.message, 'All except right stroke set to 2px');
 
   console.log('borders implementation tests passed');
 }

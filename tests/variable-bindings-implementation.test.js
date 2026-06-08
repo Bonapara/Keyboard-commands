@@ -180,7 +180,7 @@ async function main() {
   figma.currentPage.selection = [strokeNode];
   toggleBorder('left');
   assert.equal(strokeNode.boundVariables.has('strokeWeight'), false);
-  assert.equal(strokeNode.strokeAlign, 'INSIDE');
+  assert.equal(strokeNode.strokeAlign, 'CENTER');
   assert.equal(strokeNode.strokeLeftWeight, 0);
 
   strokeNode.boundVariables.set('strokeLeftWeight', localVariable);

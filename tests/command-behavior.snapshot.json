@@ -226,6 +226,18 @@
     "with": "3771126712998c66e012ffde9fc66e68dba3775c5f95db985d96adee71000af3",
     "without": "67ea772bbf882c10d4bf5f9d2bbe57a2157228418471573a2415b1987d61e176"
   },
+  "PaddingExceptLeft": {
+    "with": "7986d434280bd91fa5833244f3f2914751010c4fcb35e41d79de76ca8b008a9e"
+  },
+  "PaddingExceptTop": {
+    "with": "2d5d45060880a3945a25426ffec6d25eb1f64b4322b75ad44f2a81e09a1d07b7"
+  },
+  "PaddingExceptRight": {
+    "with": "c89bd188d894f1663d4eb3df844301d06c9a77672fd345cb7806e7c253cf273b"
+  },
+  "PaddingExceptBottom": {
+    "with": "1079e1bf381cce032bacc6a85e29cf96bf2de503d01894c692161768a7dfdc4d"
+  },
   "Fill": {
     "with": "cc01bebfc22b9b016f9e16fbaa82e4178734f21e160f81ae473715349d45fb90",
     "without": "d4c03a4c33b1299b780c1faee010c80194e63935321224ee85a9ec98cb3a06b9"
@@ -258,6 +270,18 @@
   "RadiusBottomLeft": {
     "with": "1daddb3f2628ea3b209667dcc05cd8462713037e654becf37f45ce63c81c13f7",
     "without": "bc55a543f5cdb18b47ffda0d6cda3d11598a0d5e9ef9bde6627977434043cb73"
+  },
+  "RadiusExceptTopLeft": {
+    "with": "e87d985bd23e14f5ec809da3fba12c122366bfed5269dbf0bfe42b19120b36cc"
+  },
+  "RadiusExceptTopRight": {
+    "with": "73c0f6d140e35794c157af79322ee1c32dd5877b349d95560b45f9a0244b8ca5"
+  },
+  "RadiusExceptBottomRight": {
+    "with": "2d79f5c8e383bf6928911d040fca11a2f0561bb378c5ef7c8ce3c6bf868cf432"
+  },
+  "RadiusExceptBottomLeft": {
+    "with": "ac5bc3dc76b63b3753baece07799e49ac32476713bc8c265209c2dffe6394332"
   },
   "RadiusAll": {
     "with": "01719ed45bac498d10520bacd638092cea774153ef4e1a23a1a7875c89707499",
@@ -311,6 +335,18 @@
   "StrokeBottom": {
     "with": "520f7c5b63d7d0730d1a775d87541882a70908e89c97072461efcdf751e9760b",
     "without": "cdc4a51801ab23691531b45d3ff063e300c3726fc3e739ee0eab95f03aed7228"
+  },
+  "StrokeExceptLeft": {
+    "with": "e42f1f4c740a9ade4539d95c13af9ef71627971077ef4977e5948aaa91c999c7"
+  },
+  "StrokeExceptRight": {
+    "with": "3da9f11331bb27f136c44d29d2a69e9e86fdc85c84e07e55353cfabe10f0298b"
+  },
+  "StrokeExceptTop": {
+    "with": "694411158abdb8d6bccb6fa7e32d7b57b4ffee3212a6afb88c6784a722e93a59"
+  },
+  "StrokeExceptBottom": {
+    "with": "84970929749599fb8770a16de94912cd40c84b1683f3c9588678e2f60acec27d"
   },
   "StrokeColor": {
     "with": "3cc9287a5e21709b5637ed7effd0d99f0320f13677d6d50c054c4ef2a26cafa9",

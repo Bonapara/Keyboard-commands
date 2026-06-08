@@ -820,6 +820,54 @@ export const COMMAND_DEFINITIONS = {
       libraryStyles: true
     }
   },
+  PaddingExceptLeft: {
+    type: "commandWithValue",
+    alias: ['-pl'],
+    valueFormat: "number",
+    suggestion: "Padding in px for all sides except left",
+    functionWithParam: (value: string) => impl.setPaddingExcept('left', value),
+    supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
+    bindingSupport: {
+      variables: ['FLOAT'],
+      libraryStyles: true
+    }
+  },
+  PaddingExceptTop: {
+    type: "commandWithValue",
+    alias: ['-pt'],
+    valueFormat: "number",
+    suggestion: "Padding in px for all sides except top",
+    functionWithParam: (value: string) => impl.setPaddingExcept('top', value),
+    supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
+    bindingSupport: {
+      variables: ['FLOAT'],
+      libraryStyles: true
+    }
+  },
+  PaddingExceptRight: {
+    type: "commandWithValue",
+    alias: ['-pr'],
+    valueFormat: "number",
+    suggestion: "Padding in px for all sides except right",
+    functionWithParam: (value: string) => impl.setPaddingExcept('right', value),
+    supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
+    bindingSupport: {
+      variables: ['FLOAT'],
+      libraryStyles: true
+    }
+  },
+  PaddingExceptBottom: {
+    type: "commandWithValue",
+    alias: ['-pb'],
+    valueFormat: "number",
+    suggestion: "Padding in px for all sides except bottom",
+    functionWithParam: (value: string) => impl.setPaddingExcept('bottom', value),
+    supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
+    bindingSupport: {
+      variables: ['FLOAT'],
+      libraryStyles: true
+    }
+  },
   Fill: {
     type: "optionalValueCommand",
     alias: ['f'],
@@ -905,6 +953,38 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'Bottom left radius in px (No value = 0)',
     functionWithParam: (value: string) => impl.setRadius({ bottomLeftRadius: value }),
     functionWithoutParam: () => impl.setRadius({ bottomLeftRadius: '0' }),
+    supportedNodes: [...NODE_GROUPS.CORNER_RADIUS],
+  },
+  RadiusExceptTopLeft: {
+    type: "commandWithValue",
+    alias: ['-rtl'],
+    valueFormat: 'number' as const,
+    suggestion: 'Radius in px for all corners except top left',
+    functionWithParam: (value: string) => impl.setRadiusExcept('topLeft', value),
+    supportedNodes: [...NODE_GROUPS.CORNER_RADIUS],
+  },
+  RadiusExceptTopRight: {
+    type: "commandWithValue",
+    alias: ['-rtr'],
+    valueFormat: 'number' as const,
+    suggestion: 'Radius in px for all corners except top right',
+    functionWithParam: (value: string) => impl.setRadiusExcept('topRight', value),
+    supportedNodes: [...NODE_GROUPS.CORNER_RADIUS],
+  },
+  RadiusExceptBottomRight: {
+    type: "commandWithValue",
+    alias: ['-rbr'],
+    valueFormat: 'number' as const,
+    suggestion: 'Radius in px for all corners except bottom right',
+    functionWithParam: (value: string) => impl.setRadiusExcept('bottomRight', value),
+    supportedNodes: [...NODE_GROUPS.CORNER_RADIUS],
+  },
+  RadiusExceptBottomLeft: {
+    type: "commandWithValue",
+    alias: ['-rbl'],
+    valueFormat: 'number' as const,
+    suggestion: 'Radius in px for all corners except bottom left',
+    functionWithParam: (value: string) => impl.setRadiusExcept('bottomLeft', value),
     supportedNodes: [...NODE_GROUPS.CORNER_RADIUS],
   },
   RadiusAll: {
@@ -1079,6 +1159,34 @@ export const COMMAND_DEFINITIONS = {
       variables: ['FLOAT'],
       libraryStyles: true
     }
+  },
+  StrokeExceptLeft: {
+    type: "commandWithValue",
+    alias: ['-stl', '-bl'],
+    valueFormat: 'number' as const,
+    suggestion: 'border in px for all sides except left',
+    functionWithParam: (value: string) => impl.setBorderExcept('left', value),
+  },
+  StrokeExceptRight: {
+    type: "commandWithValue",
+    alias: ['-str', '-br'],
+    valueFormat: 'number' as const,
+    suggestion: 'border in px for all sides except right',
+    functionWithParam: (value: string) => impl.setBorderExcept('right', value),
+  },
+  StrokeExceptTop: {
+    type: "commandWithValue",
+    alias: ['-stt', '-bt'],
+    valueFormat: 'number' as const,
+    suggestion: 'border in px for all sides except top',
+    functionWithParam: (value: string) => impl.setBorderExcept('top', value),
+  },
+  StrokeExceptBottom: {
+    type: "commandWithValue",
+    alias: ['-stb', '-bb'],
+    valueFormat: 'number' as const,
+    suggestion: 'border in px for all sides except bottom',
+    functionWithParam: (value: string) => impl.setBorderExcept('bottom', value),
   },
   StrokeColor: {
     type: "optionalValueCommand",

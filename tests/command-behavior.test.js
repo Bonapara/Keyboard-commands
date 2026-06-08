@@ -210,6 +210,12 @@ async function main() {
     );
   }
 
+  assert.deepEqual(
+    await invokeCommand(commandMap, implStub, utilsStub, 'PaddingExceptBottom', 'with', '24'),
+    [{ kind: 'impl', name: 'setPaddingExcept', args: ['bottom', '24'] }],
+    'PaddingExceptBottom should route to the padding-except helper.'
+  );
+
   const radiusCases = [
     ['10', { topLeftRadius: '10', topRightRadius: '10', bottomRightRadius: '10', bottomLeftRadius: '10' }],
     ['10,20', { topLeftRadius: '10', topRightRadius: '20', bottomRightRadius: '10', bottomLeftRadius: '20' }],
@@ -224,6 +230,12 @@ async function main() {
       `RadiusAll should expand "${value}" using CSS-style shorthand rules.`
     );
   }
+
+  assert.deepEqual(
+    await invokeCommand(commandMap, implStub, utilsStub, 'RadiusExceptBottomRight', 'with', '12'),
+    [{ kind: 'impl', name: 'setRadiusExcept', args: ['bottomRight', '12'] }],
+    'RadiusExceptBottomRight should route to the radius-except helper.'
+  );
 
   const alignCommands = [
     ['AlignTopLeft', 'TOP_LEFT'],

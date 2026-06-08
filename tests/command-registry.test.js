@@ -186,6 +186,47 @@ async function main() {
   );
 
   const commandByName = new Map(COMMANDS.map((command) => [command.name, command]));
+  assert.equal(
+    findCommand('-br1')[0]?.name,
+    'StrokeExceptRight',
+    'compact -br1 input should resolve to StrokeExceptRight'
+  );
+  assert.equal(
+    extractValue('-br1', 'number'),
+    '1',
+    'compact -br1 input should extract the numeric width'
+  );
+  assert.equal(
+    findCommand('-pb24')[0]?.name,
+    'PaddingExceptBottom',
+    'compact -pb24 input should resolve to PaddingExceptBottom'
+  );
+  assert.equal(
+    extractValue('-pb24', 'number'),
+    '24',
+    'compact -pb24 input should extract the numeric padding'
+  );
+  assert.equal(
+    extractValue('-pb+4', 'number'),
+    '+4',
+    'compact -pb+4 input should preserve padding delta syntax'
+  );
+  assert.equal(
+    findCommand('-rbr12')[0]?.name,
+    'RadiusExceptBottomRight',
+    'compact -rbr12 input should resolve to RadiusExceptBottomRight'
+  );
+  assert.equal(
+    extractValue('-rbr12', 'number'),
+    '12',
+    'compact -rbr12 input should extract the numeric radius'
+  );
+  assert.equal(
+    extractValue('-rbr+3', 'number'),
+    '+3',
+    'compact -rbr+3 input should preserve radius delta syntax'
+  );
+
   const lockAspectRatioPredicate = commandByName.get('LockAspectRatio')?.selectionPredicate;
   assert.equal(
     typeof lockAspectRatioPredicate,
@@ -218,6 +259,10 @@ async function main() {
     'PaddingTop',
     'PaddingRight',
     'PaddingBottom',
+    'PaddingExceptLeft',
+    'PaddingExceptTop',
+    'PaddingExceptRight',
+    'PaddingExceptBottom',
     'Opacity',
     'MaxHeight',
     'MaxWidth',
