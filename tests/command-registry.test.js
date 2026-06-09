@@ -186,6 +186,43 @@ async function main() {
   );
 
   const commandByName = new Map(COMMANDS.map((command) => [command.name, command]));
+  const defaultZeroExceptAliases = [
+    ['-pl', 'PaddingExceptLeft'],
+    ['-pt', 'PaddingExceptTop'],
+    ['-pr', 'PaddingExceptRight'],
+    ['-pb', 'PaddingExceptBottom'],
+    ['-rtl', 'RadiusExceptTopLeft'],
+    ['-rtr', 'RadiusExceptTopRight'],
+    ['-rbr', 'RadiusExceptBottomRight'],
+    ['-rbl', 'RadiusExceptBottomLeft'],
+    ['-stl', 'StrokeExceptLeft'],
+    ['-bl', 'StrokeExceptLeft'],
+    ['-str', 'StrokeExceptRight'],
+    ['-br', 'StrokeExceptRight'],
+    ['-stt', 'StrokeExceptTop'],
+    ['-bt', 'StrokeExceptTop'],
+    ['-stb', 'StrokeExceptBottom'],
+    ['-bb', 'StrokeExceptBottom'],
+  ];
+
+  for (const [alias, commandName] of defaultZeroExceptAliases) {
+    assert.equal(
+      findCommand(alias)[0]?.name,
+      commandName,
+      `bare ${alias} input should resolve to ${commandName}`
+    );
+    assert.equal(
+      findCommand(`${alias}0`)[0]?.name,
+      commandName,
+      `compact ${alias}0 input should resolve to ${commandName}`
+    );
+    assert.equal(
+      extractValue(`${alias}0`, 'number'),
+      '0',
+      `compact ${alias}0 input should extract zero`
+    );
+  }
+
   assert.equal(
     findCommand('-br1')[0]?.name,
     'StrokeExceptRight',

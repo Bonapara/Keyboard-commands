@@ -216,6 +216,29 @@ async function main() {
     'PaddingExceptBottom should route to the padding-except helper.'
   );
 
+  const defaultZeroExceptCases = [
+    ['PaddingExceptLeft', 'setPaddingExcept', ['left', '0']],
+    ['PaddingExceptTop', 'setPaddingExcept', ['top', '0']],
+    ['PaddingExceptRight', 'setPaddingExcept', ['right', '0']],
+    ['PaddingExceptBottom', 'setPaddingExcept', ['bottom', '0']],
+    ['RadiusExceptTopLeft', 'setRadiusExcept', ['topLeft', '0']],
+    ['RadiusExceptTopRight', 'setRadiusExcept', ['topRight', '0']],
+    ['RadiusExceptBottomRight', 'setRadiusExcept', ['bottomRight', '0']],
+    ['RadiusExceptBottomLeft', 'setRadiusExcept', ['bottomLeft', '0']],
+    ['StrokeExceptLeft', 'setBorderExcept', ['left', '0']],
+    ['StrokeExceptRight', 'setBorderExcept', ['right', '0']],
+    ['StrokeExceptTop', 'setBorderExcept', ['top', '0']],
+    ['StrokeExceptBottom', 'setBorderExcept', ['bottom', '0']],
+  ];
+
+  for (const [commandName, helperName, args] of defaultZeroExceptCases) {
+    assert.deepEqual(
+      await invokeCommand(commandMap, implStub, utilsStub, commandName, 'without'),
+      [{ kind: 'impl', name: helperName, args }],
+      `${commandName} should default to 0px when no value is provided.`
+    );
+  }
+
   const radiusCases = [
     ['10', { topLeftRadius: '10', topRightRadius: '10', bottomRightRadius: '10', bottomLeftRadius: '10' }],
     ['10,20', { topLeftRadius: '10', topRightRadius: '20', bottomRightRadius: '10', bottomLeftRadius: '20' }],
