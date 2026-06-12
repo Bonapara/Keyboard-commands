@@ -9,6 +9,16 @@ type ConvertibleAutoLayoutNode = FrameNode | ComponentNode;
 type PaddingSide = 'left' | 'right' | 'top' | 'bottom';
 type PaddingField = 'paddingLeft' | 'paddingRight' | 'paddingTop' | 'paddingBottom';
 type PaddingUpdate = Partial<Record<PaddingField, string>>;
+type LayoutDirection = 'HORIZONTAL' | 'VERTICAL';
+type SizedNode = BaseNode & {
+  width: number;
+  height: number;
+};
+type ResizableSceneNode = SceneNode & {
+  width: number;
+  height: number;
+  resize(width: number, height: number): void;
+};
 type PositionedSceneNode = SceneNode & {
   x: number;
   y: number;
@@ -36,6 +46,54 @@ function isConvertibleAutoLayoutNode(node: SceneNode): node is ConvertibleAutoLa
 
 function isPositionedSceneNode(node: SceneNode): node is PositionedSceneNode {
   return 'x' in node && 'y' in node && 'width' in node && 'height' in node;
+}
+
+function hasSize(node: BaseNode | null): node is SizedNode {
+  return !!node && 'width' in node && 'height' in node;
+}
+
+function isResizableSceneNode(node: SceneNode): node is ResizableSceneNode {
+  return 'resize' in node && 'width' in node && 'height' in node;
+}
+
+function isPlainLayoutParent(parent: BaseNode | null): boolean {
+  return !!parent && 'layoutMode' in parent && parent.layoutMode === 'NONE';
+}
+
+function isAbsoluteLayoutChild(node: SceneNode): boolean {
+  return 'layoutPositioning' in node && node.layoutPositioning === 'ABSOLUTE';
+}
+
+function resizeNodeToParentAxis(
+  node: SceneNode,
+  parent: BaseNode | null,
+  direction: LayoutDirection,
+  resetAxisStart = false
+): boolean {
+  if (!isResizableSceneNode(node) || !hasSize(parent)) {
+    return false;
+  }
+
+  try {
+    const newWidth = direction === 'HORIZONTAL' ? parent.width : node.width;
+    const newHeight = direction === 'VERTICAL' ? parent.height : node.height;
+    node.resize(newWidth, newHeight);
+    if (resetAxisStart && isPositionedSceneNode(node)) {
+      if (direction === 'HORIZONTAL') {
+        node.x = 0;
+      } else {
+        node.y = 0;
+      }
+    }
+    figma.notify(
+      direction === 'HORIZONTAL' ? 'Width matched to parent' : 'Height matched to parent'
+    );
+  } catch (error) {
+    console.warn('Failed to resize node:', error);
+    figma.notify('Failed to resize node');
+  }
+
+  return true;
 }
 
 function sortNodesForAutoLayout<T extends SceneNode>(nodes: T[], direction: 'HORIZONTAL' | 'VERTICAL') {
@@ -548,23 +606,15 @@ export function layoutSizing(direction: 'HORIZONTAL' | 'VERTICAL', value: 'HUG' 
 
   selection.forEach(node => {
     const parent = node.parent;
-    const parentIsPlainFrame =
-      !!parent && 'layoutMode' in parent && parent.layoutMode === 'NONE';
+    const isAbsoluteChild = isAbsoluteLayoutChild(node);
 
-    // If parent is a non-auto-layout frame and FILL is requested,
-    // resize the node so it matches the parent's fixed width/height.
-    if (value === 'FILL' && parentIsPlainFrame && 'resize' in node && 'width' in parent && 'height' in parent) {
-      try {
-        const newWidth = direction === 'HORIZONTAL' ? parent.width : node.width;
-        const newHeight = direction === 'VERTICAL' ? parent.height : node.height;
-        node.resize(newWidth, newHeight);
-        figma.notify(
-          direction === 'HORIZONTAL' ? 'Width matched to parent' : 'Height matched to parent'
-        );
-      } catch (error) {
-        console.warn('Failed to resize node:', error);
-        figma.notify('Failed to resize node');
-      }
+    // Absolute-positioned auto-layout children do not participate in fill sizing,
+    // so match the parent dimension directly and pin that axis to the parent.
+    if (
+      value === 'FILL' &&
+      (isPlainLayoutParent(parent) || isAbsoluteChild) &&
+      resizeNodeToParentAxis(node, parent, direction, isAbsoluteChild)
+    ) {
       return;
     }
 

@@ -51,7 +51,7 @@ async function main() {
   const { figma, notifications } = createFigmaStub();
   globalThis.figma = figma;
 
-  const { createAutoLayout, setPadding, setPaddingExcept, setPrimaryGap, setCounterGap, setTidyGap, setTidyRowGap } = await import('../src/implementations/layout.ts');
+  const { createAutoLayout, layoutSizing, setPadding, setPaddingExcept, setPrimaryGap, setCounterGap, setTidyGap, setTidyRowGap } = await import('../src/implementations/layout.ts');
   const { smartAlign } = await import('../src/implementations/alignment.ts');
 
   const paddingNode = {
@@ -300,6 +300,49 @@ async function main() {
   assert.equal(nonWrapNode.counterAxisAlignContent, 'AUTO');
   assert.equal(nonWrapNode.counterAxisSpacing, 12);
   assert.equal(notifications.at(-1)?.message, 'Selected node must be a wrap auto-layout or grid layout');
+
+  notifications.length = 0;
+
+  const absoluteFillParent = {
+    type: 'FRAME',
+    layoutMode: 'HORIZONTAL',
+    width: 320,
+    height: 180,
+  };
+  const absoluteFillChild = {
+    type: 'FRAME',
+    layoutMode: 'NONE',
+    layoutPositioning: 'ABSOLUTE',
+    parent: absoluteFillParent,
+    x: 24,
+    y: 36,
+    width: 80,
+    height: 40,
+    resize(width, height) {
+      this.width = width;
+      this.height = height;
+    },
+  };
+  figma.currentPage.selection = [absoluteFillChild];
+  layoutSizing('HORIZONTAL', 'FILL');
+
+  assert.equal(absoluteFillChild.width, 320);
+  assert.equal(absoluteFillChild.height, 40);
+  assert.equal(absoluteFillChild.x, 0);
+  assert.equal(absoluteFillChild.y, 36);
+  assert.equal(absoluteFillChild.layoutMode, 'NONE');
+  assert.equal(notifications.at(-1)?.message, 'Width matched to parent');
+
+  notifications.length = 0;
+
+  layoutSizing('VERTICAL', 'FILL');
+
+  assert.equal(absoluteFillChild.width, 320);
+  assert.equal(absoluteFillChild.height, 180);
+  assert.equal(absoluteFillChild.x, 0);
+  assert.equal(absoluteFillChild.y, 0);
+  assert.equal(absoluteFillChild.layoutMode, 'NONE');
+  assert.equal(notifications.at(-1)?.message, 'Height matched to parent');
 
   notifications.length = 0;
 

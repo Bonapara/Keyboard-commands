@@ -98,6 +98,7 @@ Notes:
 Important runtime behavior:
 
 - if `fill` is requested on a child inside a plain non-auto-layout frame, the plugin resizes the node to match the parent dimension instead of setting a layout property
+- if `fill` is requested on an absolute-positioned child, the plugin resizes the node to match the parent dimension and moves that axis to `0` because the child does not participate in auto-layout fill sizing
 - if the selected node itself is frame-like and has no auto-layout, the plugin can enable auto-layout before setting its layout sizing property
 - `vh` and `hh` require auto-layout contexts
 - `vf` and `hf` are available in more than one context because of the special-condition guard setup
