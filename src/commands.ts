@@ -58,8 +58,7 @@ function supportsAspectRatioLock(node: SceneNode): boolean {
 }
 
 function canAlignToParent(node: SceneNode): boolean {
-  const parent = node.parent;
-  return 'x' in node && 'y' in node && !!parent && 'width' in parent && 'height' in parent;
+  return impl.canAlignNodeToParent(node);
 }
 
 function isPositionedNode(node: SceneNode): boolean {

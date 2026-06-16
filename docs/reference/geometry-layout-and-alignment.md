@@ -344,6 +344,7 @@ Behavior:
 
 - always align directly inside the parent
 - can operate on multiple selected nodes independently
+- skips normal flow children inside auto-layout parents; use absolute positioning first when coordinate-based parent alignment is intended there
 
 ## Grouping And Boolean Operations
 

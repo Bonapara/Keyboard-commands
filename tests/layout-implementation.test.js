@@ -171,6 +171,85 @@ async function main() {
 
   notifications.length = 0;
 
+  const parentAlignFrame = {
+    type: 'FRAME',
+    layoutMode: 'NONE',
+    width: 320,
+    height: 200,
+  };
+  const parentAlignChild = createNode({ x: 20, y: 30, width: 80, height: 40, parent: parentAlignFrame });
+  figma.currentPage.selection = [parentAlignChild];
+  await smartAlign('CENTER', 'PARENT');
+
+  assert.equal(parentAlignChild.x, 120);
+  assert.equal(parentAlignChild.y, 80);
+  assert.equal(notifications.at(-1)?.message, 'Aligned 1 item(s) to center (to parent)');
+
+  notifications.length = 0;
+
+  const flowAutoLayoutParent = {
+    type: 'FRAME',
+    layoutMode: 'HORIZONTAL',
+    width: 320,
+    height: 200,
+    children: [],
+  };
+  const flowSibling = createNode({ x: 100, y: 0, width: 80, height: 40, parent: flowAutoLayoutParent });
+  let flowCoordinateWrites = 0;
+  const flowChild = {
+    type: 'RECTANGLE',
+    width: 80,
+    height: 40,
+    parent: flowAutoLayoutParent,
+    layoutPositioning: 'AUTO',
+    _x: 20,
+    _y: 30,
+    get x() {
+      return this._x;
+    },
+    set x(value) {
+      flowCoordinateWrites++;
+      this._x = value;
+      flowAutoLayoutParent.children = [flowSibling, this];
+    },
+    get y() {
+      return this._y;
+    },
+    set y(value) {
+      flowCoordinateWrites++;
+      this._y = value;
+      flowAutoLayoutParent.children = [flowSibling, this];
+    },
+  };
+  flowAutoLayoutParent.children = [flowChild, flowSibling];
+  figma.currentPage.selection = [flowChild];
+  await smartAlign('CENTER', 'PARENT');
+
+  assert.equal(flowCoordinateWrites, 0, 'parent alignment should not write coordinates for auto-layout flow children');
+  assert.equal(flowChild.x, 20);
+  assert.equal(flowChild.y, 30);
+  assert.deepEqual(flowAutoLayoutParent.children, [flowChild, flowSibling]);
+  assert.equal(notifications.at(-1)?.message, 'No items could be aligned');
+
+  notifications.length = 0;
+
+  const absoluteAutoLayoutChild = createNode({
+    x: 10,
+    y: 20,
+    width: 80,
+    height: 40,
+    parent: flowAutoLayoutParent,
+  });
+  absoluteAutoLayoutChild.layoutPositioning = 'ABSOLUTE';
+  figma.currentPage.selection = [absoluteAutoLayoutChild];
+  await smartAlign('CENTER', 'PARENT');
+
+  assert.equal(absoluteAutoLayoutChild.x, 120);
+  assert.equal(absoluteAutoLayoutChild.y, 80);
+  assert.equal(notifications.at(-1)?.message, 'Aligned 1 item(s) to center (to parent)');
+
+  notifications.length = 0;
+
   const tidyParent = { type: 'PAGE' };
   const tidyPrimarySelection = [
     createNode({ x: 0, y: 0, width: 100, height: 100, parent: tidyParent }),

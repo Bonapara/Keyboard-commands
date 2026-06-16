@@ -253,6 +253,29 @@ async function main() {
   assert.equal(findCommand('SelectParent')[0]?.name, 'SelectParent');
   assert.equal(findCommand('AlignTopLeftToParent')[0]?.name, 'AlignTopLeftToParent');
 
+  const autoLayoutParent = { type: 'FRAME', layoutMode: 'HORIZONTAL', width: 400, height: 300 };
+  figma.currentPage.selection = [{
+    type: 'RECTANGLE',
+    parent: autoLayoutParent,
+    x: 10,
+    y: 20,
+    width: 100,
+    height: 100,
+    layoutPositioning: 'AUTO',
+  }];
+  assert.equal(findCommand('accp').length, 0);
+
+  figma.currentPage.selection = [{
+    type: 'RECTANGLE',
+    parent: autoLayoutParent,
+    x: 10,
+    y: 20,
+    width: 100,
+    height: 100,
+    layoutPositioning: 'ABSOLUTE',
+  }];
+  assert.equal(findCommand('accp')[0]?.name, 'AlignCenterCenterToParent');
+
   figma.currentPage.selection = [{ type: 'RECTANGLE' }];
   assert.equal(findCommand('SelectChildren').length, 0);
   assert.equal(findCommand('Group').length, 0);

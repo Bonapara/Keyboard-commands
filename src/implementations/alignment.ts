@@ -5,6 +5,8 @@
 type PrimaryAxisAlignment = 'MIN' | 'CENTER' | 'MAX' | 'SPACE_BETWEEN';
 type CounterAxisAlignment = 'MIN' | 'CENTER' | 'MAX' | 'BASELINE';
 
+type LayoutParentNode = BaseNode & { layoutMode: unknown };
+
 // Define a type for nodes that support auto-layout
 type AutoLayoutNode = FrameNode | ComponentNode | InstanceNode;
 
@@ -13,6 +15,35 @@ function isAutoLayoutNode(node: SceneNode): node is AutoLayoutNode {
   return 'layoutMode' in node &&
     'primaryAxisAlignItems' in node &&
     'counterAxisAlignItems' in node;
+}
+
+function isLayoutParent(parent: BaseNode | null): parent is LayoutParentNode {
+  return !!parent && 'layoutMode' in parent;
+}
+
+function isAbsoluteAutoLayoutChild(node: SceneNode): boolean {
+  return 'layoutPositioning' in node && node.layoutPositioning === 'ABSOLUTE';
+}
+
+function isAutoLayoutMode(layoutMode: unknown): boolean {
+  return layoutMode === 'HORIZONTAL' || layoutMode === 'VERTICAL' || layoutMode === 'GRID';
+}
+
+function isFlowChildOfAutoLayoutParent(node: SceneNode): boolean {
+  const parent = node.parent;
+  return isLayoutParent(parent) &&
+    isAutoLayoutMode(parent.layoutMode) &&
+    !isAbsoluteAutoLayoutChild(node);
+}
+
+export function canAlignNodeToParent(node: SceneNode): boolean {
+  const parent = node.parent;
+  return 'x' in node &&
+    'y' in node &&
+    !!parent &&
+    'width' in parent &&
+    'height' in parent &&
+    !isFlowChildOfAutoLayoutParent(node);
 }
 
 function alignItems(
@@ -103,7 +134,7 @@ function getAutoLayoutAlignment(position: AlignmentPosition, isHorizontal: boole
 
 function alignNodeToParentLogic(node: SceneNode, position: AlignmentPosition): boolean {
   const parent = node.parent;
-  if (!parent || !('width' in parent) || !('height' in parent) || !('x' in node) || !('y' in node)) {
+  if (!canAlignNodeToParent(node)) {
     return false;
   }
 
