@@ -82,6 +82,34 @@ async function main() {
 
   notifications.length = 0;
 
+  const slotPaddingNode = {
+    type: 'SLOT',
+    paddingLeft: 4,
+    paddingRight: 6,
+    paddingTop: 8,
+    paddingBottom: 10,
+  };
+  figma.currentPage.selection = [slotPaddingNode];
+  await setPadding({
+    paddingLeft: '+4',
+    paddingRight: '16',
+    paddingTop: '12',
+    paddingBottom: '-5',
+  });
+
+  assert.deepEqual(
+    {
+      left: slotPaddingNode.paddingLeft,
+      right: slotPaddingNode.paddingRight,
+      top: slotPaddingNode.paddingTop,
+      bottom: slotPaddingNode.paddingBottom,
+    },
+    { left: 8, right: 16, top: 12, bottom: 5 }
+  );
+  assert.equal(notifications.at(-1)?.message, 'Padding updated for all selected items');
+
+  notifications.length = 0;
+
   const paddingExceptBottomNode = {
     type: 'FRAME',
     paddingLeft: 10,

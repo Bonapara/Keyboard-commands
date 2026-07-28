@@ -153,6 +153,20 @@ export const COMMANDS = [
     },
   },
   {
+    name: 'StrokeColor',
+    alias: ['stc', 'bc'],
+    type: 'optionalValueCommand',
+    valueFormat: 'hex',
+    suggestion: '?search stroke styles',
+    functionWithoutParam: () => impl.recordCommand('StrokeColor', null),
+    functionWithParam: (value) => impl.recordCommand('StrokeColor', value),
+    bindingSupport: {
+      styles: ['PAINT'],
+      variables: ['COLOR'],
+      libraryStyles: true,
+    },
+  },
+  {
     name: 'InstanceProperty',
     alias: ['i', 'ip'],
     type: 'commandWithValue',
@@ -316,6 +330,9 @@ export async function searchStylesAndVariables(searchTerm, bindingSupport) {
   bindingSearches.push(searchTerm);
 
   if (!bindingSupport.selectionColors) {
+    if (searchTerm.toLowerCase().includes('border')) {
+      return [{ name: 'Borders/Medium (Twenty - Library)', data: 'Borders/Medium (Twenty - Library)' }];
+    }
     return [];
   }
 
@@ -784,6 +801,24 @@ async function main() {
       },
     ],
     'instance-property search should hide recent values and show only current-selection properties'
+  );
+
+  resetHarness(runtime, harness);
+
+  harness.recentStub.__setRecentValues({
+    StrokeColor: ['r12 bc?border med'],
+  });
+
+  const strokeStyleSuggestions = await runtime.input('bc?border med');
+  assert.deepEqual(
+    strokeStyleSuggestions,
+    [
+      {
+        name: 'Borders/Medium (Twenty - Library)    Type "  " for another command',
+        data: 'Borders/Medium (Twenty - Library)',
+      },
+    ],
+    'style binding search should hide recent values and show only live style matches'
   );
 
   resetHarness(runtime, harness);

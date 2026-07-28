@@ -28,6 +28,8 @@ import * as impl from './implementations';
 
 const HISTORY_COMMAND_NAME = 'History';
 const PRISTINE_HISTORY_COUNT = 3;
+const CHAIN_HINT = 'Type "  " for another command';
+type BindingSuggestionItem = string | ({ name: string; data: unknown } & Record<string, unknown>);
 
 // True when the input is a single token that resolves to the History command
 // (e.g. "hi", "history", or partial typings like "hist" — anything findCommand
@@ -138,9 +140,16 @@ async function buildRecentSuggestions(
   searchTerm: string,
   existing: Array<string | { name: string; data: unknown }>
 ): Promise<Array<{ name: string; data: unknown }>> {
-  // Libraries are selection lists, and instance-property search should stay
-  // focused on the properties currently editable from the selected instances.
-  if (matchedCommand.bindingSupport?.libraries || matchedCommand.bindingSupport?.instanceProperties) return [];
+  // Catalog-style binding searches should stay focused on live results instead
+  // of mixing in stale literal values or command fragments from recent memory.
+  if (
+    matchedCommand.bindingSupport?.libraries ||
+    matchedCommand.bindingSupport?.instanceProperties ||
+    matchedCommand.bindingSupport?.styles ||
+    matchedCommand.bindingSupport?.variables ||
+    matchedCommand.bindingSupport?.libraryStyles ||
+    matchedCommand.bindingSupport?.selectionColors
+  ) return [];
 
   const recents = await getRecentValues(matchedCommand.name);
   if (recents.length === 0) return [];
@@ -168,13 +177,13 @@ async function buildRecentSuggestions(
 async function generateBindingSuggestions(
   matchedCommand: (typeof COMMANDS)[0],
   searchTerm: string
-): Promise<Array<string | { name: string; data: unknown }>> {
+): Promise<BindingSuggestionItem[]> {
   if (!matchedCommand?.bindingSupport) {
     return [];
   }
 
   try {
-    let suggestions: Array<string | { name: string; data: unknown }> = [];
+    let suggestions: BindingSuggestionItem[] = [];
 
     if (matchedCommand.bindingSupport.libraries) {
       suggestions = await searchLibraries(searchTerm);
@@ -204,6 +213,32 @@ async function generateBindingSuggestions(
     console.error('Error searching:', error);
     return [];
   }
+}
+
+function supportsCatalogBindingSearch(command: (typeof COMMANDS)[0]): boolean {
+  return !!(
+    command.bindingSupport?.styles ||
+    command.bindingSupport?.variables ||
+    command.bindingSupport?.libraryStyles ||
+    command.bindingSupport?.selectionColors
+  );
+}
+
+function addChainHintToFirstSuggestion(suggestions: BindingSuggestionItem[]): BindingSuggestionItem[] {
+  if (suggestions.length === 0) return suggestions;
+
+  const [first, ...rest] = suggestions;
+  if (typeof first === 'string') {
+    return [{ name: `${first}    ${CHAIN_HINT}`, data: first }, ...rest];
+  }
+
+  return [
+    {
+      ...first,
+      name: `${first.name}    ${CHAIN_HINT}`,
+    },
+    ...rest,
+  ];
 }
 
 function trackCommandsFromSegment(
@@ -427,7 +462,11 @@ async function handleBindingMode(
 
   const suggestions = await generateBindingSuggestions(matchedCommand, typed.searchTerm);
   if (suggestions.length > 0) {
-    result.setSuggestions(suggestions);
+    result.setSuggestions(
+      supportsCatalogBindingSearch(matchedCommand)
+        ? addChainHintToFirstSuggestion(suggestions)
+        : suggestions
+    );
   } else {
     const message = matchedCommand.bindingSupport.libraries
       ? 'No matching libraries found'

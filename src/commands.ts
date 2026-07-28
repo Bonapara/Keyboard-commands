@@ -169,12 +169,21 @@ export const NODE_GROUPS = {
     'VECTOR',
   ] as const,
 
-  /** Frame-like containers supporting padding, layout, clip content */
+  /** Frame-like containers supporting layout, grids, clip content */
   FRAME_LIKE: [
     'COMPONENT',
     'COMPONENT_SET',
     'FRAME',
     'INSTANCE',
+  ] as const,
+
+  /** Nodes supporting auto-layout padding */
+  PADDING: [
+    'COMPONENT',
+    'COMPONENT_SET',
+    'FRAME',
+    'INSTANCE',
+    'SLOT',
   ] as const,
 
   /** Text nodes only */
@@ -735,7 +744,7 @@ export const COMMAND_DEFINITIONS = {
       impl.setPadding({ paddingTop: top, paddingRight: right, paddingBottom: bottom, paddingLeft: left });
     },
     functionWithoutParam: () => impl.setPadding({ paddingLeft: '0', paddingRight: '0', paddingTop: '0', paddingBottom: '0' }),
-    supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
+    supportedNodes: [...NODE_GROUPS.PADDING],
     bindingSupport: {
       variables: ['FLOAT'],
       libraryStyles: true
@@ -748,7 +757,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: "Horizontal padding in px (No value = 0)",
     functionWithParam: (value: string) => impl.setPadding({ paddingLeft: value, paddingRight: value }),
     functionWithoutParam: () => impl.setPadding({ paddingLeft: '0', paddingRight: '0' }),
-    supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
+    supportedNodes: [...NODE_GROUPS.PADDING],
     bindingSupport: {
       variables: ['FLOAT'],
       libraryStyles: true
@@ -761,7 +770,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: "Vertical padding in px (No value = 0)",
     functionWithParam: (value: string) => impl.setPadding({ paddingTop: value, paddingBottom: value }),
     functionWithoutParam: () => impl.setPadding({ paddingTop: '0', paddingBottom: '0' }),
-    supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
+    supportedNodes: [...NODE_GROUPS.PADDING],
     bindingSupport: {
       variables: ['FLOAT'],
       libraryStyles: true
@@ -774,7 +783,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: "Left padding in px (No value = 0)",
     functionWithParam: (value: string) => impl.setPadding({ paddingLeft: value }),
     functionWithoutParam: () => impl.setPadding({ paddingLeft: '0' }),
-    supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
+    supportedNodes: [...NODE_GROUPS.PADDING],
     bindingSupport: {
       variables: ['FLOAT'],
       libraryStyles: true
@@ -787,7 +796,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: "Top padding in px (No value = 0)",
     functionWithParam: (value: string) => impl.setPadding({ paddingTop: value }),
     functionWithoutParam: () => impl.setPadding({ paddingTop: '0' }),
-    supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
+    supportedNodes: [...NODE_GROUPS.PADDING],
     bindingSupport: {
       variables: ['FLOAT'],
       libraryStyles: true
@@ -800,7 +809,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: "Right padding in px (No value = 0)",
     functionWithParam: (value: string) => impl.setPadding({ paddingRight: value }),
     functionWithoutParam: () => impl.setPadding({ paddingRight: '0' }),
-    supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
+    supportedNodes: [...NODE_GROUPS.PADDING],
     bindingSupport: {
       variables: ['FLOAT'],
       libraryStyles: true
@@ -813,7 +822,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: "Bottom padding in px (No value = 0)",
     functionWithParam: (value: string) => impl.setPadding({ paddingBottom: value }),
     functionWithoutParam: () => impl.setPadding({ paddingBottom: '0' }),
-    supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
+    supportedNodes: [...NODE_GROUPS.PADDING],
     bindingSupport: {
       variables: ['FLOAT'],
       libraryStyles: true
@@ -826,7 +835,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: "Padding in px for all sides except left (No value = 0)",
     functionWithParam: (value: string) => impl.setPaddingExcept('left', value),
     functionWithoutParam: () => impl.setPaddingExcept('left', '0'),
-    supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
+    supportedNodes: [...NODE_GROUPS.PADDING],
     bindingSupport: {
       variables: ['FLOAT'],
       libraryStyles: true
@@ -839,7 +848,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: "Padding in px for all sides except top (No value = 0)",
     functionWithParam: (value: string) => impl.setPaddingExcept('top', value),
     functionWithoutParam: () => impl.setPaddingExcept('top', '0'),
-    supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
+    supportedNodes: [...NODE_GROUPS.PADDING],
     bindingSupport: {
       variables: ['FLOAT'],
       libraryStyles: true
@@ -852,7 +861,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: "Padding in px for all sides except right (No value = 0)",
     functionWithParam: (value: string) => impl.setPaddingExcept('right', value),
     functionWithoutParam: () => impl.setPaddingExcept('right', '0'),
-    supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
+    supportedNodes: [...NODE_GROUPS.PADDING],
     bindingSupport: {
       variables: ['FLOAT'],
       libraryStyles: true
@@ -865,7 +874,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: "Padding in px for all sides except bottom (No value = 0)",
     functionWithParam: (value: string) => impl.setPaddingExcept('bottom', value),
     functionWithoutParam: () => impl.setPaddingExcept('bottom', '0'),
-    supportedNodes: [...NODE_GROUPS.FRAME_LIKE],
+    supportedNodes: [...NODE_GROUPS.PADDING],
     bindingSupport: {
       variables: ['FLOAT'],
       libraryStyles: true

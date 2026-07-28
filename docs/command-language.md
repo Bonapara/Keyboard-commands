@@ -65,6 +65,7 @@ Examples:
 - `hf  f?blue`
 
 Single-space chains still execute, but double-space segmentation gives the input system more structure.
+Catalog binding suggestions show a first-row hint for this: type two spaces to start another command segment.
 
 ## Value Formats
 
@@ -259,6 +260,7 @@ Rules:
 - instance-property comma chains are split and stored pair-by-pair
 
 Recent values are intentionally skipped for library toggles because library suggestions are action lists, not value histories.
+They are also skipped for style, variable, and selection-color searches so binding mode only shows currently resolvable catalog results.
 
 ## Search Matching Rules
 

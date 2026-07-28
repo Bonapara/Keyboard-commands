@@ -179,6 +179,12 @@ async function main() {
   assert.equal(findCommand('fs')[0]?.name, 'FontSize');
   assert.equal(findCommand('swp').length, 0);
 
+  figma.currentPage.selection = [{ type: 'SLOT', layoutMode: 'HORIZONTAL' }];
+  assert.equal(findCommand('p')[0]?.name, 'Padding');
+  assert.equal(findCommand('ph')[0]?.name, 'PaddingHorizontal');
+  assert.equal(findCommand('-pb')[0]?.name, 'PaddingExceptBottom');
+  assert.equal(findCommand('lh').length, 0);
+
   figma.currentPage.selection = [
     { type: 'RECTANGLE', parent: { layoutMode: 'NONE' } },
     { type: 'RECTANGLE', parent: { layoutMode: 'NONE' } },
