@@ -216,6 +216,18 @@ async function main() {
     'PaddingExceptBottom should route to the padding-except helper.'
   );
 
+  assert.deepEqual(
+    await invokeCommand(commandMap, implStub, utilsStub, 'StrokeAll', 'without'),
+    [{ kind: 'impl', name: 'setBorderAll', args: [] }],
+    'StrokeAll should apply the current border to every side.'
+  );
+
+  assert.deepEqual(
+    await invokeCommand(commandMap, implStub, utilsStub, 'StrokeNone', 'without'),
+    [{ kind: 'impl', name: 'setBorderNone', args: [] }],
+    'StrokeNone should disable every side without toggling the stroke paint.'
+  );
+
   const defaultZeroExceptCases = [
     ['PaddingExceptLeft', 'setPaddingExcept', ['left', '0']],
     ['PaddingExceptTop', 'setPaddingExcept', ['top', '0']],

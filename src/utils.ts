@@ -979,10 +979,12 @@ export async function searchStylesAndVariables(
     hexColor?: string;
     imageHash?: string; // For image fill styles
     variableEntry?: VariableCacheEntry; // Reference for lazy color resolution
+    executionData?: string; // Canonical value carrying the variable id/key
   }
 
-  // Use a Map to automatically handle deduplication by name
-  // Library items (processed last) will overwrite API items, ensuring we keep the one with the icon
+  // Variables use stable identity rather than display name because Figma
+  // permits the same variable name in multiple collections. Styles retain the
+  // existing name-based replacement behavior.
   const resultsMap = new Map<string, SearchResult>();
 
   // Search variables
@@ -995,13 +997,15 @@ export async function searchStylesAndVariables(
     matchingVars.forEach(v => {
       const score = calculateSearchScore(searchTerm, v.name);
       const location = v.isLibrary ? 'Library' : 'Local';
-      resultsMap.set(v.name, {
+      const text = `${v.name} (${v.collection} - ${location})`;
+      resultsMap.set(`variable:${v.id}`, {
         score,
-        text: `${v.name} (${v.collection} - ${location})`,
+        text,
         collection: v.collection,
         name: v.name,
         color: v.color,
-        variableEntry: v // Store reference for lazy color resolution
+        variableEntry: v, // Store reference for lazy color resolution
+        executionData: formatVariableExecutionData(text, 'variable-id', v.id)
       });
     });
   }
@@ -1026,7 +1030,7 @@ export async function searchStylesAndVariables(
         const location = s.isLocal ? 'Local' : 'Library';
 
         const imageHashValue = 'imageHash' in s ? (s as { imageHash?: string }).imageHash : undefined;
-        resultsMap.set(s.name, {
+        resultsMap.set(`style:${s.name}`, {
           score: calculateSearchScore(searchTerm, s.name),
           text: `${s.name} (${location})`,
           collection: location,
@@ -1075,8 +1079,8 @@ export async function searchStylesAndVariables(
         return (isStyleMatch || isVariableMatch) && flexibleMatch(searchTerm, name);
       });
 
-      matchingItems.forEach(item => {
-        const [name, , itemType, colorOrImageRef] = item;
+      matchingItems.forEach((item, index) => {
+        const [name, itemId, itemType, colorOrImageRef] = item;
 
         const score = calculateSearchScore(searchTerm, name);
 
@@ -1093,16 +1097,23 @@ export async function searchStylesAndVariables(
           hexColor = colorOrImageRef;
         }
 
-        const existing = resultsMap.get(name);
+        const existing = Array.from(resultsMap.values()).find(result => result.name === name);
         const finalImageHash = imageHash || existing?.imageHash;
 
-        resultsMap.set(name, {
+        const identity = itemId || `${libName}:${itemType}:${name}:${index}`;
+        const resultKey = isVariable
+          ? `library-variable:${itemType}:${identity}`
+          : `style:${name}`;
+        resultsMap.set(resultKey, {
           score,
           text,
           collection: libName,
           name: name,
           hexColor,
-          imageHash: finalImageHash
+          imageHash: finalImageHash,
+          executionData: isVariable
+            ? formatVariableExecutionData(text, 'variable-key', itemId)
+            : undefined
         });
       });
     }
@@ -1127,19 +1138,21 @@ export async function searchStylesAndVariables(
   // This avoids resolving colors/images for hundreds of items that won't be displayed
   const finalResults = await Promise.all(sortedResults.map(async r => {
     const hexColor = r.hexColor;
+    const suggestion = {
+      name: r.text,
+      data: r.executionData ?? r.text
+    };
 
     if (hexColor) {
       return {
-        name: r.text,
-        data: r.text,
+        ...suggestion,
         icon: createColorSwatchSVG(hexColor)
       };
     }
 
     if (r.imageHash) {
       return {
-        name: r.text,
-        data: r.text,
+        ...suggestion,
         icon: getImageStyleIcon()
       };
     }
@@ -1152,12 +1165,11 @@ export async function searchStylesAndVariables(
 
     if (color) {
       return {
-        name: r.text,
-        data: r.text,
+        ...suggestion,
         icon: createColorSwatchSVG(color)
       };
     }
-    return r.text;
+    return r.executionData ? suggestion : r.text;
   }));
 
   return finalResults;
@@ -1169,6 +1181,52 @@ export async function searchStylesAndVariables(
 
 const BINDING_REFERENCE_PATTERN = /^(.+?)\s*\(([^)]+)\)$/;
 const STYLE_TYPES: StyleBindingType[] = ['PAINT', 'TEXT', 'EFFECT', 'GRID'];
+const VARIABLE_REFERENCE_PATTERN = /\s+\[(variable-id|variable-key):([^\]]+)\]$/;
+
+type VariableReferenceKind = 'variable-id' | 'variable-key';
+
+function formatVariableExecutionData(
+  displayText: string,
+  kind: VariableReferenceKind,
+  identifier: string
+): string {
+  const encodedIdentifier = encodeURIComponent(identifier);
+  if (!displayText.endsWith(')')) {
+    return `${displayText} [${kind}:${encodedIdentifier}]`;
+  }
+  return `${displayText.slice(0, -1)} [${kind}:${encodedIdentifier}])`;
+}
+
+interface ParsedVariableMetadata {
+  collection?: string;
+  location?: 'Local' | 'Library';
+  referenceKind?: VariableReferenceKind;
+  identifier?: string;
+}
+
+function parseVariableMetadata(metadata: string): ParsedVariableMetadata {
+  const referenceMatch = metadata.match(VARIABLE_REFERENCE_PATTERN);
+  const baseMetadata = referenceMatch
+    ? metadata.slice(0, referenceMatch.index).trim()
+    : metadata.trim();
+  const locationMatch = baseMetadata.match(/^(.*)\s+-\s+(Local|Library)$/);
+
+  let identifier: string | undefined;
+  if (referenceMatch) {
+    try {
+      identifier = decodeURIComponent(referenceMatch[2]);
+    } catch {
+      identifier = referenceMatch[2];
+    }
+  }
+
+  return {
+    collection: locationMatch?.[1].trim(),
+    location: locationMatch?.[2] as ParsedVariableMetadata['location'],
+    referenceKind: referenceMatch?.[1] as VariableReferenceKind | undefined,
+    identifier
+  };
+}
 
 interface VariableLookupConfig {
   typeFilter: (type: string) => boolean;
@@ -1176,20 +1234,58 @@ interface VariableLookupConfig {
 
 async function lookupVariable(
   name: string,
+  metadata: string,
   config: VariableLookupConfig
 ): Promise<{ variableId: string; variableName: string; isLibraryVariable: boolean } | null> {
   const data = await getCachedStylesAndVariables();
-  const varData = data.variables.find(v => v.name === name);
+  const parsedMetadata = parseVariableMetadata(metadata);
+  const supportsVariable = (variable: VariableCacheEntry) =>
+    config.typeFilter(`VARIABLE_${variable.type}`);
+  const varData = data.variables.find(variable => {
+    if (!supportsVariable(variable)) return false;
+    if (
+      parsedMetadata.location === 'Library' ||
+      parsedMetadata.referenceKind === 'variable-key'
+    ) {
+      return false;
+    }
+    if (
+      parsedMetadata.referenceKind === 'variable-id' &&
+      parsedMetadata.identifier
+    ) {
+      return variable.id === parsedMetadata.identifier;
+    }
+    return variable.name === name &&
+      (
+        parsedMetadata.location !== 'Local' ||
+        !parsedMetadata.collection ||
+        variable.collection === parsedMetadata.collection
+      );
+  });
 
   if (varData) {
     return { variableId: varData.id, variableName: varData.name, isLibraryVariable: varData.isLibrary };
   }
+  if (parsedMetadata.location === 'Local') return null;
 
   // Fallback: Check stored libraries
   try {
     const libraries = await getStoredLibraries();
-    for (const libName of Object.keys(libraries)) {
-      const foundItem = libraries[libName].find(i => i[0] === name && config.typeFilter(i[2]));
+    const libraryNames =
+      parsedMetadata.location === 'Library' && parsedMetadata.collection
+        ? [parsedMetadata.collection]
+        : Object.keys(libraries);
+    for (const libName of libraryNames) {
+      const foundItem = (libraries[libName] || []).find(item => {
+        if (!config.typeFilter(item[2])) return false;
+        if (
+          parsedMetadata.referenceKind === 'variable-key' &&
+          parsedMetadata.identifier
+        ) {
+          return item[1] === parsedMetadata.identifier;
+        }
+        return item[0] === name;
+      });
       if (foundItem) {
         return { variableId: foundItem[1], variableName: foundItem[0], isLibraryVariable: true };
       }
@@ -1279,7 +1375,7 @@ export async function resolvePaintValue(rawValue: string): Promise<PaintResoluti
 
     // Variable reference (contains " - " in metadata)
     if (metadata.includes(' - ')) {
-      const result = await lookupVariable(name, {
+      const result = await lookupVariable(name, metadata, {
         typeFilter: type => type === 'VARIABLE_COLOR' || type === 'VARIABLE'
       });
       if (!result) {
@@ -1314,8 +1410,8 @@ export async function resolveStyleValue(rawValue: string): Promise<StyleResoluti
 
     // Variable reference
     if (metadata.includes(' - ')) {
-      const result = await lookupVariable(name, {
-        typeFilter: type => type.startsWith('VARIABLE') || type === 'VARIABLE'
+      const result = await lookupVariable(name, metadata, {
+        typeFilter: type => type === 'VARIABLE_COLOR' || type === 'VARIABLE'
       });
       if (!result) {
         figma.notify(`Variable "${name}" not found, skipping...`);
@@ -1350,7 +1446,7 @@ export async function resolveNumberValue(rawValue: string): Promise<NumberResolu
 
     // Variable reference
     if (metadata.includes(' - ')) {
-      const result = await lookupVariable(name, {
+      const result = await lookupVariable(name, metadata, {
         typeFilter: type => type === 'VARIABLE_FLOAT'
       });
       if (!result) {

@@ -20,6 +20,7 @@ Design faster in Figma with a compact command language for editing selections fr
 | `w+24 h/2` | Resize relatively with delta values. |
 | `p24,32 r12` | Set vertical/horizontal padding and all corner radii. |
 | `hf vf g16` | Set horizontal fill, vertical fill, and auto-layout gap. |
+| `ba` / `bn` | Apply the current border to all sides, or disable all sides, without losing its color. |
 | `f#ff6600 bc?border` | Apply a literal fill and search for a stroke color/style/variable. |
 | `ip?State:Active` | Set an instance property from autocomplete. |
 | `cs?Primary : Danger` | Replace one selection color with another style, variable, or literal color. |

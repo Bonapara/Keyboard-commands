@@ -185,6 +185,9 @@ async function main() {
     'top-level suggestions should include every command when nothing is typed'
   );
 
+  assert.equal(findCommand('ba')[0]?.name, 'StrokeAll');
+  assert.equal(findCommand('bn')[0]?.name, 'StrokeNone');
+
   const commandByName = new Map(COMMANDS.map((command) => [command.name, command]));
   const defaultZeroExceptAliases = [
     ['-pl', 'PaddingExceptLeft'],

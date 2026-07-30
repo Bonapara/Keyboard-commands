@@ -12,28 +12,38 @@ type SideBoundField = 'strokeLeftWeight' | 'strokeRightWeight' | 'strokeTopWeigh
 type StrokeBoundField = 'strokeWeight' | SideBoundField;
 const INDIVIDUAL_SIDES = ['top', 'right', 'bottom', 'left'] as const;
 
-type StrokeNode = SceneNode & {
+type UniformStrokeNode = SceneNode & {
   strokes: ReadonlyArray<Paint>;
   strokeWeight: number | PluginAPI['mixed'];
+  strokeAlign: 'CENTER' | 'INSIDE' | 'OUTSIDE';
+};
+
+type StrokeNode = UniformStrokeNode & {
   strokeTopWeight: number;
   strokeBottomWeight: number;
   strokeLeftWeight: number;
   strokeRightWeight: number;
-  strokeAlign: 'CENTER' | 'INSIDE' | 'OUTSIDE';
 };
 
 type BoundVariableStore =
   | Partial<Record<StrokeBoundField, VariableAlias | VariableAlias[] | undefined>>
   | Map<string, VariableAlias | Variable | undefined>;
 
-type VariableBoundStrokeNode = StrokeNode & {
+type VariableBoundStrokeNode = UniformStrokeNode & {
   readonly boundVariables?: BoundVariableStore;
 };
 
-function isStrokeNode(node: SceneNode): node is StrokeNode {
+function isUniformStrokeNode(node: SceneNode): node is UniformStrokeNode {
   return (
     'strokes' in node &&
     'strokeWeight' in node &&
+    'strokeAlign' in node
+  );
+}
+
+function isStrokeNode(node: SceneNode): node is StrokeNode {
+  return (
+    isUniformStrokeNode(node) &&
     'strokeLeftWeight' in node &&
     'strokeRightWeight' in node &&
     'strokeTopWeight' in node &&
@@ -90,7 +100,7 @@ function sideBoundField(side: IndividualSide): SideBoundField {
   return `stroke${side.charAt(0).toUpperCase() + side.slice(1)}Weight` as SideBoundField;
 }
 
-function getBoundVariableAlias(node: StrokeNode, field: StrokeBoundField): VariableAlias | null {
+function getBoundVariableAlias(node: UniformStrokeNode, field: StrokeBoundField): VariableAlias | null {
   const bindings = (node as VariableBoundStrokeNode).boundVariables;
   if (!bindings) return null;
 
@@ -100,7 +110,7 @@ function getBoundVariableAlias(node: StrokeNode, field: StrokeBoundField): Varia
   return 'id' in binding ? { type: 'VARIABLE_ALIAS', id: binding.id } : null;
 }
 
-async function restoreBoundVariable(node: StrokeNode, field: StrokeBoundField, alias: VariableAlias | null) {
+async function restoreBoundVariable(node: UniformStrokeNode, field: StrokeBoundField, alias: VariableAlias | null) {
   if (!alias) return;
 
   const variable = await figma.variables.getVariableByIdAsync(alias.id);
@@ -109,7 +119,7 @@ async function restoreBoundVariable(node: StrokeNode, field: StrokeBoundField, a
   }
 }
 
-function ensureStrokePaint(node: StrokeNode): void {
+function ensureStrokePaint(node: UniformStrokeNode): void {
   if (node.strokes.length === 0) {
     node.strokes = [{
       type: 'SOLID',
@@ -152,6 +162,45 @@ function firstNonZeroSideWeight(node: StrokeNode): number {
     node.strokeLeftWeight ||
     node.strokeRightWeight
   );
+}
+
+function currentBorderWidth(node: UniformStrokeNode): number {
+  const uniformWidth = typeof node.strokeWeight === 'number' && node.strokeWeight > 0
+    ? node.strokeWeight
+    : 0;
+
+  return uniformWidth ||
+    (isStrokeNode(node) ? firstNonZeroSideWeight(node) : 0) ||
+    DEFAULT_BORDER_WIDTH;
+}
+
+function currentBorderBinding(node: UniformStrokeNode): VariableAlias | null {
+  const uniformBinding = getBoundVariableAlias(node, 'strokeWeight');
+  if (uniformBinding) return uniformBinding;
+
+  if (!isStrokeNode(node)) return null;
+
+  for (const side of INDIVIDUAL_SIDES) {
+    if (getSideWeight(node, side) > 0) {
+      const sideBinding = getBoundVariableAlias(node, sideBoundField(side));
+      if (sideBinding) return sideBinding;
+    }
+  }
+
+  return null;
+}
+
+function clearAllStrokeWeightBindings(node: UniformStrokeNode): void {
+  clearNodeBoundVariables(node, 'strokeWeight');
+  if (isStrokeNode(node)) {
+    clearNodeBoundVariables(
+      node,
+      'strokeTopWeight',
+      'strokeRightWeight',
+      'strokeBottomWeight',
+      'strokeLeftWeight'
+    );
+  }
 }
 
 // True when the node renders any visible border right now. Checks both uniform
@@ -220,20 +269,24 @@ export async function setBorder(side: Side, width: string) {
   const resolution = await resolveNumberValue(width);
 
   for (const node of selection) {
-    if (!isStrokeNode(node)) continue;
+    if (!isUniformStrokeNode(node)) continue;
 
     if (side === 'all') {
       ensureStrokePaint(node);
       if (resolution.type === 'variable') {
         const variable = await resolveNumberVariable(resolution);
-        clearNodeBoundVariables(node, 'strokeTopWeight', 'strokeRightWeight', 'strokeBottomWeight', 'strokeLeftWeight');
+        if (isStrokeNode(node)) {
+          clearNodeBoundVariables(node, 'strokeTopWeight', 'strokeRightWeight', 'strokeBottomWeight', 'strokeLeftWeight');
+        }
         setNodeBoundVariable(node, 'strokeWeight', variable);
       } else {
-        clearNodeBoundVariables(node, 'strokeWeight', 'strokeTopWeight', 'strokeRightWeight', 'strokeBottomWeight', 'strokeLeftWeight');
+        clearAllStrokeWeightBindings(node);
         node.strokeWeight = resolution.value!;
       }
       continue;
     }
+
+    if (!isStrokeNode(node)) continue;
 
     // Seed per-side state before first write, otherwise a fresh node with no
     // strokes would either read default non-zero weights (bleeding into other
@@ -310,6 +363,49 @@ export async function setBorderExcept(excludedSide: IndividualSide, width: strin
   figma.notify(`All except ${excludedSide} stroke set to ${resolution.value}px`);
 }
 
+export async function setBorderAll() {
+  const selection = figma.currentPage.selection;
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+
+  for (const node of selection) {
+    if (!isUniformStrokeNode(node)) continue;
+
+    const width = currentBorderWidth(node);
+    const preservedBinding = currentBorderBinding(node);
+
+    ensureStrokePaint(node);
+    clearAllStrokeWeightBindings(node);
+    node.strokeWeight = width;
+    if (isStrokeNode(node)) {
+      applySideWeights(node, 'top', uniformSideWeights(width));
+    }
+    await restoreBoundVariable(node, 'strokeWeight', preservedBinding);
+  }
+
+  figma.notify('Border applied to all sides');
+}
+
+export function setBorderNone() {
+  const selection = figma.currentPage.selection;
+  if (selection.length === 0) {
+    throw new Error('No items selected');
+  }
+
+  for (const node of selection) {
+    if (!isUniformStrokeNode(node)) continue;
+
+    clearAllStrokeWeightBindings(node);
+    node.strokeWeight = 0;
+    if (isStrokeNode(node)) {
+      zeroAllSides(node);
+    }
+  }
+
+  figma.notify('Border disabled on all sides');
+}
+
 export function toggleBorder(side: Side) {
   const selection = figma.currentPage.selection;
   if (selection.length === 0) {
@@ -317,23 +413,27 @@ export function toggleBorder(side: Side) {
   }
 
   for (const node of selection) {
-    if (!isStrokeNode(node)) continue;
+    if (!isUniformStrokeNode(node)) continue;
 
     if (side === 'all') {
-      clearNodeBoundVariables(node, 'strokeWeight', 'strokeTopWeight', 'strokeRightWeight', 'strokeBottomWeight', 'strokeLeftWeight');
+      clearAllStrokeWeightBindings(node);
       if (node.strokes.length > 0) {
         node.strokes = [];
         node.strokeWeight = 0;
-        zeroAllSides(node);
+        if (isStrokeNode(node)) {
+          zeroAllSides(node);
+        }
       } else {
         ensureStrokePaint(node);
         node.strokeWeight = DEFAULT_BORDER_WIDTH;
-        if (node.strokeAlign === 'INSIDE') {
+        if (isStrokeNode(node) && node.strokeAlign === 'INSIDE') {
           applySideWeights(node, 'top', uniformSideWeights(DEFAULT_BORDER_WIDTH));
         }
       }
       continue;
     }
+
+    if (!isStrokeNode(node)) continue;
 
     // Capture visibility before seeding side weights, which can make the
     // pre-change intent unreadable for uniform strokes.

@@ -328,6 +328,12 @@
     "with": "b728cb75ce64203b45e62fa6161af292a3938b1d4fb19d52a4228e195b1f2b10",
     "without": "b647dbb0e8556d38689cd83798c037d83bb96a2e2cf86ca2772e700d142a4351"
   },
+  "StrokeAll": {
+    "without": "37a33b4f26cbc5bb996b83588d7f694e8c2669c4b39a87f06031b75ad4248621"
+  },
+  "StrokeNone": {
+    "without": "4366168e681c60a72f1e9e97f250c9f87319ecffe027e6e9d2bd3c3f006cff26"
+  },
   "StrokeLeft": {
     "with": "ae5036712cc05e0e6c3ac95d046b2e6aca056c644402d7b3911e207bc8add359",
     "without": "f1d4f77518ce600ea9f0837313de60918368dfc511480786d52373d18e05dff8"

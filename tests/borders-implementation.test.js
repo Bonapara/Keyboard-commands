@@ -23,6 +23,17 @@ function createStrokeNode(overrides = {}) {
   };
 }
 
+function createUniformStrokeNode(overrides = {}) {
+  return {
+    type: 'ELLIPSE',
+    name: 'Ellipse',
+    strokes: [],
+    strokeWeight: 0,
+    strokeAlign: 'CENTER',
+    ...overrides,
+  };
+}
+
 function createVariableAwareStrokeNode(overrides = {}) {
   const boundVariables = new Map();
   const bindingCalls = [];
@@ -151,7 +162,13 @@ async function main() {
   });
   globalThis.figma = figma;
 
-  const { setBorder, setBorderExcept, toggleBorder } = await import('../src/implementations/borders.ts');
+  const {
+    setBorder,
+    setBorderAll,
+    setBorderExcept,
+    setBorderNone,
+    toggleBorder,
+  } = await import('../src/implementations/borders.ts');
 
   const freshNode = createStrokeNode();
   figma.currentPage.selection = [freshNode];
@@ -253,6 +270,79 @@ async function main() {
 
   assertSideWeights(missingSideNode, { top: 4, right: 4, bottom: 4, left: 0 });
   assert.equal(notifications.at(-1)?.message, 'Bottom border toggled');
+
+  notifications.length = 0;
+
+  const rightBorderPaint = {
+    type: 'SOLID',
+    color: { r: 0.8, g: 0.1, b: 0.2 },
+    opacity: 0.75,
+  };
+  const rightOnlyNode = createStrokeNode({
+    strokes: [rightBorderPaint],
+    strokeStyleId: 'border-style-id',
+    strokeWeight: figma.mixed,
+    strokeAlign: 'INSIDE',
+    strokeRightWeight: 3,
+  });
+  figma.currentPage.selection = [rightOnlyNode];
+  await setBorderAll();
+
+  assert.equal(rightOnlyNode.strokeWeight, 3);
+  assertSideWeights(rightOnlyNode, { top: 3, right: 3, bottom: 3, left: 3 });
+  assert.strictEqual(rightOnlyNode.strokes[0], rightBorderPaint);
+  assert.equal(rightOnlyNode.strokeStyleId, 'border-style-id');
+  assert.equal(notifications.at(-1)?.message, 'Border applied to all sides');
+
+  notifications.length = 0;
+
+  setBorderNone();
+
+  assert.equal(rightOnlyNode.strokeWeight, 0);
+  assertSideWeights(rightOnlyNode, { top: 0, right: 0, bottom: 0, left: 0 });
+  assert.strictEqual(rightOnlyNode.strokes[0], rightBorderPaint);
+  assert.equal(rightOnlyNode.strokeStyleId, 'border-style-id');
+  assert.equal(notifications.at(-1)?.message, 'Border disabled on all sides');
+
+  notifications.length = 0;
+
+  await setBorderAll();
+
+  assert.equal(rightOnlyNode.strokeWeight, 1);
+  assertSideWeights(rightOnlyNode, { top: 1, right: 1, bottom: 1, left: 1 });
+  assert.strictEqual(rightOnlyNode.strokes[0], rightBorderPaint);
+  assert.equal(rightOnlyNode.strokeStyleId, 'border-style-id');
+  assert.equal(notifications.at(-1)?.message, 'Border applied to all sides');
+
+  notifications.length = 0;
+
+  const ellipsePaint = createSolidPaint();
+  const ellipseNode = createUniformStrokeNode({
+    strokes: [ellipsePaint],
+    strokeWeight: 1,
+  });
+  figma.currentPage.selection = [ellipseNode];
+  await setBorder('all', '2');
+
+  assert.equal(ellipseNode.strokeWeight, 2);
+  assert.strictEqual(ellipseNode.strokes[0], ellipsePaint);
+  assert.equal(notifications.at(-1)?.message, 'All stroke set to 2px');
+
+  setBorderNone();
+  assert.equal(ellipseNode.strokeWeight, 0);
+  assert.strictEqual(ellipseNode.strokes[0], ellipsePaint);
+
+  await setBorderAll();
+  assert.equal(ellipseNode.strokeWeight, 1);
+  assert.strictEqual(ellipseNode.strokes[0], ellipsePaint);
+
+  toggleBorder('all');
+  assert.equal(ellipseNode.strokeWeight, 0);
+  assert.equal(ellipseNode.strokes.length, 0);
+
+  toggleBorder('all');
+  assert.equal(ellipseNode.strokeWeight, 1);
+  assert.equal(ellipseNode.strokes.length, 1);
 
   notifications.length = 0;
 

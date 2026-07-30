@@ -3,17 +3,18 @@ import { COMMAND_SPLITTER_REGEX } from './constants';
 // Binding triggers: "?" (QWERTY-friendly) and ";" (AZERTY-friendly, unshifted
 // on French layouts). Both are accepted interchangeably.
 const BINDING_TRIGGER = '[?;]';
+const BINDING_ALIAS = '-?[a-z]+';
 
 // Lenient: accepts a prefix directly adjacent to the alias (e.g. "w100f?blue").
 // Used when parsing a finalized command string for execution / previous-command
 // tracking — we want to interpret as much as possible.
-const BINDING_PATTERN = new RegExp(`^(.*?)\\s*([a-z]+)${BINDING_TRIGGER}(.*)$`, 'i');
+const BINDING_PATTERN = new RegExp(`^(.*?)\\s*(${BINDING_ALIAS})${BINDING_TRIGGER}(.*)$`, 'i');
 
 // Strict: requires whitespace between prefix and alias (or no prefix at all).
 // Used while the user is still typing, so we don't surface binding suggestions
 // for ambiguous mashed-together input like "w100f?blue".
-const BINDING_INPUT_WITH_PREFIX = new RegExp(`^(.*?)\\s+([a-z]+)${BINDING_TRIGGER}(.*)$`, 'i');
-const BINDING_INPUT_NO_PREFIX = new RegExp(`^([a-z]+)${BINDING_TRIGGER}(.*)$`, 'i');
+const BINDING_INPUT_WITH_PREFIX = new RegExp(`^(.*?)\\s+(${BINDING_ALIAS})${BINDING_TRIGGER}(.*)$`, 'i');
+const BINDING_INPUT_NO_PREFIX = new RegExp(`^(${BINDING_ALIAS})${BINDING_TRIGGER}(.*)$`, 'i');
 
 export const BINDING_TRIGGER_CHARS = '?;';
 
@@ -75,7 +76,7 @@ function appendSimpleCommands(steps: ExecutionStep[], value: string): void {
 // so "bc;red" became part of the Fill search and fuzzy-matched the wrong style.
 // Split at each inner "alias[?;]" so every binding becomes its own sub-segment.
 function splitAtInnerBindings(segment: string): string[] {
-  const triggerRegex = /[a-z]+[?;]/gi;
+  const triggerRegex = /-?[a-z]+[?;]/gi;
   const positions: number[] = [];
   let match: RegExpExecArray | null;
   while ((match = triggerRegex.exec(segment)) !== null) {

@@ -127,6 +127,30 @@ assert.deepEqual(
 );
 
 assert.deepEqual(
+  buildExecutionPlan(['-pl?spacing medium']),
+  [
+    {
+      kind: 'binding',
+      parsed: { prefix: '', alias: '-pl', value: 'spacing medium' },
+    },
+  ]
+);
+
+assert.deepEqual(
+  buildExecutionPlan(['f?white -pl;spacing medium']),
+  [
+    {
+      kind: 'binding',
+      parsed: { prefix: '', alias: 'f', value: 'white' },
+    },
+    {
+      kind: 'binding',
+      parsed: { prefix: '', alias: '-pl', value: 'spacing medium' },
+    },
+  ]
+);
+
+assert.deepEqual(
   buildExecutionPlan(['hf', 'f?blue', 'w100', 's?primary']),
   [
     { kind: 'simple', command: 'hf' },
@@ -147,6 +171,7 @@ assert.deepEqual(parseBindingSegment('f?blue'), { prefix: '', alias: 'f', value:
 assert.deepEqual(parseBindingSegment('hf f?blue'), { prefix: 'hf', alias: 'f', value: 'blue' });
 assert.deepEqual(parseBindingSegment('w100f?blue'), { prefix: 'w100', alias: 'f', value: 'blue' });
 assert.deepEqual(parseBindingSegment('9f?blue'), { prefix: '9', alias: 'f', value: 'blue' });
+assert.deepEqual(parseBindingSegment('-pl?spacing'), { prefix: '', alias: '-pl', value: 'spacing' });
 assert.equal(parseBindingSegment('no-binding-here'), null);
 
 // parseTypedBindingSegment — strict, used while user types (suggestions).
@@ -154,6 +179,7 @@ assert.equal(parseBindingSegment('no-binding-here'), null);
 assert.deepEqual(parseTypedBindingSegment('f?blue'), { alias: 'f', searchTerm: 'blue' });
 assert.deepEqual(parseTypedBindingSegment('hf f?blue'), { alias: 'f', searchTerm: 'blue' });
 assert.deepEqual(parseTypedBindingSegment('hff?blue'), { alias: 'hff', searchTerm: 'blue' });
+assert.deepEqual(parseTypedBindingSegment('-pl?spacing'), { alias: '-pl', searchTerm: 'spacing' });
 assert.equal(parseTypedBindingSegment('w100f?blue'), null);
 assert.equal(parseTypedBindingSegment('9f?blue'), null);
 assert.equal(parseTypedBindingSegment('no-binding-here'), null);
@@ -164,6 +190,7 @@ assert.deepEqual(parseBindingSegment('hf f;blue'), { prefix: 'hf', alias: 'f', v
 assert.deepEqual(parseTypedBindingSegment('f;blue'), { alias: 'f', searchTerm: 'blue' });
 assert.deepEqual(parseTypedBindingSegment('hf f;blue'), { alias: 'f', searchTerm: 'blue' });
 assert.deepEqual(parseTypedBindingSegment('hff;blue'), { alias: 'hff', searchTerm: 'blue' });
+assert.deepEqual(parseTypedBindingSegment('-pl;spacing'), { alias: '-pl', searchTerm: 'spacing' });
 
 // Dropdown selections with ";" binding input must also pass through untouched,
 // matching the "?" behavior (selection is resolved later per segment).

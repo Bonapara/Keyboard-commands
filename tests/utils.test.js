@@ -23,6 +23,8 @@ async function main() {
     getCommandSuggestions,
     isCommandAvailableForSelection,
     isCommandAvailableForSelectionWithContext,
+    resolveNumberValue,
+    searchStylesAndVariables,
   } = utils;
 
   assert.equal(calculateExpression('1 + 2 x 3'), '7');
@@ -184,6 +186,13 @@ async function main() {
   assert.equal(findCommand('ph')[0]?.name, 'PaddingHorizontal');
   assert.equal(findCommand('-pb')[0]?.name, 'PaddingExceptBottom');
   assert.equal(findCommand('lh').length, 0);
+
+  figma.currentPage.selection = [{ type: 'ELLIPSE' }];
+  assert.equal(findCommand('b')[0]?.name, 'Stroke');
+  assert.equal(findCommand('ba')[0]?.name, 'StrokeAll');
+  assert.equal(findCommand('bn')[0]?.name, 'StrokeNone');
+  assert.equal(findCommand('bl').length, 0);
+  assert.equal(findCommand('-bl').length, 0);
 
   figma.currentPage.selection = [
     { type: 'RECTANGLE', parent: { layoutMode: 'NONE' } },
@@ -437,6 +446,53 @@ async function main() {
     unrelatedPredicateCalls,
     0,
     'command suggestions should filter by typed text before running selection predicates'
+  );
+
+  const duplicateNameVariables = [
+    {
+      id: 'spacing-compact',
+      name: 'Spacing/M',
+      resolvedType: 'FLOAT',
+      variableCollectionId: 'collection-compact',
+      valuesByMode: { compact: 8 },
+    },
+    {
+      id: 'spacing-comfortable',
+      name: 'Spacing/M',
+      resolvedType: 'FLOAT',
+      variableCollectionId: 'collection-comfortable',
+      valuesByMode: { comfortable: 16 },
+    },
+  ];
+  const duplicateVariableStub = createFigmaStub({
+    localVariables: duplicateNameVariables,
+    localVariableCollections: [
+      { id: 'collection-compact', name: 'Compact' },
+      { id: 'collection-comfortable', name: 'Comfortable' },
+    ],
+  });
+  globalThis.figma = duplicateVariableStub.figma;
+
+  const duplicateSuggestions = await searchStylesAndVariables(
+    'Spacing/M',
+    { variables: ['FLOAT'] }
+  );
+  assert.equal(
+    duplicateSuggestions.length,
+    2,
+    'same-named variables from different collections should both be selectable'
+  );
+
+  const comfortableSuggestion = duplicateSuggestions.find(
+    suggestion => typeof suggestion !== 'string' &&
+      suggestion.name.includes('(Comfortable - Local)')
+  );
+  assert.ok(comfortableSuggestion, 'Comfortable collection variable should be suggested');
+  const comfortableResolution = await resolveNumberValue(comfortableSuggestion.data);
+  assert.equal(
+    comfortableResolution.variableId,
+    'spacing-comfortable',
+    'selection data should resolve the exact variable shown in the dropdown'
   );
 
   console.log('utils tests passed');

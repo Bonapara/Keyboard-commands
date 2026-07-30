@@ -155,6 +155,15 @@ export const NODE_GROUPS = {
     'VECTOR',
   ] as const,
 
+  /** Rectangular and frame-like nodes supporting independent side strokes */
+  INDIVIDUAL_STROKES: [
+    'COMPONENT',
+    'COMPONENT_SET',
+    'FRAME',
+    'INSTANCE',
+    'RECTANGLE',
+  ] as const,
+
   /** Nodes supporting corner radius (excludes GROUP, LINE, SLICE, SECTION, TEXT) */
   CORNER_RADIUS: [
     'BOOLEAN_OPERATION',
@@ -1123,10 +1132,25 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'in px (No value = toggle) ? variables',
     functionWithParam: (value: string) => impl.setBorder('all', value),
     functionWithoutParam: () => impl.toggleBorder('all'),
+    supportedNodes: [...NODE_GROUPS.FILLS_AND_STROKES],
     bindingSupport: {
       variables: ['FLOAT'],
       libraryStyles: true
     }
+  },
+  StrokeAll: {
+    type: "commandWithoutValue",
+    alias: ['ba'],
+    suggestion: 'Apply the current border to all sides without changing its color',
+    functionWithoutParam: () => impl.setBorderAll(),
+    supportedNodes: [...NODE_GROUPS.FILLS_AND_STROKES],
+  },
+  StrokeNone: {
+    type: "commandWithoutValue",
+    alias: ['bn'],
+    suggestion: 'Disable all border sides without removing the border color',
+    functionWithoutParam: () => impl.setBorderNone(),
+    supportedNodes: [...NODE_GROUPS.FILLS_AND_STROKES],
   },
   StrokeLeft: {
     type: "optionalValueCommand",
@@ -1135,6 +1159,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'border in px (No value = toggle) ? variables',
     functionWithParam: (value: string) => impl.setBorder('left', value),
     functionWithoutParam: () => impl.toggleBorder('left'),
+    supportedNodes: [...NODE_GROUPS.INDIVIDUAL_STROKES],
     bindingSupport: {
       variables: ['FLOAT'],
       libraryStyles: true
@@ -1147,6 +1172,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'border in px (No value = toggle) ? variables',
     functionWithParam: (value: string) => impl.setBorder('right', value),
     functionWithoutParam: () => impl.toggleBorder('right'),
+    supportedNodes: [...NODE_GROUPS.INDIVIDUAL_STROKES],
     bindingSupport: {
       variables: ['FLOAT'],
       libraryStyles: true
@@ -1159,6 +1185,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'border in px (No value = toggle) ? variables',
     functionWithParam: (value: string) => impl.setBorder('top', value),
     functionWithoutParam: () => impl.toggleBorder('top'),
+    supportedNodes: [...NODE_GROUPS.INDIVIDUAL_STROKES],
     bindingSupport: {
       variables: ['FLOAT'],
       libraryStyles: true
@@ -1171,6 +1198,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'border in px (No value = toggle) ? variables',
     functionWithParam: (value: string) => impl.setBorder('bottom', value),
     functionWithoutParam: () => impl.toggleBorder('bottom'),
+    supportedNodes: [...NODE_GROUPS.INDIVIDUAL_STROKES],
     bindingSupport: {
       variables: ['FLOAT'],
       libraryStyles: true
@@ -1183,6 +1211,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'border in px for all sides except left (No value = 0)',
     functionWithParam: (value: string) => impl.setBorderExcept('left', value),
     functionWithoutParam: () => impl.setBorderExcept('left', '0'),
+    supportedNodes: [...NODE_GROUPS.INDIVIDUAL_STROKES],
   },
   StrokeExceptRight: {
     type: "optionalValueCommand",
@@ -1191,6 +1220,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'border in px for all sides except right (No value = 0)',
     functionWithParam: (value: string) => impl.setBorderExcept('right', value),
     functionWithoutParam: () => impl.setBorderExcept('right', '0'),
+    supportedNodes: [...NODE_GROUPS.INDIVIDUAL_STROKES],
   },
   StrokeExceptTop: {
     type: "optionalValueCommand",
@@ -1199,6 +1229,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'border in px for all sides except top (No value = 0)',
     functionWithParam: (value: string) => impl.setBorderExcept('top', value),
     functionWithoutParam: () => impl.setBorderExcept('top', '0'),
+    supportedNodes: [...NODE_GROUPS.INDIVIDUAL_STROKES],
   },
   StrokeExceptBottom: {
     type: "optionalValueCommand",
@@ -1207,6 +1238,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'border in px for all sides except bottom (No value = 0)',
     functionWithParam: (value: string) => impl.setBorderExcept('bottom', value),
     functionWithoutParam: () => impl.setBorderExcept('bottom', '0'),
+    supportedNodes: [...NODE_GROUPS.INDIVIDUAL_STROKES],
   },
   StrokeColor: {
     type: "optionalValueCommand",
@@ -1215,6 +1247,7 @@ export const COMMAND_DEFINITIONS = {
     suggestion: 'HEX color or ?search for styles/variables',
     functionWithParam: (value: string) => impl.setBorderColor(value),
     functionWithoutParam: () => impl.toggleBorder('all'),
+    supportedNodes: [...NODE_GROUPS.FILLS_AND_STROKES],
     bindingSupport: {
       styles: ['PAINT'],
       variables: ['COLOR'],
@@ -1237,19 +1270,22 @@ export const COMMAND_DEFINITIONS = {
     type: "commandWithoutValue",
     alias: ['sac', 'scc'],
     suggestion: 'Stroke align center',
-    functionWithoutParam: () => impl.setBorderAlign('CENTER')
+    functionWithoutParam: () => impl.setBorderAlign('CENTER'),
+    supportedNodes: [...NODE_GROUPS.FILLS_AND_STROKES],
   },
   StrokeAlignInside: {
     type: "commandWithoutValue",
     alias: ['sti', 'bi'],
     suggestion: 'Stroke align inside',
-    functionWithoutParam: () => impl.setBorderAlign('INSIDE')
+    functionWithoutParam: () => impl.setBorderAlign('INSIDE'),
+    supportedNodes: [...NODE_GROUPS.FILLS_AND_STROKES],
   },
   StrokeAlignOutside: {
     type: "commandWithoutValue",
     alias: ['sto', 'bo'],
     suggestion: 'Stroke align outside',
-    functionWithoutParam: () => impl.setBorderAlign('OUTSIDE')
+    functionWithoutParam: () => impl.setBorderAlign('OUTSIDE'),
+    supportedNodes: [...NODE_GROUPS.FILLS_AND_STROKES],
   },
   SelectionColorsSwapping: {
     type: 'optionalValueCommand',

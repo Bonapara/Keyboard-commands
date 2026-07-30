@@ -87,6 +87,8 @@ Behavior:
 ## Stroke Width Commands
 
 - `st`, `b`: all sides
+- `ba`: apply the current border width to all sides while preserving its color/style
+- `bn`: disable all sides while preserving the border color/style
 - `stl`, `bl`: left side
 - `str`, `br`: right side
 - `stt`, `bt`: top side
@@ -107,6 +109,8 @@ Important nuance:
 No-value behavior:
 
 - `st` toggles the overall border on or off
+- `ba` uses the first visible side width, or `1px` when no side is active, and does not replace the existing stroke paint
+- `bn` sets every side to `0px` but keeps the stroke paint so `ba` can reactivate it without losing its color/style
 - side commands toggle just that side
 - except-side commands require a numeric value, e.g. `-br1` sets top, bottom, and left to `1` and leaves right unchanged
 
