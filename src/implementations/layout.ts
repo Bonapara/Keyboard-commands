@@ -5,7 +5,8 @@
 import type { NumberResolution } from '../types';
 import { clearNodeBoundVariables, resolveDelta, resolveNumberValue, resolveNumberVariable, setNodeBoundVariable } from '../utils';
 
-type ConvertibleAutoLayoutNode = FrameNode | ComponentNode;
+type ConvertibleAutoLayoutNode = FrameNode | ComponentNode | SlotNode;
+type InferredAutoLayoutNode = FrameNode | SlotNode;
 type PaddingSide = 'left' | 'right' | 'top' | 'bottom';
 type PaddingField = 'paddingLeft' | 'paddingRight' | 'paddingTop' | 'paddingBottom';
 type PaddingUpdate = Partial<Record<PaddingField, string>>;
@@ -41,7 +42,7 @@ type WrapTrack = {
 };
 
 function isConvertibleAutoLayoutNode(node: SceneNode): node is ConvertibleAutoLayoutNode {
-  return node.type === 'FRAME' || node.type === 'COMPONENT';
+  return node.type === 'FRAME' || node.type === 'COMPONENT' || node.type === 'SLOT';
 }
 
 function isPositionedSceneNode(node: SceneNode): node is PositionedSceneNode {
@@ -284,7 +285,7 @@ function getDominantGap(gaps: number[]) {
 }
 
 function applyGapToInferredLayout(
-  node: FrameNode,
+  node: InferredAutoLayoutNode,
   gap: string | undefined,
   resolution: NumberResolution,
   axis: 'PRIMARY' | 'COUNTER'
@@ -488,7 +489,12 @@ export function createAutoLayout(direction: 'HORIZONTAL' | 'VERTICAL' = 'HORIZON
 
     frame.layoutMode = direction;
     figma.currentPage.selection = [frame];
-    figma.notify(`Selected frame converted to ${direction.toLowerCase()} auto-layout`);
+    const nodeKind = frame.type === 'SLOT'
+      ? 'slot'
+      : frame.type === 'COMPONENT'
+        ? 'component'
+        : 'frame';
+    figma.notify(`Selected ${nodeKind} converted to ${direction.toLowerCase()} auto-layout`);
     return;
   }
 
@@ -789,11 +795,11 @@ export async function setTidyGap(gap?: string) {
 
   if (selection.length === 1) {
     const [node] = selection;
-    if (node.type === 'FRAME' && applyGapToInferredLayout(node, gap, resolution, 'PRIMARY')) {
+    if ((node.type === 'FRAME' || node.type === 'SLOT') && applyGapToInferredLayout(node, gap, resolution, 'PRIMARY')) {
       return;
     }
 
-    figma.notify('Selected frame must have an inferred row/column layout');
+    figma.notify('Selected frame or slot must have an inferred row/column layout');
     return;
   }
 
@@ -822,11 +828,11 @@ export async function setTidyRowGap(gap: string) {
 
   if (selection.length === 1) {
     const [node] = selection;
-    if (node.type === 'FRAME' && applyGapToInferredLayout(node, gap, resolution, 'COUNTER')) {
+    if ((node.type === 'FRAME' || node.type === 'SLOT') && applyGapToInferredLayout(node, gap, resolution, 'COUNTER')) {
       return;
     }
 
-    figma.notify('Selected frame must have an inferred wrap layout');
+    figma.notify('Selected frame or slot must have an inferred wrap layout');
     return;
   }
 
@@ -852,18 +858,19 @@ export function setLayout(mode: 'HORIZONTAL' | 'VERTICAL' | 'WRAP' | 'NONE') {
   }
 
   selection.forEach(node => {
-    if (node.type === 'FRAME') {
-      if (mode === 'WRAP') {
-        node.layoutMode = 'HORIZONTAL'; // Set to HORIZONTAL for WRAP
-        node.layoutWrap = 'WRAP';
-      } else {
-        node.layoutMode = mode as 'HORIZONTAL' | 'VERTICAL' | 'NONE';
-        node.layoutWrap = 'NO_WRAP';
-      }
-
-      figma.notify(`${mode.toLowerCase()} layout applied`);
-    } else {
-      console.warn('Selected item is not a frame:', node);
+    if (!('layoutMode' in node) || !('layoutWrap' in node)) {
+      console.warn('Selected item does not support auto-layout:', node);
+      return;
     }
+
+    if (mode === 'WRAP') {
+      node.layoutMode = 'HORIZONTAL';
+      node.layoutWrap = 'WRAP';
+    } else {
+      node.layoutMode = mode;
+      node.layoutWrap = 'NO_WRAP';
+    }
+
+    figma.notify(`${mode.toLowerCase()} layout applied`);
   });
 }

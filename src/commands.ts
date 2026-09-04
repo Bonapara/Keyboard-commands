@@ -83,7 +83,7 @@ function supportsFreeLayoutAlignment(selection: readonly SceneNode[]): boolean {
 function supportsTidySelection(selection: readonly SceneNode[]): boolean {
   if (selection.length === 1) {
     const [node] = selection;
-    return node.type === 'FRAME' && node.inferredAutoLayout !== null;
+    return (node.type === 'FRAME' || node.type === 'SLOT') && node.inferredAutoLayout !== null;
   }
 
   return selection.length >= 2 && sharesParent(selection) && selection.every(isPositionedNode);
@@ -114,6 +114,7 @@ export const NODE_GROUPS = {
     'POLYGON',
     'RECTANGLE',
     'SLICE',
+    'SLOT',
     'STAR',
     'TEXT',
     'VECTOR',
@@ -133,6 +134,7 @@ export const NODE_GROUPS = {
     'RECTANGLE',
     'SECTION',
     'SLICE',
+    'SLOT',
     'STAR',
     'TEXT',
     'VECTOR',
@@ -140,6 +142,24 @@ export const NODE_GROUPS = {
 
   /** Nodes supporting fills and strokes (excludes GROUP per Figma API) */
   FILLS_AND_STROKES: [
+    'BOOLEAN_OPERATION',
+    'COMPONENT',
+    'COMPONENT_SET',
+    'ELLIPSE',
+    'FRAME',
+    'INSTANCE',
+    'LINE',
+    'POLYGON',
+    'RECTANGLE',
+    'SECTION',
+    'SLOT',
+    'STAR',
+    'TEXT',
+    'VECTOR',
+  ] as const,
+
+  /** Nodes accepted by Figma boolean operations without destroying slot semantics */
+  BOOLEAN_OPERABLE: [
     'BOOLEAN_OPERATION',
     'COMPONENT',
     'COMPONENT_SET',
@@ -162,6 +182,7 @@ export const NODE_GROUPS = {
     'FRAME',
     'INSTANCE',
     'RECTANGLE',
+    'SLOT',
   ] as const,
 
   /** Nodes supporting corner radius (excludes GROUP, LINE, SLICE, SECTION, TEXT) */
@@ -174,6 +195,7 @@ export const NODE_GROUPS = {
     'INSTANCE',
     'POLYGON',
     'RECTANGLE',
+    'SLOT',
     'STAR',
     'VECTOR',
   ] as const,
@@ -184,6 +206,7 @@ export const NODE_GROUPS = {
     'COMPONENT_SET',
     'FRAME',
     'INSTANCE',
+    'SLOT',
   ] as const,
 
   /** Nodes supporting auto-layout padding */
@@ -218,6 +241,7 @@ export const NODE_GROUPS = {
     'RECTANGLE',
     'SECTION',
     'SLICE',
+    'SLOT',
     'STAR',
     'TEXT',
     'VECTOR',
@@ -496,7 +520,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['un', 'u'],
     suggestion: 'Union Selection',
     functionWithoutParam: () => impl.performBooleanOperation('UNION'),
-    supportedNodes: [...NODE_GROUPS.FILLS_AND_STROKES],
+    supportedNodes: [...NODE_GROUPS.BOOLEAN_OPERABLE],
     selectionPredicate: selection => selection.length >= 2,
   },
   Subtract: {
@@ -504,7 +528,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['su', 'sub'],
     suggestion: 'Subtract Selection',
     functionWithoutParam: () => impl.performBooleanOperation('SUBTRACT'),
-    supportedNodes: [...NODE_GROUPS.FILLS_AND_STROKES],
+    supportedNodes: [...NODE_GROUPS.BOOLEAN_OPERABLE],
     selectionPredicate: selection => selection.length >= 2,
   },
   Intersect: {
@@ -512,7 +536,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['in', 'int'],
     suggestion: 'Intersect Selection',
     functionWithoutParam: () => impl.performBooleanOperation('INTERSECT'),
-    supportedNodes: [...NODE_GROUPS.FILLS_AND_STROKES],
+    supportedNodes: [...NODE_GROUPS.BOOLEAN_OPERABLE],
     selectionPredicate: selection => selection.length >= 2,
   },
   Exclude: {
@@ -520,7 +544,7 @@ export const COMMAND_DEFINITIONS = {
     alias: ['ex'],
     suggestion: 'Exclude Selection',
     functionWithoutParam: () => impl.performBooleanOperation('EXCLUDE'),
-    supportedNodes: [...NODE_GROUPS.FILLS_AND_STROKES],
+    supportedNodes: [...NODE_GROUPS.BOOLEAN_OPERABLE],
     selectionPredicate: selection => selection.length >= 2,
   },
   Lock: {
@@ -1123,7 +1147,10 @@ export const COMMAND_DEFINITIONS = {
     type: "commandWithoutValue",
     alias: ['d'],
     suggestion: 'Duplicate Element',
-    functionWithoutParam: () => impl.duplicate()
+    functionWithoutParam: () => impl.duplicate(),
+    // SlotNode.clone() returns a plain FrameNode, so duplicating would silently
+    // strip the slot identity instead of producing another valid slot.
+    selectionPredicate: selection => selection.every(node => node.type !== 'SLOT'),
   },
   Stroke: {
     type: "optionalValueCommand",

@@ -4,7 +4,6 @@ import {
   findCommand,
   getCommandSuggestions,
   extractValue,
-  calculateExpression,
   createSelectionAvailabilityContext,
   isCommandAvailableForSelectionWithContext,
   type SelectionAvailabilityContext,
@@ -48,13 +47,8 @@ function findCommandIgnoringSelection(part: string): (typeof COMMANDS)[0] | unde
 
   const cmdLower = commandPart.toLowerCase();
 
-  const exactAlias = COMMANDS.find(cmd =>
-    cmd.alias.some(alias => alias.toLowerCase() === cmdLower)
-  );
-  if (exactAlias) return exactAlias;
-
-  const exactName = COMMANDS.find(cmd => cmd.name.toLowerCase() === cmdLower);
-  if (exactName) return exactName;
+  const exactMatch = findExactCommandIgnoringSelection(part);
+  if (exactMatch) return exactMatch;
 
   return COMMANDS.find(cmd =>
     cmd.name.toLowerCase().startsWith(cmdLower) ||
@@ -63,6 +57,20 @@ function findCommandIgnoringSelection(part: string): (typeof COMMANDS)[0] | unde
     cmd.name.toLowerCase().includes(cmdLower) ||
     cmd.alias.some(alias => alias.toLowerCase().includes(cmdLower))
   );
+}
+
+function findExactCommandIgnoringSelection(part: string): (typeof COMMANDS)[0] | undefined {
+  const commandPart = part.match(COMMAND_PART_REGEX)?.[0];
+  if (!commandPart) return undefined;
+
+  const cmdLower = commandPart.toLowerCase();
+
+  const exactAlias = COMMANDS.find(cmd =>
+    cmd.alias.some(alias => alias.toLowerCase() === cmdLower)
+  );
+  if (exactAlias) return exactAlias;
+
+  return COMMANDS.find(cmd => cmd.name.toLowerCase() === cmdLower);
 }
 
 function getSuggestionDataKey(item: string | { data: unknown }): string | null {
@@ -286,10 +294,10 @@ function trackCommandsFromSegment(
         commands[matchedCommand.name] = '';
       } else {
         const hasHex = VALUE_FORMAT_REGEX.hex.exec(part);
-        const hasNumber = VALUE_FORMAT_REGEX.number.exec(part);
+        const numberValue = extractValue(part, 'number');
         if (hasHex && matchedCommand.valueFormat === 'hex') {
           commands[matchedCommand.name] = hasHex[0];
-        } else if (hasNumber) {
+        } else if (numberValue !== null && matchedCommand.valueFormat === 'number') {
           // Preserve delta operator (e.g. "w+10" tracked as "+10") and
           // comma lists (e.g. "p20,30" tracked as "20,30").
           const deltaMatch = part.match(/^-?[\p{L}][\p{L}-]*\s*([+\-*/])\s*(-?\d+(?:\.\d+)?)\s*$/u);
@@ -299,12 +307,7 @@ function trackCommandsFromSegment(
           } else if (listMatch) {
             commands[matchedCommand.name] = listMatch[1];
           } else {
-            try {
-              const computedValue = calculateExpression(hasNumber[0]);
-              commands[matchedCommand.name] = computedValue.toString();
-            } catch {
-              commands[matchedCommand.name] = hasNumber[0];
-            }
+            commands[matchedCommand.name] = numberValue;
           }
         }
       }
@@ -592,8 +595,9 @@ async function handleNormalMode(
 
   const completeCommands = buildSuggestionSummary(previousCommands);
   const availabilityContext = getAvailabilityContext();
-  const matchedCommand = findCommand(currentPart, availabilityContext)[0];
-  const hasNumber = VALUE_FORMAT_REGEX.number.exec(currentPart);
+  const matchedCommand = findCommand(currentPart, availabilityContext)[0] ||
+    (Object.keys(previousCommands).length > 0 ? findExactCommandIgnoringSelection(currentPart) : undefined);
+  const numberValue = extractValue(currentPart, 'number');
   const hasHex = VALUE_FORMAT_REGEX.hex.exec(currentPart);
 
   if (matchedCommand) {
@@ -602,7 +606,7 @@ async function handleNormalMode(
       currentPart,
       completeCommands,
       previousCommands,
-      hasNumber,
+      numberValue,
       hasHex,
       result,
       availabilityContext
@@ -653,7 +657,7 @@ function handleMatchedCommand(
   currentPart: string,
   completeCommands: string[],
   previousCommands: Record<string, string>,
-  hasNumber: RegExpExecArray | null,
+  numberValue: string | null,
   hasHex: RegExpExecArray | null,
   result: ParameterInputEvent['result'],
   availabilityContext: SelectionAvailabilityContext
@@ -662,7 +666,7 @@ function handleMatchedCommand(
     (matchedCommand.type === "commandWithValue" || matchedCommand.type === "optionalValueCommand") &&
     'valueFormat' in matchedCommand && (
       matchedCommand.valueFormat === 'hex' ? hasHex :
-        matchedCommand.valueFormat === 'number' ? hasNumber : true
+        matchedCommand.valueFormat === 'number' ? numberValue !== null : true
     );
 
   const suggestions: string[] = [];
@@ -678,11 +682,11 @@ function handleMatchedCommand(
   }
 
   // Display computed values in suggestion
-  if (isValidValue && (hasHex || hasNumber)) {
+  if (isValidValue && (hasHex || numberValue !== null)) {
     if (matchedCommand.valueFormat === 'hex' && hasHex) {
       completeCommands.push(`${matchedCommand.name}:${hasHex[0]}`);
       suggestions[0] = completeCommands.join(' | ');
-    } else if (matchedCommand.valueFormat === 'number' && hasNumber) {
+    } else if (matchedCommand.valueFormat === 'number' && numberValue !== null) {
       // Preserve delta operator (e.g. "w+10" → "Width:+10") and comma lists
       // (e.g. "p20,30" → "Padding:20,30") so the summary round-trips correctly
       // through executeCommand's normalization.
@@ -693,11 +697,7 @@ function handleMatchedCommand(
       } else if (listMatch) {
         completeCommands.push(`${matchedCommand.name}:${listMatch[1]}`);
       } else {
-        try {
-          completeCommands.push(`${matchedCommand.name}:${calculateExpression(hasNumber[0])}`);
-        } catch {
-          completeCommands.push(`${matchedCommand.name}:${hasNumber[0]}`);
-        }
+        completeCommands.push(`${matchedCommand.name}:${numberValue}`);
       }
       suggestions[0] = completeCommands.join(' | ');
     }
@@ -911,6 +911,8 @@ async function executeCommand(cmd: string, skipNotification: boolean = false): P
       await command.functionWithoutParam();
     } else {
       const value = extractValue(cmd, command.valueFormat as ValueFormat);
+      const commandPart = cmd.match(COMMAND_PART_REGEX)?.[0];
+      const hasExplicitValue = !!commandPart && cmd.slice(commandPart.length).trim().length > 0;
 
       if (command.type === 'commandWithValue') {
         if (!value) {
@@ -921,6 +923,9 @@ async function executeCommand(cmd: string, skipNotification: boolean = false): P
       } else if (command.type === 'optionalValueCommand') {
         if (value) {
           await command.functionWithParam(value);
+        } else if (hasExplicitValue) {
+          figma.notify(`Invalid value for ${command.name}`);
+          return;
         } else {
           await command.functionWithoutParam();
         }

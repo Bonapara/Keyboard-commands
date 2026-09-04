@@ -145,10 +145,25 @@ export function duplicate() {
   const newSelection: SceneNode[] = [];
   for (const node of selection) {
     if (node.type === 'SLOT') continue;
+
+    const originalParent = node.parent;
+    const originalIndex = originalParent?.children.indexOf(node) ?? -1;
+    const originalX = 'x' in node ? node.x : null;
+    const originalY = 'y' in node ? node.y : null;
     const clone = node.clone();
-    if ('x' in clone && 'y' in clone) {
-      clone.x += DUPLICATE_OFFSET;
-      clone.y += DUPLICATE_OFFSET;
+
+    if (originalParent && originalIndex >= 0) {
+      try {
+        originalParent.insertChild(originalIndex + 1, clone);
+      } catch (error) {
+        clone.remove();
+        throw error;
+      }
+    }
+
+    if ('x' in clone && 'y' in clone && originalX !== null && originalY !== null) {
+      clone.x = originalX + DUPLICATE_OFFSET;
+      clone.y = originalY + DUPLICATE_OFFSET;
     }
     newSelection.push(clone);
   }

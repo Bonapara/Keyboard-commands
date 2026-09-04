@@ -13,6 +13,12 @@ function createReorderableParent({
     itemReverseZIndex,
     children: [],
     insertChild(index, node) {
+      if (node.parent && node.parent !== this && Array.isArray(node.parent.children)) {
+        const previousIndex = node.parent.children.indexOf(node);
+        if (previousIndex !== -1) {
+          node.parent.children.splice(previousIndex, 1);
+        }
+      }
       const currentIndex = this.children.indexOf(node);
       if (currentIndex !== -1) {
         this.children.splice(currentIndex, 1);
@@ -43,7 +49,7 @@ async function main() {
   const { figma, notifications } = createFigmaStub();
   globalThis.figma = figma;
 
-  const { selectParent, selectChildren, reorderLayer } = await import('../src/implementations/selection.ts');
+  const { duplicate, selectParent, selectChildren, reorderLayer } = await import('../src/implementations/selection.ts');
 
   const page = { id: 'page', type: 'PAGE', name: 'Page' };
 
@@ -99,6 +105,54 @@ async function main() {
     'selectChildren should leave non-container selections unchanged'
   );
   assert.equal(notifications.at(-1)?.message, 'Selection has no children');
+
+  notifications.length = 0;
+
+  const duplicatePage = { id: 'duplicate-page', type: 'PAGE', children: [] };
+  const duplicateParent = createReorderableParent();
+  duplicateParent.parent = duplicatePage;
+  const beforeDuplicate = createReorderChild('before-duplicate', duplicateParent);
+  const nestedNode = {
+    id: 'nested-node',
+    type: 'RECTANGLE',
+    name: 'Nested Node',
+    parent: duplicateParent,
+    x: 20,
+    y: 30,
+    clone() {
+      const clone = {
+        id: 'nested-node-copy',
+        type: 'RECTANGLE',
+        name: 'Nested Node',
+        parent: duplicatePage,
+        x: this.x,
+        y: this.y,
+        remove() {
+          const index = this.parent.children.indexOf(this);
+          if (index !== -1) this.parent.children.splice(index, 1);
+        },
+      };
+      duplicatePage.children.push(clone);
+      return clone;
+    },
+  };
+  const afterDuplicate = createReorderChild('after-duplicate', duplicateParent);
+  resetChildren(duplicateParent, [beforeDuplicate, nestedNode, afterDuplicate]);
+  figma.currentPage.selection = [nestedNode];
+
+  duplicate();
+
+  const duplicatedNode = figma.currentPage.selection[0];
+  assert.deepEqual(
+    childIds(duplicateParent),
+    ['before-duplicate', 'nested-node', 'nested-node-copy', 'after-duplicate'],
+    'duplicate should remain beside the source node in its original parent'
+  );
+  assert.equal(duplicatedNode.parent, duplicateParent);
+  assert.equal(duplicatedNode.x, 30);
+  assert.equal(duplicatedNode.y, 40);
+  assert.deepEqual(duplicatePage.children, []);
+  assert.equal(notifications.at(-1)?.message, 'Duplicated selection');
 
   const normalParent = createReorderableParent({ layoutMode: 'HORIZONTAL' });
   const normalA = createReorderChild('normal-a', normalParent);

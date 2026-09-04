@@ -553,15 +553,8 @@ export function clipContent() {
   }
 
   for (const node of selection) {
-    switch (node.type) {
-      case 'COMPONENT':
-      case 'COMPONENT_SET':
-      case 'FRAME':
-      case 'INSTANCE':
-        if ('clipsContent' in node) {
-          (node as FrameNode).clipsContent = !(node as FrameNode).clipsContent;
-        }
-        break;
+    if ('clipsContent' in node) {
+      node.clipsContent = !node.clipsContent;
     }
   }
 }

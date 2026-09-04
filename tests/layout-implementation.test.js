@@ -51,8 +51,9 @@ async function main() {
   const { figma, notifications } = createFigmaStub();
   globalThis.figma = figma;
 
-  const { createAutoLayout, layoutSizing, setPadding, setPaddingExcept, setPrimaryGap, setCounterGap, setTidyGap, setTidyRowGap } = await import('../src/implementations/layout.ts');
+  const { createAutoLayout, layoutSizing, setLayout, setPadding, setPaddingExcept, setPrimaryGap, setCounterGap, setTidyGap, setTidyRowGap } = await import('../src/implementations/layout.ts');
   const { smartAlign } = await import('../src/implementations/alignment.ts');
+  const { clipContent } = await import('../src/implementations/styling.ts');
 
   const paddingNode = {
     type: 'FRAME',
@@ -487,6 +488,43 @@ async function main() {
   assert.deepEqual(selectedFrame.fills, [{ type: 'SOLID' }]);
   assert.deepEqual(figma.currentPage.selection, [selectedFrame]);
   assert.equal(notifications.at(-1)?.message, 'Selected frame converted to horizontal auto-layout');
+
+  notifications.length = 0;
+
+  const selectedSlot = {
+    ...createFrameNode({
+      x: 40,
+      y: 20,
+      width: 200,
+      height: 100,
+      parent: page,
+    }),
+    type: 'SLOT',
+    layoutWrap: 'NO_WRAP',
+    clipsContent: false,
+  };
+  const lowerSlotChild = createNode({ x: 12, y: 70, width: 40, height: 20, parent: selectedSlot });
+  const upperSlotChild = createNode({ x: 12, y: 20, width: 40, height: 20, parent: selectedSlot });
+  selectedSlot.children = [lowerSlotChild, upperSlotChild];
+  page.children = [selectedSlot];
+  figma.currentPage.selection = [selectedSlot];
+
+  createAutoLayout('VERTICAL');
+
+  assert.equal(selectedSlot.layoutMode, 'VERTICAL');
+  assert.equal(selectedSlot.itemSpacing, 30);
+  assert.deepEqual(selectedSlot.children, [upperSlotChild, lowerSlotChild]);
+  assert.deepEqual(page.children, [selectedSlot]);
+  assert.deepEqual(figma.currentPage.selection, [selectedSlot]);
+  assert.equal(notifications.at(-1)?.message, 'Selected slot converted to vertical auto-layout');
+
+  setLayout('WRAP');
+  assert.equal(selectedSlot.layoutMode, 'HORIZONTAL');
+  assert.equal(selectedSlot.layoutWrap, 'WRAP');
+  assert.equal(notifications.at(-1)?.message, 'wrap layout applied');
+
+  clipContent();
+  assert.equal(selectedSlot.clipsContent, true);
 
   console.log('layout implementation tests passed');
 }

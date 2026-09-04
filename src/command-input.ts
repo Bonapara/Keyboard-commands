@@ -18,6 +18,10 @@ function extractCommandNameFromSuggestion(selectedValue: string): string | null 
   return commandNameMatch ? commandNameMatch[1] : null;
 }
 
+function isInformationalSuggestion(selectedValue: string): boolean {
+  return /^No\b/.test(selectedValue) || /^'.+' not available on selection$/.test(selectedValue);
+}
+
 export function applyDropdownSelection(
   originalInput: string,
   selectedValue: string | undefined,
@@ -26,6 +30,12 @@ export function applyDropdownSelection(
   const trimmedInput = originalInput.trim();
 
   if (!selectedValue || selectedValue === trimmedInput) {
+    return trimmedInput;
+  }
+
+  // Figma can submit the highlighted informational row when Enter is pressed.
+  // Never let status text replace typed input and become a fuzzy command chain.
+  if (isInformationalSuggestion(selectedValue)) {
     return trimmedInput;
   }
 

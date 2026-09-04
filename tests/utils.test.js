@@ -44,6 +44,9 @@ async function main() {
   assert.equal(extractValue('w+10', 'number'), '+10');
   assert.equal(extractValue('p20,30', 'number'), '20,30');
   assert.equal(extractValue('w 1 + 2 x 3', 'number'), '7');
+  assert.equal(extractValue('b#111111', 'number'), null);
+  assert.equal(extractValue('w12pixels', 'number'), null);
+  assert.equal(extractValue('Width:100', 'number'), '100');
   assert.equal(extractValue('bc Source : Target', 'string'), 'Source : Target');
   assert.equal(extractValue('rio Button -> Fill', 'string'), 'Button -> Fill');
   assert.equal(extractValue('ip State:Active', 'string'), 'State:Active');
@@ -181,11 +184,53 @@ async function main() {
   assert.equal(findCommand('fs')[0]?.name, 'FontSize');
   assert.equal(findCommand('swp').length, 0);
 
-  figma.currentPage.selection = [{ type: 'SLOT', layoutMode: 'HORIZONTAL' }];
+  const slotParent = { type: 'COMPONENT', layoutMode: 'NONE' };
+  const slotNode = {
+    type: 'SLOT',
+    layoutMode: 'HORIZONTAL',
+    layoutWrap: 'NO_WRAP',
+    layoutGrids: [],
+    inferredAutoLayout: {
+      layoutMode: 'HORIZONTAL',
+      layoutWrap: 'NO_WRAP',
+    },
+    constraints: { horizontal: 'MIN', vertical: 'MIN' },
+    children: [{ type: 'RECTANGLE' }],
+    parent: slotParent,
+  };
+  figma.currentPage.selection = [slotNode];
   assert.equal(findCommand('p')[0]?.name, 'Padding');
   assert.equal(findCommand('ph')[0]?.name, 'PaddingHorizontal');
   assert.equal(findCommand('-pb')[0]?.name, 'PaddingExceptBottom');
-  assert.equal(findCommand('lh').length, 0);
+  assert.equal(findCommand('f')[0]?.name, 'Fill');
+  assert.equal(findCommand('b')[0]?.name, 'Stroke');
+  assert.equal(findCommand('r')[0]?.name, 'RadiusAll');
+  assert.equal(findCommand('w')[0]?.name, 'Width');
+  assert.equal(findCommand('mt')[0]?.name, 'MoveTop');
+  assert.equal(findCommand('de')[0]?.name, 'Delete');
+  assert.equal(findCommand('rsl')[0]?.name, 'ResetSlot');
+  assert.equal(findCommand('sc')[0]?.name, 'SelectChildren');
+  assert.equal(findCommand('alh')[0]?.name, 'AutoLayout');
+  assert.equal(findCommand('ra')[0]?.name, 'RemoveAutoLayout');
+  assert.equal(findCommand('lh')[0]?.name, 'LayoutHorizontal');
+  assert.equal(findCommand('lw')[0]?.name, 'LayoutWrap');
+  assert.equal(findCommand('lg')[0]?.name, 'LayoutGrid');
+  assert.equal(findCommand('c')[0]?.name, 'ClipContent');
+  assert.equal(findCommand('g')[0]?.name, 'Gap');
+  assert.equal(findCommand('tg')[0]?.name, 'TidyGap');
+  assert.equal(findCommand('m')[0]?.name, 'Mask');
+  assert.equal(findCommand('ro')[0]?.name, 'Rotate');
+  assert.equal(findCommand('rtl')[0]?.name, 'RadiusTopLeft');
+  assert.equal(findCommand('bl')[0]?.name, 'StrokeLeft');
+  assert.equal(findCommand('ba')[0]?.name, 'StrokeAll');
+  assert.equal(findCommand('bc')[0]?.name, 'StrokeColor');
+  assert.equal(findCommand('bi')[0]?.name, 'StrokeAlignInside');
+  assert.equal(findCommand('sfs')[0]?.name, 'SwapFillStroke');
+  assert.equal(findCommand('cl')[0]?.name, 'ConstraintLeft');
+  assert.equal(findCommand('d').length, 0);
+
+  figma.currentPage.selection = [slotNode, { ...slotNode, parent: slotParent }];
+  assert.equal(findCommand('u').length, 0);
 
   figma.currentPage.selection = [{ type: 'ELLIPSE' }];
   assert.equal(findCommand('b')[0]?.name, 'Stroke');

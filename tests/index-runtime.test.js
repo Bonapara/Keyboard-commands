@@ -117,11 +117,28 @@ export const COMMANDS = [
     functionWithoutParam: () => impl.selectChildren(),
   },
   {
+    name: 'ParentOnly',
+    alias: ['po'],
+    type: 'commandWithoutValue',
+    suggestion: 'Only available after selecting the parent',
+    functionWithoutParam: () => impl.recordCommand('ParentOnly', null),
+    selectionPredicate: (selection) => selection.every((node) => node.id === 'parent'),
+  },
+  {
     name: 'StrokeBottom',
     alias: ['stb', 'bb'],
     type: 'commandWithoutValue',
     suggestion: 'Toggle bottom stroke',
     functionWithoutParam: () => impl.recordCommand('StrokeBottom', null),
+  },
+  {
+    name: 'Stroke',
+    alias: ['b'],
+    type: 'optionalValueCommand',
+    valueFormat: 'number',
+    suggestion: 'Optional stroke width',
+    functionWithoutParam: () => impl.recordCommand('Stroke', null),
+    functionWithParam: (value) => impl.recordCommand('Stroke', value),
   },
   {
     name: 'StrokeRight',
@@ -281,7 +298,7 @@ export function extractValue(text, format) {
     const candidate = text.includes(' ')
       ? text.slice(text.indexOf(' ') + 1).trim()
       : text.replace(/^[A-Za-z]+/, '').trim();
-    const match = candidate.match(/[-+*/]?\\s*-?\\d+(?:\\.\\d+)?(?:,-?\\d+(?:\\.\\d+)?)*(?:%?)?$/);
+    const match = candidate.match(/^[-+*/]?\\s*-?\\d+(?:\\.\\d+)?(?:,-?\\d+(?:\\.\\d+)?)*(?:%?)?$/);
     return match ? match[0].replace(/\\s+/g, '') : null;
   }
 
@@ -748,6 +765,49 @@ async function main() {
     ],
     'child and parent traversal commands should compose sequentially inside a single chain'
   );
+
+  resetHarness(runtime, harness);
+
+  runtime.figma.currentPage.selection = [child];
+  const futureSelectionSuggestions = await runtime.input('sp po');
+  assert.equal(
+    futureSelectionSuggestions[0],
+    'SelectParent | ParentOnly',
+    'an exact command later in a chain should remain executable when an earlier command can make it available'
+  );
+  await runtime.run();
+
+  assert.deepEqual(
+    harness.implStub.executionCalls,
+    [{ name: 'ParentOnly', value: null }],
+    'state-dependent commands should execute against the selection produced by earlier chain steps'
+  );
+
+  resetHarness(runtime, harness);
+
+  await runtime.input('w100  p24');
+  await runtime.run('No command found for "p24"');
+
+  assert.deepEqual(
+    harness.implStub.executionCalls,
+    [
+      { name: 'Width', value: '100' },
+      { name: 'Padding', value: '24', selection: [] },
+    ],
+    'informational autocomplete rows should never replace and corrupt the typed command chain'
+  );
+
+  resetHarness(runtime, harness);
+
+  await runtime.input('b#111111');
+  await runtime.run();
+
+  assert.deepEqual(
+    harness.implStub.executionCalls,
+    [],
+    'malformed explicit values should not fall back to the optional command default'
+  );
+  assert.equal(runtime.notifications.at(-1)?.message, 'Invalid value for Stroke');
 
   resetHarness(runtime, harness);
 

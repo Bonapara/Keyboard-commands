@@ -446,7 +446,13 @@ export function extractValue(text: string, format: ValueFormat): string | null {
   // back to Number(), which silently ignores leading "+" and treats "-N" as
   // a negative absolute (matching prior behavior).
   if (format === 'number') {
-    const deltaMatch = text.match(/^-?[\p{L}][\p{L}-]*\s*([+\-*/])\s*(-?\d+(?:\.\d+)?)\s*$/u);
+    const commandPart = text.match(COMMAND_PART_REGEX)?.[0];
+    let numericInput = commandPart ? text.slice(commandPart.length).trim() : text.trim();
+    if (numericInput.startsWith(':')) {
+      numericInput = numericInput.slice(1).trim();
+    }
+
+    const deltaMatch = numericInput.match(/^([+\-*/])\s*(-?\d+(?:\.\d+)?)$/);
     if (deltaMatch) {
       return `${deltaMatch[1]}${deltaMatch[2]}`;
     }
@@ -454,9 +460,21 @@ export function extractValue(text: string, format: ValueFormat): string | null {
     // Detect "<alias><n>,<n>(,<n>)*" comma-separated list (e.g. "p20,30",
     // "r10,20,30,40"). Returned as the raw "20,30" string so multi-value
     // commands can split it via parseNumberList().
-    const listMatch = text.match(/^-?[\p{L}][\p{L}-]*\s*(-?\d+(?:\.\d+)?(?:,-?\d+(?:\.\d+)?)+)\s*$/u);
+    const listMatch = numericInput.match(/^(-?\d+(?:\.\d+)?(?:,-?\d+(?:\.\d+)?)+)$/);
     if (listMatch) {
       return listMatch[1];
+    }
+
+    // Validate the complete value. This prevents malformed inputs such as
+    // "b#111111" from silently extracting 111111 and applying it as a number.
+    if (!VALUE_FORMAT_REGEX.number.test(numericInput)) {
+      return null;
+    }
+
+    try {
+      return calculateExpression(numericInput);
+    } catch {
+      return null;
     }
   }
 
@@ -516,16 +534,6 @@ export function extractValue(text: string, format: ValueFormat): string | null {
   if (format === 'hex') {
     const value = match[0];
     return value.startsWith('#') ? value : `#${value}`;
-  }
-
-  if (format === 'number') {
-    const expression = match[0];
-    try {
-      const result = calculateExpression(expression);
-      return result.toString();
-    } catch {
-      return expression;
-    }
   }
 
   return match[0];

@@ -66,6 +66,16 @@ assert.equal(
 );
 
 assert.equal(
+  applyDropdownSelection('ra  lgc4  lgr3  lgg12  lgm8', 'No command found for "lgm8"', isKnownCommand),
+  'ra  lgc4  lgr3  lgg12  lgm8'
+);
+
+assert.equal(
+  applyDropdownSelection('sc  d', "'Duplicate' not available on selection", isKnownCommand),
+  'sc  d'
+);
+
+assert.equal(
   applyDropdownSelection('', 'Width:100', isKnownCommand),
   'Width:100'
 );

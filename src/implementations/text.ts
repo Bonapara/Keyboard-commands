@@ -106,6 +106,68 @@ export async function setFontSize(size: string) {
   figma.notify(`Font size set to ${size}`);
 }
 
+const FONT_WEIGHT_STYLE_NAMES: Record<number, string[]> = {
+  100: ['Thin', 'Hairline'],
+  200: ['Extra Light', 'Ultra Light', 'ExtraLight', 'UltraLight'],
+  300: ['Light'],
+  400: ['Regular', 'Normal', 'Book'],
+  500: ['Medium'],
+  600: ['Semi Bold', 'Demi Bold', 'SemiBold', 'DemiBold'],
+  700: ['Bold'],
+  800: ['Extra Bold', 'Ultra Bold', 'ExtraBold', 'UltraBold'],
+  900: ['Black', 'Heavy'],
+};
+
+function normalizeFontStyleName(style: string): string {
+  return style.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function getFontWeightStyleCandidates(weight: number, currentStyle: string): string[] {
+  const baseNames = [...FONT_WEIGHT_STYLE_NAMES[weight], weight.toString()];
+  const normalizedCurrentStyle = normalizeFontStyleName(currentStyle);
+  const slant = normalizedCurrentStyle.includes('italic')
+    ? 'Italic'
+    : normalizedCurrentStyle.includes('oblique')
+      ? 'Oblique'
+      : null;
+
+  if (!slant) return baseNames;
+
+  const slantedNames = baseNames.flatMap(name => [`${name} ${slant}`, `${name}${slant}`]);
+  return weight === 400 ? [slant, ...slantedNames] : slantedNames;
+}
+
+async function resolveFontWeightVariant(
+  currentFont: FontName,
+  weight: number,
+  availableFonts: readonly Font[]
+): Promise<FontName> {
+  const candidates = getFontWeightStyleCandidates(weight, currentFont.style);
+  const normalizedCandidates = new Set(candidates.map(normalizeFontStyleName));
+  const availableMatch = availableFonts
+    .map(font => font.fontName)
+    .find(fontName =>
+      fontName.family.toLowerCase() === currentFont.family.toLowerCase() &&
+      normalizedCandidates.has(normalizeFontStyleName(fontName.style))
+    );
+
+  const attempts = availableMatch
+    ? [availableMatch]
+    : candidates.map(style => ({ family: currentFont.family, style }));
+  let lastError: unknown = new Error(`No ${weight} weight found for ${currentFont.family}`);
+
+  for (const fontName of attempts) {
+    try {
+      await figma.loadFontAsync(fontName);
+      return fontName;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError;
+}
+
 export async function setFontWeight(weight: string) {
   const selection = figma.currentPage.selection;
   if (selection.length === 0) {
@@ -117,23 +179,52 @@ export async function setFontWeight(weight: string) {
     throw new Error('Please provide a valid font weight (100-900 in steps of 100)');
   }
 
-  for (const node of selection) {
-    if (node.type === 'TEXT' && node.fontName !== figma.mixed) {
-      try {
-        const currentFont = node.fontName as FontName;
-        const newFontName = {
-          family: currentFont.family,
-          style: fontWeight.toString()
-        };
+  const textNodes = selection.filter((node): node is TextNode => node.type === 'TEXT');
+  if (textNodes.length === 0) {
+    throw new Error('No text layers selected');
+  }
 
-        await figma.loadFontAsync(newFontName);
-        node.fontName = newFontName;
-      } catch (error) {
-        console.error('Error loading font weight:', error);
-        figma.notify(`Failed to set font weight for "${node.name}" - weight ${fontWeight} may not be available`);
+  let availableFonts: readonly Font[] = [];
+  try {
+    availableFonts = await figma.listAvailableFontsAsync();
+  } catch (error) {
+    console.warn('Could not list available fonts; falling back to standard weight names:', error);
+  }
+
+  const failures: string[] = [];
+  let updatedCount = 0;
+
+  for (const node of textNodes) {
+    try {
+      if (node.fontName !== figma.mixed) {
+        node.fontName = await resolveFontWeightVariant(node.fontName, fontWeight, availableFonts);
+      } else {
+        const segments = node.getStyledTextSegments(['fontName']);
+        const resolvedSegments = await Promise.all(segments.map(async segment => ({
+          ...segment,
+          resolvedFont: await resolveFontWeightVariant(segment.fontName, fontWeight, availableFonts),
+        })));
+
+        for (const segment of resolvedSegments) {
+          node.setRangeFontName(segment.start, segment.end, segment.resolvedFont);
+        }
       }
+      updatedCount += 1;
+    } catch (error) {
+      console.error('Error loading font weight:', error);
+      failures.push(node.name);
     }
   }
+
+  if (updatedCount === 0) {
+    throw new Error(`Font weight ${fontWeight} is not available for the selected text`);
+  }
+
+  if (failures.length > 0) {
+    figma.notify(`Font weight set to ${fontWeight} on ${updatedCount} layer${updatedCount === 1 ? '' : 's'}; failed on ${failures.length}`);
+    return;
+  }
+
   figma.notify(`Font weight set to ${fontWeight}`);
 }
 
