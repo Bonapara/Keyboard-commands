@@ -830,13 +830,13 @@ async function executeCommand(cmd: string, skipNotification: boolean = false): P
         }
         await command.functionWithParam(value);
       } else if (command.type === 'optionalValueCommand') {
-        if (value) {
+        if (!hasExplicitValue) {
+          await command.functionWithoutParam();
+        } else if (value) {
           await command.functionWithParam(value);
-        } else if (hasExplicitValue) {
+        } else {
           figma.notify(`Invalid value for ${command.name}`);
           return;
-        } else {
-          await command.functionWithoutParam();
         }
       }
     }

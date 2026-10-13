@@ -161,6 +161,15 @@ export const COMMANDS = [
     functionWithoutParam: () => impl.recordCommand('StrokeTop', null),
   },
   {
+    name: 'Effect',
+    alias: ['e'],
+    type: 'optionalValueCommand',
+    valueFormat: 'string',
+    suggestion: 'Apply effect style (No value = remove)',
+    functionWithoutParam: () => impl.recordCommand('RemoveEffect', null),
+    functionWithParam: (value) => impl.recordCommand('Effect', value),
+  },
+  {
     name: 'SelectionColorsSwapping',
     alias: ['scs', 'cs'],
     type: 'optionalValueCommand',
@@ -323,6 +332,9 @@ export function extractValue(text, format) {
     const match = text.match(/#[0-9a-fA-F]{0,6}/);
     return match ? match[0] : null;
   }
+
+  // Like the real one, a bare alias comes back as its own value ("e" → "e").
+  if (/^[A-Za-z]+$/.test(text.trim())) return text.trim();
 
   const value = text.includes(' ')
     ? text.slice(text.indexOf(' ') + 1).trim()
@@ -608,6 +620,15 @@ function resetHarness(runtime, harness) {
 async function main() {
   const runtime = createRuntimeFigmaStub();
   const harness = await loadIndexHarness(runtime.figma);
+
+  for (const useSuggestion of [false, true]) {
+    resetHarness(runtime, harness);
+    runtime.figma.currentPage.selection = [{ id: 'frame', type: 'FRAME' }];
+    const suggestions = await runtime.input('e');
+    await runtime.run(useSuggestion ? suggestions[0] : 'e');
+    assert.deepEqual(harness.implStub.executionCalls, [{ name: 'RemoveEffect', value: null }],
+      'bare e removes effects, including when accepting the highlighted suggestion');
+  }
 
   resetHarness(runtime, harness);
   harness.historyStub.__setHistory(['w100', 'cs;old : targ']);
