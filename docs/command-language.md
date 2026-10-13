@@ -148,6 +148,7 @@ The typed parser is stricter:
 
 - it requires whitespace before the binding alias when a prefix exists
 - it avoids ambiguous suggestion mode for mashed input like `w100f?blue`
+- it searches for the last binding in the segment, so `f?white bc;red` suggests stroke colors for `red`
 
 The execution parser is more lenient:
 
@@ -159,7 +160,9 @@ The execution planner splits inner bindings, so this works:
 
 - `f?white bc;red`
 
-Without that split, the second binding would be swallowed into the first search term. This behavior is explicitly tested in `tests/command-input.test.js`.
+Without that split, the second binding would be swallowed into the first search term.
+
+Past the first binding of a segment, only a word that is an exact binding alias (`f`, `bc`, `ip`, …) starts a new binding. Any other `?` or `;` belongs to the value, so `ip?Label:Delete item?` sets the label to `Delete item?`. Both parsers follow this rule; it is tested in `tests/command-input.test.js` and `tests/index-runtime.test.js`.
 
 ## Binding Suggestion Sources
 
@@ -217,6 +220,7 @@ Important details:
 - numeric matches show computed values in the suggestion summary
 - command suggestions are display strings, not executable command text
 - binding suggestions use `data` as the canonical execution value
+- when a binding search only produces a status row ("No components found…"), it is shown with `setError`, so Enter cannot submit it; a status row is never run as a value
 
 ### Dropdown selection behavior
 
@@ -247,20 +251,6 @@ History also powers:
 
 - the `hi` command suggestions
 - the recent-sequence suggestions shown when the command input is completely empty
-
-## Recent Values
-
-Binding commands can surface per-command recent values.
-
-Rules:
-
-- stored per command name, not globally
-- max `5` recent values per command
-- duplicates are moved to the front
-- instance-property comma chains are split and stored pair-by-pair
-
-Recent values are intentionally skipped for library toggles because library suggestions are action lists, not value histories.
-They are also skipped for style, variable, and selection-color searches so binding mode only shows currently resolvable catalog results.
 
 ## Search Matching Rules
 

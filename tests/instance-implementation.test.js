@@ -248,6 +248,7 @@ async function main() {
     setInstanceProperty,
     stripInstancePropertyVariantGroupToken,
   } = await import('../src/implementations/instance.ts');
+  const { ICONS } = await import('../src/implementations/suggestion-icons.ts');
 
   const compatible = createCompatibleStateSelection();
   figma.currentPage.selection = [compatible.header, compatible.cellA, compatible.cellB];
@@ -255,11 +256,11 @@ async function main() {
   const sharedSuggestions = await searchInstanceProperties('');
   const sharedSuggestionNames = sharedSuggestions.map(suggestionName);
   assert.ok(
-    sharedSuggestionNames.some(name => name.startsWith('State:')),
+    sharedSuggestionNames.some(name => name.startsWith('State ')),
     'shared variant properties should be shown for multi-selection'
   );
   assert.ok(
-    sharedSuggestionNames.every(name => !name.startsWith('Tone:') && !name.startsWith('Density:')),
+    sharedSuggestionNames.every(name => !name.startsWith('Tone ') && !name.startsWith('Density ')),
     'multi-selection suggestions should hide properties that are not shared by every selected instance'
   );
 
@@ -273,7 +274,7 @@ async function main() {
     { 'State#1:1': 'Selected', 'Tone#1:2': 'Low' },
     'direct variant updates should preserve other current variant values on the same instance'
   );
-  assert.equal(notifications.at(-1)?.message, 'Set "State" to "Selected" on 3 instances');
+  assert.equal(notifications.at(-1)?.message, 'State → Selected on 3 instances');
 
   notifications.length = 0;
 
@@ -298,14 +299,14 @@ async function main() {
   const duplicate = createSingleRootWithDuplicateExposedState();
   figma.currentPage.selection = [duplicate.wrapper];
   const duplicateSuggestions = await searchInstanceProperties('State:');
-  const selectedSuggestions = duplicateSuggestions.filter(item => suggestionName(item).includes('State:Selected'));
+  const selectedSuggestions = duplicateSuggestions.filter(item => suggestionName(item).includes('State → Selected'));
 
   assert.equal(selectedSuggestions.length, 2, 'single-root duplicate State option sets should surface as separate suggestions');
   assert.deepEqual(
     selectedSuggestions.map(suggestionName).sort(),
     [
-      'duplicate-exposed-cell -> State:Selected',
-      'duplicate-exposed-header -> State:Selected',
+      'duplicate-exposed-cell › State → Selected',
+      'duplicate-exposed-header › State → Selected',
     ],
     'duplicate-looking nested options should be disambiguated by their instance name prefix'
   );
@@ -322,7 +323,7 @@ async function main() {
   const cellOnly = createSingleRootWithDuplicateExposedState();
   figma.currentPage.selection = [cellOnly.wrapper];
   const cellOnlySuggestions = await searchInstanceProperties('State:');
-  const cellSelected = cellOnlySuggestions.find(item => suggestionName(item) === 'duplicate-exposed-cell -> State:Selected');
+  const cellSelected = cellOnlySuggestions.find(item => suggestionName(item) === 'duplicate-exposed-cell › State → Selected');
   assert.ok(cellSelected, 'expected a cell-only State suggestion');
 
   await setInstanceProperty(String(suggestionData(cellSelected)));
@@ -335,7 +336,7 @@ async function main() {
   const headerOnly = createSingleRootWithDuplicateExposedState();
   figma.currentPage.selection = [headerOnly.wrapper];
   const headerOnlySuggestions = await searchInstanceProperties('State:');
-  const headerSelected = headerOnlySuggestions.find(item => suggestionName(item) === 'duplicate-exposed-header -> State:Selected');
+  const headerSelected = headerOnlySuggestions.find(item => suggestionName(item) === 'duplicate-exposed-header › State → Selected');
   assert.ok(headerSelected, 'expected a header-only State suggestion');
 
   await setInstanceProperty(String(suggestionData(headerSelected)));
@@ -352,17 +353,14 @@ async function main() {
   assert.deepEqual(
     iconSuggestions.map(suggestionName).sort(),
     [
-      'Field icon -> Icon: (Instance_swap - None -> type: to change)',
-      'Icon: (Instance_swap - None -> type: to change)',
+      'Field icon › Icon · none · type : to swap',
+      'Icon · none · type : to swap',
     ],
     'nested instance properties should be prefixed with their instance name'
   );
   assert.deepEqual(
     iconSuggestions.map(item => stripInstancePropertyVariantGroupToken(String(suggestionData(item)))).sort(),
-    [
-      'Icon: (Instance_swap - None -> type: to change)',
-      'Icon: (Instance_swap - None -> type: to change)',
-    ],
+    ['Icon', 'Icon'],
     'nested instance property scope tokens should strip back to normal ip syntax'
   );
   assert.ok(
@@ -376,7 +374,7 @@ async function main() {
 
   assert.deepEqual(
     containerValueSuggestions.map(suggestionName),
-    ['Container:24px'],
+    ['Container → 24px    now 32px', 'Container · 32px · current'],
     'property value search should prefer a variant prefix match over an instance-swap substring match'
   );
 
@@ -385,22 +383,22 @@ async function main() {
   const orderedSuggestions = await searchInstanceProperties('');
 
   assert.deepEqual(
-    orderedSuggestions.map(suggestionName),
+    [...new Set(orderedSuggestions.map(item => suggestionName(item).split(/ [·→] /)[0]))],
     [
-      'State: (Variant - Default -> type: to change)',
-      'Label: (Text - Amount: -> type :text to change)',
-      'Label? (Boolean - True -> Toggle)',
-      'field icon -> Weight: (Variant - Light -> type: to change)',
-      'field icon -> IconSize: (Variant - 16px -> type: to change)',
-      'field icon -> Icon: (Instance_swap - None -> type: to change)',
-      '🟦 Chips/Chip 🟦 -> Transparent?: (Variant - True -> type: to change)',
-      '🟦 Chips/Chip 🟦 -> State: (Variant - Default -> type: to change)',
-      '🟦 Chips/Chip 🟦 -> Weight: (Variant - Regular -> type: to change)',
-      '🟦 Chips/Chip 🟦 -> Icon_type: (Instance_swap - None -> type: to change)',
-      '🟦 Chips/Chip 🟦 -> Text: (Text - Teammate -> type :text to change)',
-      '🟦 Chips/Chip 🟦 -> Show Icon (Boolean - True -> Toggle)',
-      'Icon -> Size: (Variant - 14px -> type: to change)',
-      'Icon -> Color: (Variant - Image -> type: to change)',
+      'State',
+      'Label',
+      'Label?',
+      'field icon › Weight',
+      'field icon › IconSize',
+      'field icon › Icon',
+      '🟦 Chips/Chip 🟦 › Transparent?',
+      '🟦 Chips/Chip 🟦 › State',
+      '🟦 Chips/Chip 🟦 › Weight',
+      '🟦 Chips/Chip 🟦 › Icon_type',
+      '🟦 Chips/Chip 🟦 › Text',
+      '🟦 Chips/Chip 🟦 › Show Icon',
+      'Icon › Size',
+      'Icon › Color',
     ],
     'property suggestions should follow the same order as Figma right-panel sections'
   );
@@ -409,8 +407,9 @@ async function main() {
   assert.deepEqual(
     chipIconSuggestions.map(suggestionName),
     [
-      '🟦 Chips/Chip 🟦 -> Icon_type: (Instance_swap - None -> type: to change)',
-      '🟦 Chips/Chip 🟦 -> Show Icon (Boolean - True -> Toggle)',
+      '🟦 Chips/Chip 🟦 › Icon_type · none · type : to swap',
+      '🟦 Chips/Chip 🟦 › Show Icon → Off',
+      '🟦 Chips/Chip 🟦 › Show Icon · On · current',
     ],
     'multi-word property search should match across nested instance and property names'
   );
@@ -424,7 +423,7 @@ async function main() {
   const chipTextValueSuggestions = await searchInstanceProperties('chip text:new text');
   assert.deepEqual(
     chipTextValueSuggestions.map(suggestionName),
-    ['🟦 Chips/Chip 🟦 -> Text: new text'],
+    ['🟦 Chips/Chip 🟦 › Text → "new text"'],
     'text property value search should resolve nested display-name prefixes before the colon'
   );
   assert.ok(
@@ -470,7 +469,7 @@ async function main() {
   const sharedNestedSuggestions = await searchInstanceProperties('State');
   assert.deepEqual(
     sharedNestedSuggestions.map(suggestionName),
-    ['Field state -> State: (Variant - Default -> type: to change)'],
+    ['Field state › State · Default · current', 'Field state › State → Selected'],
     'shared nested properties should be grouped by nested instance name across selected roots'
   );
 
@@ -523,6 +522,117 @@ async function main() {
     cachedPropertyReads,
     0,
     'repeated instance-property typing should reuse inventory without rescanning component property values'
+  );
+
+  // Every row is an action: what Enter does on the top row of a search.
+  const buttonMain = createMainComponent('button-main', {
+    'Size#110:1': variantProperty(['XS', 'S', 'M', 'L', 'XL']),
+    'Label#110:2': textProperty('Button'),
+    'Has icon#110:3': booleanProperty(false),
+    'Icon#110:4': { type: 'INSTANCE_SWAP', preferredValues: [{ type: 'COMPONENT_SET', key: 'set:Icon/Plus' }] },
+  });
+  const createButton = (id, overrides = {}) => createInstance(id, buttonMain, {
+    'Size#110:1': propertyValue('M'),
+    'Label#110:2': propertyValue('Buy now'),
+    'Has icon#110:3': propertyValue(false),
+    'Icon#110:4': propertyValue('arrow-icon'),
+    ...overrides,
+  });
+  const runTopRow = async (searchTerm) => {
+    const [top] = await searchInstanceProperties(searchTerm);
+    await setInstanceProperty(String(suggestionData(top)));
+  };
+
+  figma.currentPage.selection = [createButton('rank-button')];
+  assert.equal(
+    stripInstancePropertyVariantGroupToken(String(suggestionData((await searchInstanceProperties('size:s'))[0]))),
+    'Size:S',
+    'an exact option should rank above options that only contain the typed text'
+  );
+
+  const currentButton = createButton('current-button');
+  figma.currentPage.selection = [currentButton];
+  notifications.length = 0;
+  await runTopRow('size:m');
+  assert.deepEqual(
+    { calls: currentButton.setPropertiesCalls.length, messages: notifications.map(item => item.message) },
+    { calls: 0, messages: ['Size is already M'] },
+    'typing the current option should say it is already set instead of failing'
+  );
+
+  const variantButton = createButton('variant-button');
+  figma.currentPage.selection = [variantButton];
+  await runTopRow('size');
+  assert.equal(
+    variantButton.componentProperties['Size#110:1'].value,
+    'XS',
+    'the top row for a variant property should set an option, not print a hint'
+  );
+
+  const commaButton = createButton('comma-button');
+  const clearButton = createButton('clear-button');
+  figma.currentPage.selection = [commaButton];
+  await runTopRow('Label:Hello, world');
+  figma.currentPage.selection = [clearButton];
+  await runTopRow('Label:');
+  assert.deepEqual(
+    [commaButton, clearButton].map(button => button.componentProperties['Label#110:2'].value),
+    ['Hello, world', ''],
+    'text values should keep their commas, and an empty value should clear the text'
+  );
+
+  const pickedButtons = [createButton('picked-a', { 'Has icon#110:3': propertyValue(true) }), createButton('picked-b'), createButton('picked-c')];
+  figma.currentPage.selection = pickedButtons;
+  await runTopRow('has icon');
+  const typedButtons = [createButton('typed-a', { 'Has icon#110:3': propertyValue(true) }), createButton('typed-b'), createButton('typed-c')];
+  figma.currentPage.selection = typedButtons;
+  await setInstanceProperty('has icon');
+  assert.deepEqual(
+    [pickedButtons, typedButtons].map(buttons => buttons.map(button => button.componentProperties['Has icon#110:3'].value)),
+    [[true, true, true], [true, true, true]],
+    'a boolean that differs across the selection should end up the same on every instance'
+  );
+
+  figma.currentPage.selection = [createButton('icon-button')];
+  const propertyRows = await searchInstanceProperties('');
+  const iconOf = pattern => propertyRows.find(item => pattern.test(suggestionName(item)))?.icon;
+  assert.deepEqual(
+    { size: iconOf(/^Size → XS/), label: iconOf(/^Label · /), on: iconOf(/^Has icon → On/), off: iconOf(/^Has icon · Off/) },
+    { size: ICONS.variant, label: ICONS.text, on: ICONS.on, off: ICONS.off },
+    'each row should show the kind of property it sets, and booleans the state they set'
+  );
+
+  const plusVariant = { id: 'plus-16', key: 'plus-16-key', type: 'COMPONENT', name: 'Size=16' };
+  const plusSet = {
+    id: 'plus-set',
+    key: 'set:Icon/Plus',
+    type: 'COMPONENT_SET',
+    name: 'Icon/Plus',
+    children: [plusVariant],
+    defaultVariant: plusVariant,
+    componentPropertyDefinitions: { Size: variantProperty(['16']) },
+  };
+  plusVariant.parent = plusSet;
+  figma.loadAllPagesAsync = async () => {};
+  figma.root.findAllWithCriteria = () => [];
+  figma.importComponentSetByKeyAsync = async (key) => {
+    if (key === plusSet.key) return plusSet;
+    throw new Error('Component set not published');
+  };
+  figma.importComponentByKeyAsync = async () => {
+    throw new Error('Component not published');
+  };
+  figma.getNodeByIdAsync = async () => null;
+
+  const swapButton = createButton('swap-button');
+  figma.currentPage.selection = [swapButton];
+  const plusRow = (await searchInstanceProperties('Icon:plus')).find(item => suggestionName(item).includes('Plus'));
+  assert.ok(plusRow, 'a preferred component should still be offered once a search term is typed');
+  await setInstanceProperty(String(suggestionData(plusRow)));
+  assert.equal(
+    swapButton.componentProperties['Icon#110:4'].value,
+    'plus-16',
+    'a preferred component outside the lp index should be set by its key'
   );
 
   console.log('instance implementation tests passed');

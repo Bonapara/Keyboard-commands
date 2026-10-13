@@ -21,11 +21,9 @@ async function main() {
   const [
     { getStoredLibraries, saveLibraries, STORAGE_KEY, getActiveLibraries, setActiveLibraries },
     { getHistory, recordHistory },
-    { getRecentValues, recordRecentValue },
   ] = await Promise.all([
     import('../src/storage.ts'),
     import('../src/history.ts'),
-    import('../src/recent-values.ts'),
   ]);
 
   assert.deepEqual(await getStoredLibraries(), initialLibraries);
@@ -64,19 +62,6 @@ async function main() {
   assert.equal(history.length, 10);
   assert.equal(history[0], 'cmd11');
   assert.equal(history.at(-1), 'cmd2');
-
-  assert.deepEqual(await getRecentValues('Fill'), []);
-  await recordRecentValue('Fill', ' blue ');
-  await recordRecentValue('Fill', 'red');
-  await recordRecentValue('Fill', 'blue');
-  await recordRecentValue('Fill', 'green');
-  await recordRecentValue('Fill', 'yellow');
-  await recordRecentValue('Fill', 'orange');
-  await recordRecentValue('Fill', 'purple');
-  await recordRecentValue('Fill', '   ');
-
-  assert.deepEqual(await getRecentValues('Fill'), ['purple', 'orange', 'yellow', 'green', 'blue']);
-  assert.deepEqual(await getRecentValues('Stroke'), []);
 
   console.log('persistence tests passed');
 }

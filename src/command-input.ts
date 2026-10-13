@@ -18,8 +18,11 @@ function extractCommandNameFromSuggestion(selectedValue: string): string | null 
   return commandNameMatch ? commandNameMatch[1] : null;
 }
 
-function isInformationalSuggestion(selectedValue: string): boolean {
-  return /^No\b/.test(selectedValue) || /^'.+' not available on selection$/.test(selectedValue);
+// Status rows ("No components found…") are never values. Real values can
+// start with "No" too, but carry a row token or a "(Library)" suffix.
+export function isInformationalSuggestion(value: string): boolean {
+  if (value.includes('[[kc-') || /\([^)]*\)\s*$/.test(value)) return false;
+  return /^No\b/.test(value) || /^'.+' not available on selection$/.test(value);
 }
 
 export function applyDropdownSelection(
