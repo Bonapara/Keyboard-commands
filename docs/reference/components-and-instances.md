@@ -22,26 +22,26 @@ This file covers the component, instance, variant, slot, and override workflows.
 - Value type: `string`
 - Binding support: `instanceSwap`
 - Supported nodes: instances only
-
-Behavior:
-
-- swaps every selected instance to the chosen component
-- can resolve local components and active-library components
-- imports remote components as needed
-- accepts values formatted like `Component Name (Library Name)`
+- Implementation: `src/implementations/component-swap.ts`
 
 Search behavior:
 
-- prioritizes preferred swap components defined on the property
-- prioritizes same-frame components from the source component's container
-- ranks folder-matched components before unrelated ones
-- falls back to other active-library components
+- searches one pool: components in this file (all pages), components of the active `lp` libraries, and the preferred values of the instance-swap property that exposes the selection
+- ranks by match quality, then context: exact name › name prefix › every word prefixed in any order (`right arrow`) › substring › abbreviation (`btn`) › one typo (`buton`)
+- boosts preferred values, the current component's folder and library; ties keep the preferred order, then A→Z
+- trims the query and hides the selection's current component
+- labels rows `Name · Library` (`★ Name · preferred`), with the full path when two rows share a name
+- the top row previews what Enter keeps, for example `↵ keeps Size=20 · resets State`
+- preferred component sets are imported once per run to learn their names and library, never on every keystroke
+- when nothing matches, the input shows `No component matches "…" in …` and Enter does nothing
 
-Preservation behavior:
+Swap behavior:
 
-- captures existing variant-property values before the swap
-- re-applies matching values on the new component when the cleaned property names match and the old value is still valid
-- reports how many properties were preserved
+- every row carries the component key (or node id for this file); Enter imports exactly that component and never falls back to a partial name match
+- a bare `Component Name (Library Name)` value still works, matched by exact name only
+- picks the existing variant that keeps the most current variant values, earlier properties breaking ties, then calls `swapComponent` once, so a missing combination can't leave instances on defaults
+- the toast names the component and what was kept or reset: `Swapped 3 → Split button · kept Variant=Secondary · reset Size, State`
+- a component that can't be imported or found reports it and swaps nothing
 
 ## `i` / `ip` / Instance Property
 
@@ -52,19 +52,16 @@ Preservation behavior:
 
 This is the densest instance feature in the plugin.
 
-### Bare property name
+### Every row is an action
 
-Examples:
+Without a `:`, each matching property expands into rows that do one thing:
 
-- `ip Disabled`
-- `ip has icon`
+- variant: one row per option (`Size → L`), the current one marked `Size · M · current`
+- boolean: explicit `Has icon → On` / `Has icon → Off` rows, with `· 2 of 3 change` on mixed selections
+- text: `Label · "Buy now" · type : to edit`; Enter explains the `ip?Label:` syntax
+- instance swap: `Icon · Arrow right · type : to swap`; Enter explains the `ip?Icon:` syntax
 
-Behavior:
-
-- first tries to resolve the property as a boolean property
-- toggles the current boolean value
-- if no boolean property matches, falls back to general property lookup
-- if the property is text, variant, or instance-swap, the command does not guess and instead prompts the user to add `:`
+Search tokens match property names and option values, so `ip?large` finds `Size → Large`, and an option typed in full (`ip?size s`) goes first. The top variant row shows what it replaces: `Size → XS    now M`.
 
 ### `Property:Value`
 
@@ -72,13 +69,15 @@ Examples:
 
 - `ip Size:Large`
 - `ip Label:Buy now`
-- `ip Icon:Search (Core Library)`
+- `ip Has icon:on`
+- `ip Icon:Search`
 
 Behavior by property type:
 
-- variant: sets the variant option
-- text: sets the text property value
-- instance swap: resolves and imports the target component, then sets the property to that component id
+- variant: options rank exact › prefix › contains, so `ip?size:s` puts `S` above `XS`; the current option reads `already set`, and choosing it leaves the instance alone
+- text: everything after the first `:` that follows a property name is the text, including commas, `?` and further colons; `ip?Label:` offers `Label → clear`
+- boolean: accepts `on`/`off` (and `true`, `false`, `yes`, `no`, `show`, `hide`)
+- instance swap: searches components like `is` (preferred values first, rows carry the component key) and sets the property to that component
 
 Variant properties are consolidated across selected instances when the cleaned
 property name and the full variant option set match. This allows a header
@@ -89,6 +88,19 @@ When several instances are selected, suggestions only include properties shared
 by every selected root instance. A selected component exposing `State: Default,
 Selected, Sorted` and another exposing `State: Default, Selected` will not show
 `State` as a shared editable property for that multi-selection.
+
+### Bare property name
+
+Examples:
+
+- `ip Disabled`
+- `ip has icon`
+
+Behavior:
+
+- toggles a boolean property when every selected instance shares its value
+- turns a boolean on everywhere when the selection is mixed, so it ends up consistent
+- for text, variant and instance-swap properties, explains how to set them instead of guessing
 
 ### Empty-property search by option
 
@@ -109,8 +121,8 @@ Example:
 
 Behavior:
 
-- the command splits comma-chained pairs and applies them left to right
-- each pair is also recorded individually in recent-value memory
+- pairs apply left to right
+- a comma inside a text or component value stays part of the value unless another property of the selection follows it (`Label:Hello, world` is one pair; `Label:Hi,Size:L` is two)
 
 ### Exposed-instance support
 
@@ -118,18 +130,14 @@ The command does not stop at top-level properties.
 
 - it can inspect properties exposed through nested instances
 - it applies updates to exposed instances when the property is found there
+- nested properties are prefixed with the exposed instance name, for example `Field icon › Icon`
 
-### Suggestion behavior
+### Toasts
 
-The suggestion system is property-type aware.
-
-- live property suggestions follow the same direct/exposed-instance order as Figma's right panel
-- boolean properties can be toggled from the bare property name
-- variant properties show option search flows
-- text properties show the current text value and prompt for replacement text
-- instance-swap properties surface preferred values, same-frame components, and library components
-- nested properties are prefixed with the exposed instance name, for example `Field icon -> Icon`
-- recent `ip` values are shown only when they still resolve against the current selection
+- `Size → L on 3 instances (2 changed)`
+- `Label → "Hello, world" on 1 instance`, `Cleared Label on 1 instance`
+- `Size is already M`
+- failures name the property and the reason
 
 ## `rio` / Reset Specific Override
 
@@ -137,30 +145,34 @@ The suggestion system is property-type aware.
 - Value type: `string`
 - Binding support: `instanceOverrides`
 - Supported nodes: instances only
-
-Purpose:
-
-- reset one specific override instead of resetting the whole instance
+- Implementation: `src/implementations/overrides.ts`
 
 Search behavior:
 
-- scans selected instances and relevant owner-instance contexts
-- lists actual overrides only, not every possible field
-- filters override suggestions to the selected subtree when nested instances are involved
-- includes direct component-property overrides and nested override fields
-
-Accepted reference formats:
-
-- dropdown JSON payloads
-- human-readable strings like `NodeName -> Field`
-- component-property-specific payloads
+- one row per overridden layer and field, in layer order, showing what Enter restores: `Label · Text "Hello" → "Title"`, `Box · Height 56 → 40`, `Icon · Size 24 → 16`
+- layers inside a nested instance are prefixed with it: `chevron-right › Vector · Stroke #000000 1px → Text/Tertiary 1.1px`; bound colors show the variable name
+- layers that share a name get their own rows; the values tell them apart
+- scans the selected instances and the instances above them, keeping only layers inside the selection
+- also lists styles a nested-instance swap dropped, which Figma records no override for: an icon swapped inside a wrapper like `Icon/Tabler` that lost the wrapper's stroke color and weight. Fills, strokes, effects, opacity, visibility and text style/font/size are checked on layers under a swapped instance, including slot content
+- on multi-selections, rows for the same layer path and field merge (`· 3 instances`)
+- search matches layer names, field names and values (`rio?hello`)
+- a last row resets every override on the selection (same as `ri`) and restores the styles a swap dropped
 
 Reset behavior:
 
-- resolves the source node from the main component tree
-- restores the selected field from the source
-- can target grouped fields like stroke/radius families, not only a single raw Figma field
-- reports the field label and reset count
+- each field comes from the outermost component that sets it, otherwise from the layer's own component; past a swapped instance the layer must keep its name (how Figma carries overrides over), and slot content is only compared with its own component
+- an instance's layer name resets to its component set's name, not the variant's
+- restored paints stay bound to their color variables
+- loads the node's fonts before restoring text fields (and the source fonts for font or text-style resets)
+- restores width and height through `resize()`
+- restores grouped fields such as the stroke and radius families together
+- toasts say what was restored (`Reset Label text → "Title"`) or why it couldn't be (`Couldn't reset Label: font "Inter Regular" isn't available`)
+
+Accepted reference formats:
+
+- row payloads (`{ "v": 2, "path": [...], "field": ... }`)
+- older JSON payloads with a node id
+- human-readable strings like `NodeName -> Field`
 
 ## `ri` / Reset Instance
 
@@ -294,5 +306,4 @@ Behavior:
 ## Cross-Cutting Notes
 
 - instance-property and override flows rely heavily on autocomplete; these commands are much harder to use blind than simple numeric commands
-- recent-value memory is especially helpful for `ip`, `is`, and `rio`
 - all component/library lookup flows respect the plugin's active-library list, not every indexed library by default

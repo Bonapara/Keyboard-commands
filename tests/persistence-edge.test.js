@@ -4,7 +4,6 @@ import { createFigmaStub } from './helpers/figma-stub.js';
 
 const LIBRARY_STORAGE_KEY = 'KB_COMMANDS_LIBRARY_DATA';
 const HISTORY_KEY = 'KB_COMMANDS_HISTORY';
-const RECENT_KEY = 'KB_COMMANDS_RECENT_VALUES';
 
 async function main() {
   const originalConsoleError = console.error;
@@ -63,28 +62,6 @@ async function main() {
       invalidHistory.storage.get(HISTORY_KEY),
       ['w100'],
       'recordHistory should rebuild storage from an invalid history payload'
-    );
-
-    const invalidRecents = createFigmaStub({
-      storageSeed: {
-        [RECENT_KEY]: 'not-an-object',
-      },
-    });
-    globalThis.figma = invalidRecents.figma;
-
-    const { getRecentValues, recordRecentValue } = await import('../src/recent-values.ts');
-
-    assert.deepEqual(
-      await getRecentValues('Fill'),
-      [],
-      'non-object recent-values storage should recover to an empty recent-values map'
-    );
-
-    await recordRecentValue('Fill', 'blue');
-    assert.deepEqual(
-      invalidRecents.storage.get(RECENT_KEY),
-      { Fill: ['blue'] },
-      'recordRecentValue should rebuild storage from an invalid recent-values payload'
     );
 
     console.log('persistence edge-case tests passed');

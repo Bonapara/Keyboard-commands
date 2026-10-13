@@ -10,12 +10,6 @@ const BINDING_ALIAS = '-?[a-z]+';
 // tracking — we want to interpret as much as possible.
 const BINDING_PATTERN = new RegExp(`^(.*?)\\s*(${BINDING_ALIAS})${BINDING_TRIGGER}(.*)$`, 'i');
 
-// Strict: requires whitespace between prefix and alias (or no prefix at all).
-// Used while the user is still typing, so we don't surface binding suggestions
-// for ambiguous mashed-together input like "w100f?blue".
-const BINDING_INPUT_WITH_PREFIX = new RegExp(`^(.*?)\\s+(${BINDING_ALIAS})${BINDING_TRIGGER}(.*)$`, 'i');
-const BINDING_INPUT_NO_PREFIX = new RegExp(`^(${BINDING_ALIAS})${BINDING_TRIGGER}(.*)$`, 'i');
-
 export const BINDING_TRIGGER_CHARS = '?;';
 
 export interface ParsedBinding {
@@ -47,18 +41,24 @@ export function parseBindingSegment(segment: string): ParsedBinding | null {
   return { prefix: match[1].trim(), alias: match[2], value: match[3] };
 }
 
-export function parseTypedBindingSegment(segment: string): TypedBinding | null {
-  const withPrefix = segment.match(BINDING_INPUT_WITH_PREFIX);
-  if (withPrefix) {
-    return { alias: withPrefix[2], searchTerm: withPrefix[3] };
+// The binding being typed is the last "alias?" (at the start or after a
+// space). Past the first one, only binding command aliases count, so
+// "ip?Label:Delete item?" stays one Instance Property search instead of a
+// search for an "item" command.
+export function parseTypedBindingSegment(
+  segment: string,
+  isBindingAlias: (alias: string) => boolean
+): TypedBinding | null {
+  const triggerRegex = new RegExp(`(^|\\s)(${BINDING_ALIAS})${BINDING_TRIGGER}`, 'gi');
+  let typed: TypedBinding | null = null;
+  let match: RegExpExecArray | null;
+
+  while ((match = triggerRegex.exec(segment)) !== null) {
+    if (typed && !isBindingAlias(match[2])) continue;
+    typed = { alias: match[2], searchTerm: segment.slice(match.index + match[0].length) };
   }
 
-  const noPrefix = segment.match(BINDING_INPUT_NO_PREFIX);
-  if (noPrefix) {
-    return { alias: noPrefix[1], searchTerm: noPrefix[2] };
-  }
-
-  return null;
+  return typed;
 }
 
 function appendSimpleCommands(steps: ExecutionStep[], value: string): void {
@@ -74,13 +74,18 @@ function appendSimpleCommands(steps: ExecutionStep[], value: string): void {
 // with a single space ("f?white bc;red"). Without splitting, parseBindingSegment
 // matches only the first trigger and the rest gets swallowed into the value —
 // so "bc;red" became part of the Fill search and fuzzy-matched the wrong style.
-// Split at each inner "alias[?;]" so every binding becomes its own sub-segment.
-function splitAtInnerBindings(segment: string): string[] {
+// Split at each later "alias?" that starts a word and names a binding command;
+// any other "?" or ";" belongs to the value ("ip?Label:Delete item?").
+function splitAtInnerBindings(segment: string, isBindingAlias: (alias: string) => boolean): string[] {
   const triggerRegex = /-?[a-z]+[?;]/gi;
   const positions: number[] = [];
   let match: RegExpExecArray | null;
   while ((match = triggerRegex.exec(segment)) !== null) {
-    positions.push(match.index);
+    const startsWord = match.index === 0 || /\s/.test(segment[match.index - 1]);
+    const alias = match[0].slice(0, -1);
+    if (positions.length === 0 || (startsWord && isBindingAlias(alias))) {
+      positions.push(match.index);
+    }
   }
   if (positions.length <= 1) return [segment];
 
@@ -94,14 +99,17 @@ function splitAtInnerBindings(segment: string): string[] {
   return pieces.filter(Boolean);
 }
 
-export function buildExecutionPlan(segments: string[]): ExecutionStep[] {
+export function buildExecutionPlan(
+  segments: string[],
+  isBindingAlias: (alias: string) => boolean
+): ExecutionStep[] {
   const steps: ExecutionStep[] = [];
 
   for (const rawSegment of segments) {
     const trimmed = rawSegment.trim();
     if (!trimmed) continue;
 
-    for (const segment of splitAtInnerBindings(trimmed)) {
+    for (const segment of splitAtInnerBindings(trimmed, isBindingAlias)) {
       const parsed = parseBindingSegment(segment);
       if (parsed) {
         if (parsed.prefix) {

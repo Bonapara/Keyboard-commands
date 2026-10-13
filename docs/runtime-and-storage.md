@@ -27,6 +27,7 @@ Why those choices matter:
 From `package.json`:
 
 - build: `esbuild src/index.ts --bundle --outfile=dist/index.js --target=es6 --minify`
+- Figma runs the bundle in QuickJS, which can't compile a loop over an awaited value (`for (const x of await list())` → "InternalError: stack underflow", and the plugin won't load); await into a variable first. `tests/quickjs-compat.test.mjs` checks the build for this
 - prebuild runs all tests
 - tests cover input parsing, command registry integrity, utility behavior, and persistence
 
@@ -73,11 +74,6 @@ Library items can represent:
 - key: `KB_COMMANDS_HISTORY`
 - max length: `10`
 
-### Recent values
-
-- key: `KB_COMMANDS_RECENT_VALUES`
-- max entries per command: `5`
-
 ## In-Memory Caching
 
 The plugin caches several expensive lookups in memory.
@@ -109,7 +105,14 @@ Important nuance:
 
 ### Main component cache
 
-`src/implementations/instance.ts` keeps a `WeakMap` from instance node to main component to avoid repeated `getMainComponentAsync()` calls.
+`src/implementations/instance-shared.ts` keeps a `WeakMap` from instance node to main component to avoid repeated `getMainComponentAsync()` calls.
+
+### Component swap caches
+
+For one plugin run, `src/implementations/component-swap.ts` keeps:
+
+- the components of this file, scanned once after `loadAllPagesAsync()`
+- components and sets imported by key, so preferred values are imported once instead of on every keystroke
 
 ## Library Publishing Model
 

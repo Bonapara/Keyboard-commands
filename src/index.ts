@@ -13,7 +13,7 @@ import {
   COMMAND_BREAK_PATTERN,
   searchStylesAndVariables
 } from './utils';
-import { applyDropdownSelection } from './command-input';
+import { applyDropdownSelection, isInformationalSuggestion } from './command-input';
 import {
   buildExecutionPlan,
   parseBindingSegment,
@@ -21,7 +21,6 @@ import {
   type ParsedBinding,
 } from './command-execution-plan';
 import { searchLibraries } from './implementations/library';
-import { recordRecentValue, getRecentValues } from './recent-values';
 import { getHistory, recordHistory } from './history';
 import * as impl from './implementations';
 
@@ -59,6 +58,12 @@ function findCommandIgnoringSelection(part: string): (typeof COMMANDS)[0] | unde
   );
 }
 
+// Past the first "alias?" of a segment, only exact binding aliases start a new
+// binding; any other "?" or ";" belongs to the value being typed.
+function isBindingCommandAlias(alias: string): boolean {
+  return !!findExactCommandIgnoringSelection(alias)?.bindingSupport;
+}
+
 function findExactCommandIgnoringSelection(part: string): (typeof COMMANDS)[0] | undefined {
   const commandPart = part.match(COMMAND_PART_REGEX)?.[0];
   if (!commandPart) return undefined;
@@ -71,115 +76,6 @@ function findExactCommandIgnoringSelection(part: string): (typeof COMMANDS)[0] |
   if (exactAlias) return exactAlias;
 
   return COMMANDS.find(cmd => cmd.name.toLowerCase() === cmdLower);
-}
-
-function getSuggestionDataKey(item: string | { data: unknown }): string | null {
-  if (typeof item === 'string') return impl.stripInstancePropertyVariantGroupToken(item);
-  if (item && typeof item.data === 'string') return impl.stripInstancePropertyVariantGroupToken(item.data);
-  return null;
-}
-
-function formatRecentFieldLabel(field: string): string {
-  if (field === 'cornerRadius') return 'Corner Radius';
-  if (field === 'stroke') return 'Stroke';
-
-  return field
-    .replace(/_/g, ' ')
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .split(' ')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
-}
-
-function formatInstanceOverrideRecentLabel(value: string): string | null {
-  try {
-    const data = JSON.parse(value) as Record<string, unknown>;
-    const field = typeof data.field === 'string' ? data.field : '';
-    const nodeName = typeof data.nodeName === 'string' ? data.nodeName : '';
-    const componentPropertyName = typeof data.componentPropertyName === 'string'
-      ? data.componentPropertyName
-      : '';
-
-    if (!field || !nodeName) return null;
-
-    const fieldLabel = field === 'componentProperties' && componentPropertyName
-      ? `Property: ${componentPropertyName}`
-      : formatRecentFieldLabel(field);
-
-    return `${nodeName} -> ${fieldLabel}`;
-  } catch {
-    return null;
-  }
-}
-
-function getRecentSuggestionName(
-  matchedCommand: (typeof COMMANDS)[0],
-  value: string
-): string {
-  const displayValue = matchedCommand.bindingSupport?.instanceOverrides
-    ? formatInstanceOverrideRecentLabel(value) || value
-    : value;
-
-  return `${displayValue} (recent)`;
-}
-
-// Extract the "active" portion of a chained search (what's after the last ",")
-// and the committed prefix (everything up to and including that ","). Only
-// instance-property chains use "," so other commands pass through untouched.
-function splitActiveSearch(
-  matchedCommand: (typeof COMMANDS)[0],
-  searchTerm: string
-): { active: string; prefix: string; committed: Set<string> } {
-  if (!matchedCommand.bindingSupport?.instanceProperties || !searchTerm.includes(',')) {
-    return { active: searchTerm, prefix: '', committed: new Set() };
-  }
-
-  const commaIdx = searchTerm.lastIndexOf(',');
-  const prefix = searchTerm.slice(0, commaIdx + 1);
-  const active = searchTerm.slice(commaIdx + 1).replace(/^\s+/, '');
-  const committed = new Set(
-    prefix.split(',').map(s => s.trim()).filter(Boolean)
-  );
-  return { active, prefix, committed };
-}
-
-async function buildRecentSuggestions(
-  matchedCommand: (typeof COMMANDS)[0],
-  searchTerm: string,
-  existing: Array<string | { name: string; data: unknown }>
-): Promise<Array<{ name: string; data: unknown }>> {
-  // Catalog-style binding searches should stay focused on live results instead
-  // of mixing in stale literal values or command fragments from recent memory.
-  if (
-    matchedCommand.bindingSupport?.libraries ||
-    matchedCommand.bindingSupport?.instanceProperties ||
-    matchedCommand.bindingSupport?.styles ||
-    matchedCommand.bindingSupport?.variables ||
-    matchedCommand.bindingSupport?.libraryStyles ||
-    matchedCommand.bindingSupport?.selectionColors
-  ) return [];
-
-  const recents = await getRecentValues(matchedCommand.name);
-  if (recents.length === 0) return [];
-
-  const { active, prefix, committed } = splitActiveSearch(matchedCommand, searchTerm);
-  const activeLower = active.toLowerCase();
-
-  const existingKeys = new Set(
-    existing.map(getSuggestionDataKey).filter((k): k is string => k !== null)
-  );
-
-  const matchingRecents = recents
-    .map(r => ({ value: r, name: getRecentSuggestionName(matchedCommand, r) }))
-    .filter(r => !committed.has(r.value))
-    .filter(r => (
-      !activeLower ||
-      r.value.toLowerCase().includes(activeLower) ||
-      r.name.toLowerCase().includes(activeLower)
-    ))
-    .filter(r => !existingKeys.has(prefix + r.value));
-
-  return matchingRecents.map(r => ({ name: r.name, data: prefix + r.value }));
 }
 
 async function generateBindingSuggestions(
@@ -212,11 +108,7 @@ async function generateBindingSuggestions(
       );
     }
 
-    const recentItems = await buildRecentSuggestions(matchedCommand, searchTerm, suggestions);
-    if (recentItems.length === 0) return suggestions;
-    return matchedCommand.bindingSupport.instanceProperties
-      ? [...suggestions, ...recentItems]
-      : [...recentItems, ...suggestions];
+    return suggestions;
   } catch (error) {
     console.error('Error searching:', error);
     return [];
@@ -352,10 +244,28 @@ function getDropdownValue(
 // `name` is display-only (may carry UI hints, counts, etc.). Consumers read
 // `data`, never `name`. When a suggestion is a bare string, it IS the value.
 function getFirstSuggestionName(suggestions: Array<string | { data: unknown }>): string | null {
-  const first = suggestions[0];
-  if (typeof first === 'string') return first;
-  if (first && typeof first === 'object' && typeof first.data === 'string') return first.data;
+  for (const item of suggestions) {
+    if (typeof item === 'string') {
+      if (!isInformationalSuggestion(item)) return item;
+    } else if (item && typeof item.data === 'string') {
+      return item.data;
+    }
+  }
   return null;
+}
+
+function isStatusOnly(suggestions: Array<string | { data: unknown }>): boolean {
+  return suggestions.length > 0 &&
+    suggestions.every(item => typeof item === 'string' && isInformationalSuggestion(item));
+}
+
+function getEmptyBindingMessage(command: (typeof COMMANDS)[0]): string {
+  const support = command.bindingSupport;
+  if (support?.libraries) return 'No matching libraries found';
+  if (support?.instanceProperties) return 'No matching properties';
+  if (support?.instanceSwap) return 'No matching components';
+  if (support?.instanceOverrides) return 'No matching overrides';
+  return 'No matching styles or variables found';
 }
 
 // Resolve two-stage color selection (e.g., "source : target")
@@ -392,12 +302,14 @@ async function executeBindingCommand(
   const isTwoStageBinding = !!matchedCommand?.bindingSupport?.selectionColors;
   const hasDelimiter = isTwoStageBinding && rawValue.includes(':');
 
-  // Check if we should use the dropdown value
-  const dropdownValue = getDropdownValue(
+  // Check if we should use the dropdown value. A status row ("No components
+  // found…") is never a value, whatever Figma submits.
+  const pickedValue = getDropdownValue(
     parameters,
     isOnlyBinding,
     isLastBinding
   );
+  const dropdownValue = pickedValue && !isInformationalSuggestion(pickedValue) ? pickedValue : null;
   let valueToUse = rawValue;
   let isDropdownSelection = false;
 
@@ -425,25 +337,18 @@ async function executeBindingCommand(
     if (hasDelimiter) {
       valueToUse = await resolveTwoStageValue(valueToUse, matchedCommand);
     } else {
-      const name = getFirstSuggestionName(await generateBindingSuggestions(matchedCommand, valueToUse));
-      if (name) valueToUse = name;
+      const suggestions = await generateBindingSuggestions(matchedCommand, valueToUse);
+      const name = getFirstSuggestionName(suggestions);
+      if (name) {
+        valueToUse = name;
+      } else if (isStatusOnly(suggestions)) {
+        figma.notify(suggestions[0] as string);
+        return;
+      }
     }
   }
 
   await executeCommand(`${parsed.alias} ${valueToUse}`, true);
-
-  // Record for recent-values. ip chains on ",", each pair is its own entry.
-  if (matchedCommand) {
-    const recordable = matchedCommand.bindingSupport?.instanceProperties
-      ? valueToUse
-        .split(',')
-        .map(v => impl.stripInstancePropertyVariantGroupToken(v.trim()))
-        .filter(Boolean)
-      : [valueToUse.trim()];
-    for (const entry of recordable) {
-      await recordRecentValue(matchedCommand.name, entry);
-    }
-  }
 }
 
 // ================================
@@ -456,7 +361,7 @@ async function handleBindingMode(
   result: ParameterInputEvent['result'],
   getAvailabilityContext: () => SelectionAvailabilityContext
 ): Promise<boolean> {
-  const typed = parseTypedBindingSegment(segment);
+  const typed = parseTypedBindingSegment(segment, isBindingCommandAlias);
   if (!typed) return false;
 
   const matchedCommand = findCommand(typed.alias, getAvailabilityContext())[0];
@@ -464,18 +369,22 @@ async function handleBindingMode(
   if (!matchedCommand?.bindingSupport) return false;
 
   const suggestions = await generateBindingSuggestions(matchedCommand, typed.searchTerm);
-  if (suggestions.length > 0) {
-    result.setSuggestions(
-      supportsCatalogBindingSearch(matchedCommand)
-        ? addChainHintToFirstSuggestion(suggestions)
-        : suggestions
-    );
-  } else {
-    const message = matchedCommand.bindingSupport.libraries
-      ? 'No matching libraries found'
-      : 'No matching styles or variables found';
-    result.setSuggestions([message]);
+
+  // setError keeps Enter from submitting a status row as a value.
+  if (suggestions.length === 0) {
+    result.setError(getEmptyBindingMessage(matchedCommand));
+    return true;
   }
+  if (isStatusOnly(suggestions)) {
+    result.setError(suggestions[0] as string);
+    return true;
+  }
+
+  result.setSuggestions(
+    supportsCatalogBindingSearch(matchedCommand)
+      ? addChainHintToFirstSuggestion(suggestions)
+      : suggestions
+  );
   return true;
 }
 
@@ -629,7 +538,7 @@ function summarizeHistorySequence(commandString: string): string {
   }
 
   const segments = commandString.split(COMMAND_BREAK_PATTERN);
-  const steps = buildExecutionPlan(segments);
+  const steps = buildExecutionPlan(segments, isBindingCommandAlias);
   const parts = steps.map(summarizeExecutionStep).filter(Boolean);
   return parts.length > 0 ? parts.join(' | ') : commandString;
 }
@@ -843,7 +752,7 @@ figma.on('run', async (parameters) => {
   const segments = commandString.split(COMMAND_BREAK_PATTERN);
 
   // Build an ordered execution plan so mixed binding/simple chains run left to right.
-  const executionPlan = buildExecutionPlan(segments);
+  const executionPlan = buildExecutionPlan(segments, isBindingCommandAlias);
   const totalBindings = executionPlan.filter((step) => step.kind === 'binding').length;
 
   try {

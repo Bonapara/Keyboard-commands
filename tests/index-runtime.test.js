@@ -9,6 +9,7 @@ function createRuntimeFigmaStub() {
   const parameterHandlers = new Map();
   const eventHandlers = new Map();
   const notifications = [];
+  const inputErrors = [];
   let closeCount = 0;
 
   const figma = {
@@ -47,8 +48,10 @@ function createRuntimeFigmaStub() {
   return {
     figma,
     notifications,
+    inputErrors,
     reset() {
       notifications.length = 0;
+      inputErrors.length = 0;
       closeCount = 0;
       figma.currentPage.selection = [];
     },
@@ -63,6 +66,9 @@ function createRuntimeFigmaStub() {
         result: {
           setSuggestions(next) {
             suggestions = next;
+          },
+          setError(message) {
+            inputErrors.push(message);
           },
         },
       });
@@ -192,6 +198,17 @@ export const COMMANDS = [
     functionWithParam: (value) => impl.recordCommand('InstanceProperty', value),
     bindingSupport: {
       instanceProperties: true,
+    },
+  },
+  {
+    name: 'InstanceSwap',
+    alias: ['is'],
+    type: 'commandWithValue',
+    valueFormat: 'string',
+    suggestion: '?swap instance with component',
+    functionWithParam: (value) => impl.recordCommand('InstanceSwap', value),
+    bindingSupport: {
+      instanceSwap: true,
     },
   },
   {
@@ -408,36 +425,6 @@ export async function recordHistory(sequence, getDedupKey = (value) => value.tri
 `;
 }
 
-function buildRecentValuesStubSource() {
-  return `
-export let recentValues = {};
-export const recordedRecents = [];
-
-export function __reset() {
-  recentValues = {};
-  recordedRecents.length = 0;
-}
-
-export function __setRecentValues(next) {
-  recentValues = JSON.parse(JSON.stringify(next));
-}
-
-export async function getRecentValues(commandName) {
-  return recentValues[commandName] || [];
-}
-
-export async function recordRecentValue(commandName, value) {
-  recordedRecents.push({ commandName, value });
-
-  const trimmed = value.trim();
-  if (!trimmed) return;
-
-  const existing = recentValues[commandName] || [];
-  recentValues[commandName] = [trimmed, ...existing.filter((entry) => entry !== trimmed)].slice(0, 5);
-}
-`;
-}
-
 function buildImplementationStubSource() {
   return `
 export const executionCalls = [];
@@ -450,10 +437,6 @@ export function __reset() {
 
 export function recordCommand(name, value) {
   executionCalls.push({ name, value });
-}
-
-export function stripInstancePropertyVariantGroupToken(value) {
-  return value.replace(/\\[\\[kc-variant-options=[^\\]]*\\]\\]/g, '');
 }
 
 export function recordPadding(value) {
@@ -515,6 +498,9 @@ export async function searchInstanceProperties(searchTerm) {
 
 export async function searchComponentsForSwap(searchTerm) {
   helperCalls.push({ name: 'searchComponentsForSwap', searchTerm });
+  if (searchTerm.trim() === 'zzz') {
+    return ['No component matches "zzz" in Core UI or this file'];
+  }
   return [];
 }
 
@@ -548,10 +534,9 @@ async function loadIndexHarness(figma) {
 import './src/index.ts';
 import * as utilsStub from 'virtual:utils-stub';
 import * as historyStub from 'virtual:history-stub';
-import * as recentStub from 'virtual:recent-values-stub';
 import * as implStub from 'virtual:impl-stub';
 
-export { utilsStub, historyStub, recentStub, implStub };
+export { utilsStub, historyStub, implStub };
 `;
 
   const result = await build({
@@ -571,14 +556,12 @@ export { utilsStub, historyStub, recentStub, implStub };
           buildContext.onResolve({ filter: /^virtual:commands-stub$/ }, () => ({ path: 'commands-stub', namespace: 'stub' }));
           buildContext.onResolve({ filter: /^virtual:utils-stub$/ }, () => ({ path: 'utils-stub', namespace: 'stub' }));
           buildContext.onResolve({ filter: /^virtual:history-stub$/ }, () => ({ path: 'history-stub', namespace: 'stub' }));
-          buildContext.onResolve({ filter: /^virtual:recent-values-stub$/ }, () => ({ path: 'recent-values-stub', namespace: 'stub' }));
           buildContext.onResolve({ filter: /^virtual:impl-stub$/ }, () => ({ path: 'impl-stub', namespace: 'stub' }));
           buildContext.onResolve({ filter: /^virtual:library-stub$/ }, () => ({ path: 'library-stub', namespace: 'stub' }));
 
           buildContext.onResolve({ filter: /^\.\/commands$/ }, () => ({ path: 'commands-stub', namespace: 'stub' }));
           buildContext.onResolve({ filter: /^\.\/utils$/ }, () => ({ path: 'utils-stub', namespace: 'stub' }));
           buildContext.onResolve({ filter: /^\.\/history$/ }, () => ({ path: 'history-stub', namespace: 'stub' }));
-          buildContext.onResolve({ filter: /^\.\/recent-values$/ }, () => ({ path: 'recent-values-stub', namespace: 'stub' }));
           buildContext.onResolve({ filter: /^\.\/implementations$/ }, () => ({ path: 'impl-stub', namespace: 'stub' }));
           buildContext.onResolve({ filter: /^\.\/implementations\/library$/ }, () => ({ path: 'library-stub', namespace: 'stub' }));
 
@@ -592,10 +575,6 @@ export { utilsStub, historyStub, recentStub, implStub };
           }));
           buildContext.onLoad({ filter: /^history-stub$/, namespace: 'stub' }, () => ({
             contents: buildHistoryStubSource(),
-            loader: 'js',
-          }));
-          buildContext.onLoad({ filter: /^recent-values-stub$/, namespace: 'stub' }, () => ({
-            contents: buildRecentValuesStubSource(),
             loader: 'js',
           }));
           buildContext.onLoad({ filter: /^impl-stub$/, namespace: 'stub' }, () => ({
@@ -623,7 +602,6 @@ function resetHarness(runtime, harness) {
   runtime.reset();
   harness.utilsStub.__reset();
   harness.historyStub.__reset();
-  harness.recentStub.__reset();
   harness.implStub.__reset();
 }
 
@@ -836,38 +814,8 @@ async function main() {
     [{ name: 'InstanceProperty', value: 'size:lg, state:active' }],
     'instance property bindings should execute with the typed comma-separated value when no exact suggestion is chosen'
   );
-  assert.deepEqual(
-    harness.recentStub.recordedRecents,
-    [
-      { commandName: 'InstanceProperty', value: 'size:lg' },
-      { commandName: 'InstanceProperty', value: 'state:active' },
-    ],
-    'instance-property chains should record each pair separately in recent values'
-  );
 
   resetHarness(runtime, harness);
-
-  harness.recentStub.__setRecentValues({
-    InstanceProperty: ['Ghost?', 'Name:Secondary'],
-  });
-
-  const instancePropertySuggestions = await runtime.input('ip?');
-  assert.deepEqual(
-    instancePropertySuggestions,
-    [
-      {
-        name: 'Name: (Text - Current -> type :text to change)',
-        data: 'Name: (Text - Current -> type :text to change)',
-      },
-    ],
-    'instance-property search should hide recent values and show only current-selection properties'
-  );
-
-  resetHarness(runtime, harness);
-
-  harness.recentStub.__setRecentValues({
-    StrokeColor: ['r12 bc?border med'],
-  });
 
   const strokeStyleSuggestions = await runtime.input('bc?border med');
   assert.deepEqual(
@@ -878,40 +826,7 @@ async function main() {
         data: 'Borders/Medium (Twenty - Library)',
       },
     ],
-    'style binding search should hide recent values and show only live style matches'
-  );
-
-  resetHarness(runtime, harness);
-
-  const heightOverrideRef = JSON.stringify({
-    nodeId: '100094:76668',
-    field: 'height',
-    nodeName: 'Button/Light Icon Button',
-  });
-  const propertyOverrideRef = JSON.stringify({
-    nodeId: '99656:321804;80899:342414',
-    field: 'componentProperties',
-    nodeName: 'Tabler icons',
-    componentPropertyName: 'Icon',
-  });
-  harness.recentStub.__setRecentValues({
-    ResetInstanceOverrides: [heightOverrideRef, propertyOverrideRef],
-  });
-
-  const overrideRecentSuggestions = await runtime.input('rio?');
-  assert.deepEqual(
-    overrideRecentSuggestions,
-    [
-      {
-        name: 'Button/Light Icon Button -> Height (recent)',
-        data: heightOverrideRef,
-      },
-      {
-        name: 'Tabler icons -> Property: Icon (recent)',
-        data: propertyOverrideRef,
-      },
-    ],
-    'instance override recents should display human-readable labels while keeping JSON data'
+    'style binding search should add the chain hint to the first live match'
   );
 
   resetHarness(runtime, harness);
@@ -923,6 +838,47 @@ async function main() {
     harness.implStub.executionCalls,
     [{ name: 'Width', value: '100' }],
     'summary-form command strings should normalize back to alias/value form before extraction'
+  );
+
+  resetHarness(runtime, harness);
+  runtime.figma.currentPage.selection = [{ id: 'selected-instance', type: 'INSTANCE' }];
+
+  const noMatchSuggestions = await runtime.input('is?zzz');
+  assert.deepEqual(
+    { suggestions: noMatchSuggestions, errors: runtime.inputErrors },
+    { suggestions: undefined, errors: ['No component matches "zzz" in Core UI or this file'] },
+    'a search that only produced a status row should show it as an input error so Enter cannot submit it'
+  );
+
+  resetHarness(runtime, harness);
+  runtime.figma.currentPage.selection = [{ id: 'selected-instance', type: 'INSTANCE' }];
+
+  await runtime.input('is?zzz  w100');
+  await runtime.run();
+
+  assert.deepEqual(
+    harness.implStub.executionCalls,
+    [{ name: 'Width', value: '100' }],
+    'a binding whose only suggestion is a status row should not run that row as its value'
+  );
+  assert.equal(runtime.notifications.at(-1)?.message, 'No component matches "zzz" in Core UI or this file');
+
+  resetHarness(runtime, harness);
+  runtime.figma.currentPage.selection = [{ id: 'selected-instance', type: 'INSTANCE' }];
+
+  await runtime.input('ip?Label:Delete item?');
+  await runtime.run();
+
+  assert.deepEqual(
+    {
+      searches: harness.implStub.helperCalls.filter((call) => call.name === 'searchInstanceProperties').map((call) => call.searchTerm),
+      executions: harness.implStub.executionCalls,
+    },
+    {
+      searches: ['Label:Delete item?', 'Label:Delete item?'],
+      executions: [{ name: 'InstanceProperty', value: 'Label:Delete item?' }],
+    },
+    'a "?" inside a text value should neither start a new binding while typing nor split it at run time'
   );
 
   console.log('index-runtime tests passed');

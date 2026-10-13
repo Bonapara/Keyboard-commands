@@ -7,6 +7,8 @@ import {
 } from '../src/command-execution-plan.ts';
 
 const isKnownCommand = (name) => ['AlignCenterRight', 'HorizontalFill', 'Width'].includes(name);
+// Aliases of commands with binding support, as index.ts resolves them.
+const isBindingAlias = (alias) => ['f', 'bc', 's', '-pl', 'ip'].includes(alias.toLowerCase());
 
 assert.equal(replaceLastCommandToken('', 'AlignCenterRight'), 'AlignCenterRight');
 assert.equal(replaceLastCommandToken('hf a', 'AlignCenterRight'), 'hf AlignCenterRight');
@@ -81,7 +83,7 @@ assert.equal(
 );
 
 assert.deepEqual(
-  buildExecutionPlan(['hf', 'f?blue', 'acr']),
+  buildExecutionPlan(['hf', 'f?blue', 'acr'], isBindingAlias),
   [
     { kind: 'simple', command: 'hf' },
     {
@@ -93,7 +95,7 @@ assert.deepEqual(
 );
 
 assert.deepEqual(
-  buildExecutionPlan(['w100 hf f?blue', 'acr']),
+  buildExecutionPlan(['w100 hf f?blue', 'acr'], isBindingAlias),
   [
     { kind: 'simple', command: 'w100' },
     { kind: 'simple', command: 'hf' },
@@ -109,7 +111,7 @@ assert.deepEqual(
 // two steps. Without the split, "bc;red" was swallowed into Fill's value and
 // fuzzy-matched the wrong style.
 assert.deepEqual(
-  buildExecutionPlan(['f?white bc;red']),
+  buildExecutionPlan(['f?white bc;red'], isBindingAlias),
   [
     {
       kind: 'binding',
@@ -123,7 +125,7 @@ assert.deepEqual(
 );
 
 assert.deepEqual(
-  buildExecutionPlan(['f?white and bc;border medium']),
+  buildExecutionPlan(['f?white and bc;border medium'], isBindingAlias),
   [
     {
       kind: 'binding',
@@ -137,7 +139,7 @@ assert.deepEqual(
 );
 
 assert.deepEqual(
-  buildExecutionPlan(['-pl?spacing medium']),
+  buildExecutionPlan(['-pl?spacing medium'], isBindingAlias),
   [
     {
       kind: 'binding',
@@ -147,7 +149,7 @@ assert.deepEqual(
 );
 
 assert.deepEqual(
-  buildExecutionPlan(['f?white -pl;spacing medium']),
+  buildExecutionPlan(['f?white -pl;spacing medium'], isBindingAlias),
   [
     {
       kind: 'binding',
@@ -161,7 +163,7 @@ assert.deepEqual(
 );
 
 assert.deepEqual(
-  buildExecutionPlan(['hf', 'f?blue', 'w100', 's?primary']),
+  buildExecutionPlan(['hf', 'f?blue', 'w100', 's?primary'], isBindingAlias),
   [
     { kind: 'simple', command: 'hf' },
     {
@@ -186,21 +188,21 @@ assert.equal(parseBindingSegment('no-binding-here'), null);
 
 // parseTypedBindingSegment — strict, used while user types (suggestions).
 // Must not match when a non-whitespace prefix is mashed against the alias.
-assert.deepEqual(parseTypedBindingSegment('f?blue'), { alias: 'f', searchTerm: 'blue' });
-assert.deepEqual(parseTypedBindingSegment('hf f?blue'), { alias: 'f', searchTerm: 'blue' });
-assert.deepEqual(parseTypedBindingSegment('hff?blue'), { alias: 'hff', searchTerm: 'blue' });
-assert.deepEqual(parseTypedBindingSegment('-pl?spacing'), { alias: '-pl', searchTerm: 'spacing' });
-assert.equal(parseTypedBindingSegment('w100f?blue'), null);
-assert.equal(parseTypedBindingSegment('9f?blue'), null);
-assert.equal(parseTypedBindingSegment('no-binding-here'), null);
+assert.deepEqual(parseTypedBindingSegment('f?blue', isBindingAlias), { alias: 'f', searchTerm: 'blue' });
+assert.deepEqual(parseTypedBindingSegment('hf f?blue', isBindingAlias), { alias: 'f', searchTerm: 'blue' });
+assert.deepEqual(parseTypedBindingSegment('hff?blue', isBindingAlias), { alias: 'hff', searchTerm: 'blue' });
+assert.deepEqual(parseTypedBindingSegment('-pl?spacing', isBindingAlias), { alias: '-pl', searchTerm: 'spacing' });
+assert.equal(parseTypedBindingSegment('w100f?blue', isBindingAlias), null);
+assert.equal(parseTypedBindingSegment('9f?blue', isBindingAlias), null);
+assert.equal(parseTypedBindingSegment('no-binding-here', isBindingAlias), null);
 
 // ";" is accepted as an AZERTY-friendly alternative to "?", and works everywhere "?" does.
 assert.deepEqual(parseBindingSegment('f;blue'), { prefix: '', alias: 'f', value: 'blue' });
 assert.deepEqual(parseBindingSegment('hf f;blue'), { prefix: 'hf', alias: 'f', value: 'blue' });
-assert.deepEqual(parseTypedBindingSegment('f;blue'), { alias: 'f', searchTerm: 'blue' });
-assert.deepEqual(parseTypedBindingSegment('hf f;blue'), { alias: 'f', searchTerm: 'blue' });
-assert.deepEqual(parseTypedBindingSegment('hff;blue'), { alias: 'hff', searchTerm: 'blue' });
-assert.deepEqual(parseTypedBindingSegment('-pl;spacing'), { alias: '-pl', searchTerm: 'spacing' });
+assert.deepEqual(parseTypedBindingSegment('f;blue', isBindingAlias), { alias: 'f', searchTerm: 'blue' });
+assert.deepEqual(parseTypedBindingSegment('hf f;blue', isBindingAlias), { alias: 'f', searchTerm: 'blue' });
+assert.deepEqual(parseTypedBindingSegment('hff;blue', isBindingAlias), { alias: 'hff', searchTerm: 'blue' });
+assert.deepEqual(parseTypedBindingSegment('-pl;spacing', isBindingAlias), { alias: '-pl', searchTerm: 'spacing' });
 
 // Dropdown selections with ";" binding input must also pass through untouched,
 // matching the "?" behavior (selection is resolved later per segment).

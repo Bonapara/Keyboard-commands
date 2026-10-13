@@ -9,7 +9,7 @@ Design faster in Figma with a compact command language for editing selections fr
 - Supports command chains such as `w320 h180 r12 f?brand`.
 - Parses numbers, arithmetic expressions, percentages, deltas, hex colors, strings, and comma-separated shorthand values.
 - Searches local styles, variables, published plugin libraries, instance properties, component swaps, override resets, and colors in the current selection.
-- Stores command history and recent binding values in `figma.clientStorage`.
+- Stores command history in `figma.clientStorage`.
 - Exports one or more selected layers as SVG, PDF, PNG, or JPG.
 
 ## Command Examples
@@ -64,7 +64,7 @@ The build output is `dist/index.js`, which is the file referenced by `manifest.j
 - `src/command-input.ts` - dropdown selection behavior.
 - `src/command-execution-plan.ts` - command and binding parsing.
 - `src/implementations/` - command behavior grouped by feature area.
-- `src/storage.ts`, `src/history.ts`, `src/recent-values.ts` - client-storage backed persistence.
+- `src/storage.ts`, `src/history.ts` - client-storage backed persistence.
 - `tests/` - command parser, registry, runtime, persistence, and implementation tests.
 - `docs/` - detailed command language and feature reference.
 
