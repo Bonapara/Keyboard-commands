@@ -8,7 +8,8 @@ import {
   matchesSearchTokens as matchesPropertySearch,
   pluralize,
 } from './instance-shared';
-import { findComponentRows, formatNoComponentMatch, leafName, resolveComponentValue } from './component-swap';
+import { findComponentRows, formatNoComponentMatch, leafName, prepareSelectionThumbnail, resolveComponentValue } from './component-swap';
+import { ICONS, applyThumbnails, withThumbnail } from './suggestion-icons';
 
 export { pluralize } from './instance-shared';
 export { searchComponentsForSwap, swapInstance } from './component-swap';
@@ -156,7 +157,7 @@ function invalidateInstancePropertyInventoryCache(): void {
   instancePropertyInventoryCache = null;
 }
 
-type SuggestionItem = string | { name: string; data: unknown };
+type SuggestionItem = string | { name: string; data: unknown; icon?: string };
 
 const VARIANT_OPTION_SIGNATURE_SEPARATOR = '\x1f';
 const VARIANT_GROUP_KEY_SEPARATOR = '\x1e';
@@ -745,7 +746,7 @@ function formatOptionRows(candidates: OptionCandidate[], filter: string): Sugges
       ? `${group.displayName} · ${option} · ${filter && rank === 0 ? 'already set' : 'current'}${optionSet}`
       : `${group.displayName} → ${option}${describeChangeCount(changing, total)}${optionSet}`;
 
-    return { name, data: `${withVariantGroupToken(group.cleanedName, group.selectionSignature)}:${option}` };
+    return { name, data: `${withVariantGroupToken(group.cleanedName, group.selectionSignature)}:${option}`, icon: ICONS.variant };
   });
 }
 
@@ -754,7 +755,7 @@ function booleanRows(accumulator: PropertyAccumulator, filter: string = ''): Sug
   const executionName = getNonVariantExecutionPropertyName(accumulator.data);
   const values = accumulator.targets.map(target => target.currentValue === true);
   const onCount = values.filter(Boolean).length;
-  const rows: Array<{ name: string; data: string; changing: number }> = [];
+  const rows: Array<{ name: string; data: string; icon: string; changing: number }> = [];
 
   for (const value of [true, false]) {
     const label = value ? 'On' : 'Off';
@@ -766,6 +767,7 @@ function booleanRows(accumulator: PropertyAccumulator, filter: string = ''): Sug
         ? `${name} · ${label} · ${filter ? 'already set' : 'current'}`
         : `${name} → ${label}${describeChangeCount(changing, values.length)}`,
       data: `${executionName}:${value}`,
+      icon: value ? ICONS.on : ICONS.off,
       changing,
     });
   }
@@ -773,7 +775,7 @@ function booleanRows(accumulator: PropertyAccumulator, filter: string = ''): Sug
   // When every instance agrees, offer the change first.
   return rows
     .sort((a, b) => (a.changing === 0 ? 1 : 0) - (b.changing === 0 ? 1 : 0))
-    .map(({ name: rowName, data }) => ({ name: rowName, data }));
+    .map(({ name: rowName, data, icon }) => ({ name: rowName, data, icon }));
 }
 
 function textHintRow(accumulator: PropertyAccumulator): SuggestionItem {
@@ -783,6 +785,7 @@ function textHintRow(accumulator: PropertyAccumulator): SuggestionItem {
   return {
     name: `${name} · ${current} · type : to edit`,
     data: `${getNonVariantExecutionPropertyName(accumulator.data)}[[kc-hint=text]]`,
+    icon: ICONS.text,
   };
 }
 
@@ -791,12 +794,12 @@ function textValueRow(accumulator: PropertyAccumulator, value: string): Suggesti
   const executionName = getNonVariantExecutionPropertyName(accumulator.data);
 
   if (value) {
-    return { name: `${name} → ${quoteText(value)}`, data: `${executionName}:${value}` };
+    return { name: `${name} → ${quoteText(value)}`, data: `${executionName}:${value}`, icon: ICONS.text };
   }
 
   const values = getDistinctAccumulatorValues(accumulator);
   const current = values.length === 1 ? quoteText(values[0]) : 'mixed';
-  return { name: `${name} → clear    now ${current}`, data: `${executionName}:${EMPTY_TEXT_TOKEN}` };
+  return { name: `${name} → clear    now ${current}`, data: `${executionName}:${EMPTY_TEXT_TOKEN}`, icon: ICONS.text };
 }
 
 async function instanceSwapHintRow(accumulator: PropertyAccumulator): Promise<SuggestionItem> {
@@ -815,10 +818,14 @@ async function instanceSwapHintRow(accumulator: PropertyAccumulator): Promise<Su
     }
   }
 
-  return {
+  const row = {
     name: `${name} · ${leafName(current)} · type : to swap`,
     data: `${getNonVariantExecutionPropertyName(accumulator.data)}[[kc-hint=swap]]`,
+    icon: ICONS.component,
   };
+  return withThumbnail(row, values.length === 1
+    ? { id: values[0], load: async () => await figma.getNodeByIdAsync(values[0]) as SceneNode | null }
+    : null);
 }
 
 async function instanceSwapValueRows(
@@ -828,6 +835,7 @@ async function instanceSwapValueRows(
 ): Promise<SuggestionItem[]> {
   const name = accumulator.data.displayName || accumulator.data.cleanedName || accumulator.name;
   const executionName = getNonVariantExecutionPropertyName(accumulator.data);
+  prepareSelectionThumbnail(instances);
   const rows = await findComponentRows({
     instances,
     preferredValues: accumulator.data.propertyDef.preferredValues || [],
@@ -836,7 +844,12 @@ async function instanceSwapValueRows(
   });
 
   if (rows.length === 0) return [await formatNoComponentMatch(value)];
-  return rows.map(row => ({ name: `${name} → ${row.label}`, data: `${executionName}:${row.value}` }));
+  const suggestions = rows.map(row => withThumbnail(
+    { name: `${name} → ${row.label}`, data: `${executionName}:${row.value}`, icon: ICONS.component },
+    row.thumbnail
+  ));
+  await applyThumbnails(suggestions);
+  return suggestions;
 }
 
 function searchVariantOptionRows(
@@ -955,7 +968,9 @@ async function searchPropertyRows(
 
   // An option typed in full ("ip?size s") goes first.
   const ordered = [...rows.filter(row => row.exact), ...rows.filter(row => !row.exact)];
-  return addCurrentValueHint(ordered.map(row => row.item), ordered[0].candidate);
+  const items = ordered.map(row => row.item);
+  await applyThumbnails(items);
+  return addCurrentValueHint(items, ordered[0].candidate);
 }
 
 async function searchPropertyReference(

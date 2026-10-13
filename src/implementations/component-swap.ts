@@ -10,12 +10,13 @@ import {
   parseVariantName,
   pluralize,
 } from './instance-shared';
+import { ICONS, applyThumbnails, prepareThumbnail, withThumbnail, type ThumbnailRequest } from './suggestion-icons';
 
 const LOCAL_LIBRARY = 'this file';
 const MAX_ROWS = 100;
 const COMPONENT_TOKEN_REGEX = /\[\[kc-component=([^\]]*)\]\]/;
 
-type SuggestionRow = { name: string; data: string };
+type SuggestionRow = { name: string; data: string; icon?: string };
 
 export interface ComponentTarget {
   set: ComponentSetNode | null;
@@ -542,6 +543,29 @@ export interface ComponentRow {
   candidate: SwapCandidate;
   label: string;
   value: string;
+  thumbnail: ThumbnailRequest | null;
+}
+
+// Components in this file (or imported this run) render right away; library
+// ones import first, which is never waited for.
+function getThumbnailRequest(candidate: SwapCandidate): ThumbnailRequest | null {
+  const id = candidate.nodeId || (candidate.key ? `${candidate.keyIsSet ? 'set' : 'component'}:${candidate.key}` : null);
+  if (!id) return null;
+
+  return {
+    id,
+    slow: !candidate.target,
+    load: async () => {
+      if (!candidate.target && candidate.key) candidate.target = await importTarget(candidate.key, candidate.keyIsSet);
+      return candidate.target ? candidate.target.component : null;
+    },
+  };
+}
+
+// The current component's export warms up the exporter while the pool builds.
+export function prepareSelectionThumbnail(instances: InstanceNode[]): void {
+  const [instance] = instances;
+  if (instance) prepareThumbnail({ id: `selection:${instance.id}`, load: () => getCachedMainComponent(instance) });
 }
 
 // Shared by `is` and `ip Icon:` — ranked rows with readable labels and
@@ -569,6 +593,7 @@ export async function findComponentRows(options: ComponentRowsOptions): Promise<
       candidate,
       label: `${mark}${shownName} · ${where}`,
       value: formatComponentValue(candidate),
+      thumbnail: getThumbnailRequest(candidate),
     };
   });
 }
@@ -582,6 +607,7 @@ export async function formatNoComponentMatch(query: string): Promise<string> {
 
 export async function searchComponentsForSwap(searchTerm: string): Promise<Array<string | SuggestionRow>> {
   const instances = selectedInstances();
+  prepareSelectionThumbnail(instances);
   const rows = await findComponentRows({
     instances,
     preferredValues: await collectPreferredValues(instances),
@@ -593,16 +619,19 @@ export async function searchComponentsForSwap(searchTerm: string): Promise<Array
     return [await formatNoComponentMatch(searchTerm)];
   }
 
+  const suggestions: SuggestionRow[] = rows.map(row =>
+    withThumbnail({ name: row.label, data: row.value, icon: ICONS.component }, row.thumbnail)
+  );
+  const thumbnails = applyThumbnails(suggestions);
+
   const top = rows[0];
-  let hint = '';
   if (top.candidate.target && instances.length > 0) {
-    hint = describeCarry(chooseVariant(top.candidate.target, await getCurrentVariantValues(instances[0])));
+    const hint = describeCarry(chooseVariant(top.candidate.target, await getCurrentVariantValues(instances[0])));
+    if (hint) suggestions[0].name = `${top.label}    ${hint}`;
   }
 
-  return rows.map((row, index) => ({
-    name: index === 0 && hint ? `${row.label}    ${hint}` : row.label,
-    data: row.value,
-  }));
+  await thumbnails;
+  return suggestions;
 }
 
 // ================================

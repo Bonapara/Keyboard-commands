@@ -19,6 +19,16 @@ function combinations(properties) {
   );
 }
 
+// What Figma's SVG export returns, with the component's name inside so tests
+// can tell thumbnails apart.
+function exportedSvg(name) {
+  return `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<desc>${name}</desc><g clip-path="url(#clip0)"><path d="M5 12h14" stroke="black"/></g>
+<defs><clipPath id="clip0"><rect width="24" height="24" fill="white"/></clipPath></defs>
+</svg>
+`;
+}
+
 function remoteSet(name, properties, missing = []) {
   const set = {
     type: 'COMPONENT_SET',
@@ -39,6 +49,7 @@ function remoteSet(name, properties, missing = []) {
       key: `v:${name}:${variantName(combo)}`,
       name: variantName(combo),
       parent: set,
+      exportAsync: async () => exportedSvg(name),
     }));
   set.defaultVariant = set.children[0];
   return set;
@@ -86,7 +97,8 @@ function createInstance(id, mainComponent, { parent = null, propertyReference = 
   };
 }
 
-const ICONS = ['Add item', 'Arrow right', 'Calendar plus', 'Check', 'Chevron right', 'Folder plus', 'Minus', 'Plus', 'Plus circle', 'Plus square', 'User plus'];
+// Zigzag is only searched by the thumbnail test, so no other case caches it.
+const ICONS = ['Add item', 'Arrow right', 'Calendar plus', 'Check', 'Chevron right', 'Folder plus', 'Minus', 'Plus', 'Plus circle', 'Plus square', 'User plus', 'Zigzag'];
 const iconSets = Object.fromEntries(ICONS.map(name => [name, remoteSet(`Icon/${name}`, { Size: ['16', '20', '24'] })]));
 const buttonSet = remoteSet('Buttons/Button', {
   Variant: ['Primary', 'Secondary', 'Ghost'],
@@ -107,6 +119,9 @@ const localComponents = [
   { type: 'COMPONENT', id: 'local:minus-copy', key: 'k:minus-copy', name: 'Icon/Minus', parent: page, componentPropertyDefinitions: {} },
   { type: 'COMPONENT', id: 'local:spark', key: 'k:spark', name: 'Icon/Spark', parent: page, componentPropertyDefinitions: {} },
 ];
+localComponents.forEach(component => {
+  component.exportAsync = async () => exportedSvg(component.name);
+});
 
 const { figma, notifications } = createFigmaStub({ rootName: 'Checkout' });
 let setImports = 0;
@@ -130,6 +145,7 @@ globalThis.figma = figma;
 async function main() {
   const { saveLibraries, setActiveLibraries } = await import('../src/storage.ts');
   const { searchComponentsForSwap, swapInstance } = await import('../src/implementations/instance.ts');
+  const { ICONS } = await import('../src/implementations/suggestion-icons.ts');
 
   await saveLibraries({
     'Core UI': [
@@ -266,6 +282,43 @@ async function main() {
         variants: Array(3).fill('Variant=Secondary, Size=Medium'),
         message: 'Swapped 3 → Split button · kept Variant=Secondary · reset Size, State',
       }
+    );
+  });
+
+  test('a component in this file shows its thumbnail on the first keystroke', async () => {
+    figma.currentPage.selection = selections.rowIcon();
+    const [spark] = await searchComponentsForSwap('spark');
+    assert.deepEqual(
+      {
+        component: spark.icon.includes('<desc>Icon/Spark</desc>'),
+        tile: spark.icon.includes('fill="#E6E6E6"'),
+        bareIds: /id="clip0"|url\(#clip0\)/.test(spark.icon),
+      },
+      { component: true, tile: true, bareIds: false }
+    );
+  });
+
+  test('a library thumbnail never holds the list back, and shows on the next keystroke', async () => {
+    const realImport = figma.importComponentByKeyAsync;
+    const held = [];
+    figma.importComponentByKeyAsync = key => new Promise(resolve => held.push(() => resolve(realImport(key))));
+    let first;
+    let elapsed;
+    try {
+      figma.currentPage.selection = selections.rowIcon();
+      const started = Date.now();
+      [first] = await searchComponentsForSwap('zigzag');
+      elapsed = Date.now() - started;
+    } finally {
+      figma.importComponentByKeyAsync = realImport;
+      held.forEach(release => release());
+    }
+
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const [next] = await searchComponentsForSwap('zigzag');
+    assert.deepEqual(
+      { waited: elapsed >= 30, first: first.icon, next: next.icon.includes('<desc>Icon/Zigzag</desc>') },
+      { waited: false, first: ICONS.component, next: true }
     );
   });
 

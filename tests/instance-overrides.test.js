@@ -190,6 +190,7 @@ async function main() {
   globalThis.figma = figma;
 
   const { searchInstanceOverrides, resetSpecificOverride } = await import('../src/implementations/instance.ts');
+  const { ICONS } = await import('../src/implementations/suggestion-icons.ts');
 
   const editedCard = () => createCard({
     title: 'Hello',
@@ -288,6 +289,18 @@ async function main() {
     assert.deepEqual(
       { removed: menu.removeOverridesCalls, weight: droppedVector.strokeWeight, message: notifications.at(-1)?.message },
       { removed: 1, weight: 1.1, message: 'Reset all overrides on 1 instance · restored 1 style a swap dropped' }
+    );
+  });
+
+  test('each row shows what it restores', async () => {
+    const { menu } = createMenu();
+    figma.currentPage.selection = [menu];
+    const [stroke, all] = await searchInstanceOverrides('');
+    figma.currentPage.selection = [editedCard()];
+    const cardIcons = (await searchInstanceOverrides('')).map(row => row.icon);
+    assert.deepEqual(
+      { tertiaryRing: /stroke="#999999"/.test(stroke.icon), all: all.icon, card: cardIcons },
+      { tertiaryRing: true, all: ICONS.reset, card: [ICONS.text, ICONS.text, ICONS.size, ICONS.reset] }
     );
   });
 

@@ -12,6 +12,7 @@ import {
   matchesSearchTokens,
   loadFontsForTextNode,
 } from './instance-shared';
+import { ICONS, applyThumbnails, getPaintIcon, withThumbnail, type ThumbnailRequest } from './suggestion-icons';
 
 const RADIUS_FIELDS = ['cornerRadius', 'topLeftRadius', 'topRightRadius', 'bottomLeftRadius', 'bottomRightRadius'];
 const STROKE_FIELDS = [
@@ -28,6 +29,10 @@ const TEXT_FIELDS = new Set([
   'textDecoration', 'paragraphIndent', 'paragraphSpacing', 'listSpacing', 'hangingPunctuation',
   'hangingList', 'leadingTrim', 'textAutoResize', 'textAlignHorizontal', 'textAlignVertical',
   'textTruncation', 'maxLines', 'textStyleId', 'openTypeFeatures',
+]);
+const TYPOGRAPHY_FIELDS = new Set([
+  'fontSize', 'fontName', 'fontWeight', 'textStyleId', 'letterSpacing', 'lineHeight', 'textCase',
+  'textDecoration', 'paragraphIndent', 'paragraphSpacing', 'listSpacing', 'leadingTrim', 'openTypeFeatures',
 ]);
 // Compared on layers under a swapped nested instance even when Figma recorded
 // no override. The text style comes before the font fields it sets.
@@ -84,6 +89,8 @@ interface OverrideRow {
   nodeName: string;
   label: string;
   search: string;
+  icon: string;
+  thumbnail: ThumbnailRequest | null;
   instanceIds: Set<string>;
   order: number;
 }
@@ -754,6 +761,64 @@ async function describePropertyValue(entry: ComponentPropertyValueEntry | undefi
 // Suggestions
 // ================================
 
+// A style row restores the paints of the layer it comes from.
+function getRestoredPaints(name: 'fills' | 'strokes', target: Record<string, unknown> | null, expected: ExpectedValue[] | null): unknown {
+  if (target && name in target) return target[name];
+  const source = expected?.[0]?.source;
+  return source && name in source ? readField(source, name) : undefined;
+}
+
+// What the row restores: the color for paints, a glyph for other fields.
+function getFieldIcon(field: string, target: Record<string, unknown> | null, expected: ExpectedValue[] | null): string {
+  switch (field) {
+    case 'fills':
+    case 'fillStyleId':
+      return getPaintIcon(getRestoredPaints('fills', target, expected), 'fill');
+    case 'stroke':
+      return getPaintIcon(getRestoredPaints('strokes', target, expected), 'stroke');
+    case 'characters':
+      return ICONS.text;
+    case 'width':
+    case 'height':
+      return ICONS.size;
+    case 'visible':
+      return ICONS.visibility;
+    case 'opacity':
+      return ICONS.opacity;
+    case 'cornerRadius':
+      return ICONS.radius;
+    case 'effects':
+    case 'effectStyleId':
+      return ICONS.effects;
+    case 'name':
+      return ICONS.name;
+    default:
+      return TYPOGRAPHY_FIELDS.has(field) ? ICONS.typography : ICONS.override;
+  }
+}
+
+function getPropertyIcon(entry: ComponentPropertyValueEntry): string {
+  switch (entry.type) {
+    case 'VARIANT':
+      return ICONS.variant;
+    case 'BOOLEAN':
+      return entry.value ? ICONS.on : ICONS.off;
+    case 'TEXT':
+      return ICONS.text;
+    case 'INSTANCE_SWAP':
+      return ICONS.component;
+    default:
+      return ICONS.override;
+  }
+}
+
+// An instance-swap property restores a component: show it.
+function getPropertyThumbnail(entry: ComponentPropertyValueEntry): ThumbnailRequest | null {
+  const id = entry.value;
+  if (entry.type !== 'INSTANCE_SWAP' || typeof id !== 'string') return null;
+  return { id, load: async () => await figma.getNodeByIdAsync(id) as SceneNode | null };
+}
+
 function rowKey(path: number[], field: string, prop: string | null): string {
   return `${path.join('.')}|${field}|${(prop || '').toLowerCase()}`;
 }
@@ -788,6 +853,7 @@ async function collectOverrideRows(instances: InstanceNode[], context: LookupCon
     const from = await describeFieldValue(node, field);
     const to = expected ? await describeFieldValue(getExpectedRecord(node, field, expected), field) : null;
     const values = from !== null && to !== null ? ` ${from} → ${to}` : '';
+    const target = expected ? getExpectedRecord(node, field, expected) : null;
     addRow({
       path,
       field,
@@ -795,6 +861,8 @@ async function collectOverrideRows(instances: InstanceNode[], context: LookupCon
       nodeName: node.name,
       label: `${layer} · ${label}${values}`,
       search: `${layer} ${label} ${from || ''} ${to || ''}`,
+      icon: getFieldIcon(field, target, expected),
+      thumbnail: null,
     }, instance.id);
   };
 
@@ -826,6 +894,8 @@ async function collectOverrideRows(instances: InstanceNode[], context: LookupCon
                 nodeName: node.name,
                 label: `${layer} · ${current.name} ${from} → ${to}`,
                 search: `${layer} ${current.name} ${from} ${to}`,
+                icon: getPropertyIcon(source),
+                thumbnail: getPropertyThumbnail(source),
               }, instance.id);
             }
             continue;
@@ -862,6 +932,8 @@ async function collectOverrideRows(instances: InstanceNode[], context: LookupCon
         nodeName: instance.name,
         label: `${instance.name} · ${current.name} ${from} → ${to}`,
         search: `${instance.name} ${current.name} ${from} ${to}`,
+        icon: getPropertyIcon(source),
+        thumbnail: getPropertyThumbnail(source),
       }, instance.id);
     }
   }
@@ -895,7 +967,9 @@ function parsePayload(value: string): OverridePayload | null {
   }
 }
 
-export async function searchInstanceOverrides(searchTerm: string): Promise<Array<string | { name: string; data: string }>> {
+type OverrideSuggestion = { name: string; data: string; icon: string };
+
+export async function searchInstanceOverrides(searchTerm: string): Promise<Array<string | OverrideSuggestion>> {
   const instances = selectedInstances();
   if (instances.length === 0) {
     return ['No instances selected'];
@@ -904,18 +978,18 @@ export async function searchInstanceOverrides(searchTerm: string): Promise<Array
   const rows = await getOverrideRows(instances);
   const matching = rows.filter(row => matchesSearchTokens(searchTerm, row.search));
 
-  const suggestions: Array<{ name: string; data: string }> = matching.map(row => {
+  const suggestions: OverrideSuggestion[] = matching.map(row => {
     const shared = instances.length > 1 ? ` · ${row.instanceIds.size} ${pluralize(row.instanceIds.size, 'instance')}` : '';
     const payload: OverridePayload = { v: 2, path: row.path, field: row.field, name: row.nodeName };
     if (row.prop) payload.prop = row.prop;
-    return { name: `${row.label}${shared}`, data: JSON.stringify(payload) };
+    return withThumbnail({ name: `${row.label}${shared}`, data: JSON.stringify(payload), icon: row.icon }, row.thumbnail);
   });
 
   if (rows.length > 0 && (!searchTerm.trim() || matchesSearchTokens(searchTerm, 'all reset everything'))) {
     const label = instances.length === 1
       ? `All ${rows.length} ${pluralize(rows.length, 'override')} on ${instances[0].name}`
       : `All overrides on ${instances.length} instances`;
-    suggestions.push({ name: label, data: JSON.stringify({ v: 2, all: true }) });
+    suggestions.push({ name: label, data: JSON.stringify({ v: 2, all: true }), icon: ICONS.reset });
   }
 
   if (suggestions.length === 0) {
@@ -925,6 +999,7 @@ export async function searchInstanceOverrides(searchTerm: string): Promise<Array
       : `No overrides on the ${instances.length} selected instances`];
   }
 
+  await applyThumbnails(suggestions);
   return suggestions;
 }
 

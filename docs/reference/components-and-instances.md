@@ -31,6 +31,7 @@ Search behavior:
 - boosts preferred values, the current component's folder and library; ties keep the preferred order, then A→Z
 - trims the query and hides the selection's current component
 - labels rows `Name · Library` (`★ Name · preferred`), with the full path when two rows share a name
+- the first 8 rows show a thumbnail of the component on a light tile (the rest, and any still loading, show the component glyph). Components in this file render within 40ms; library components import in the background and show their thumbnail on the next keystroke, which also makes the swap faster
 - the top row previews what Enter keeps, for example `↵ keeps Size=20 · resets State`
 - preferred component sets are imported once per run to learn their names and library, never on every keystroke
 - when nothing matches, the input shows `No component matches "…" in …` and Enter does nothing
@@ -62,6 +63,8 @@ Without a `:`, each matching property expands into rows that do one thing:
 - instance swap: `Icon · Arrow right · type : to swap`; Enter explains the `ip?Icon:` syntax
 
 Search tokens match property names and option values, so `ip?large` finds `Size → Large`, and an option typed in full (`ip?size s`) goes first. The top variant row shows what it replaces: `Size → XS    now M`.
+
+Each row's icon shows the property type: a diamond for variants, an on or off toggle for the value a boolean row sets, `T` for text, and the current component's thumbnail for instance swap (component values get thumbnails like `is`).
 
 ### `Property:Value`
 
@@ -157,6 +160,7 @@ Search behavior:
 - on multi-selections, rows for the same layer path and field merge (`· 3 instances`)
 - search matches layer names, field names and values (`rio?hello`)
 - a last row resets every override on the selection (same as `ri`) and restores the styles a swap dropped
+- each row's icon shows what it restores: a swatch of the fill color, a ring in the stroke color, the component an instance-swap property goes back to, or a glyph for text, size, visibility, opacity, radius, effects, typography and layer name
 
 Reset behavior:
 

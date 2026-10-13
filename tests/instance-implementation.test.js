@@ -248,6 +248,7 @@ async function main() {
     setInstanceProperty,
     stripInstancePropertyVariantGroupToken,
   } = await import('../src/implementations/instance.ts');
+  const { ICONS } = await import('../src/implementations/suggestion-icons.ts');
 
   const compatible = createCompatibleStateSelection();
   figma.currentPage.selection = [compatible.header, compatible.cellA, compatible.cellB];
@@ -590,6 +591,15 @@ async function main() {
     [pickedButtons, typedButtons].map(buttons => buttons.map(button => button.componentProperties['Has icon#110:3'].value)),
     [[true, true, true], [true, true, true]],
     'a boolean that differs across the selection should end up the same on every instance'
+  );
+
+  figma.currentPage.selection = [createButton('icon-button')];
+  const propertyRows = await searchInstanceProperties('');
+  const iconOf = pattern => propertyRows.find(item => pattern.test(suggestionName(item)))?.icon;
+  assert.deepEqual(
+    { size: iconOf(/^Size → XS/), label: iconOf(/^Label · /), on: iconOf(/^Has icon → On/), off: iconOf(/^Has icon · Off/) },
+    { size: ICONS.variant, label: ICONS.text, on: ICONS.on, off: ICONS.off },
+    'each row should show the kind of property it sets, and booleans the state they set'
   );
 
   const plusVariant = { id: 'plus-16', key: 'plus-16-key', type: 'COMPONENT', name: 'Size=16' };
